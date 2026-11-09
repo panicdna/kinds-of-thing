@@ -111,21 +111,9 @@ Returned title: BLACKPINK - 'How You Like That' DANCE PERFORMANCE VIDEO
 Official company/artist website links to its YouTube channel: [15]
 서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요.
 
-BLACKPINK - '뚜두뚜두 (DDU-DU DDU-DU)' DANCE PRACTICE VIDEO (MOVING VER.)
-ID: jOJbXvjZ-cQ
-Official video: [16]
-Live verification: YouTube oEmbed JSON [17]
-Returned author_name: BLACKPINK
-Returned author_url: https://www.youtube.com/@BLACKPINK
-Returned title: BLACKPINK - '뚜두뚜두 (DDU-DU DDU-DU)' DANCE PRACTICE VIDEO (MOVING VER.)
-Official company/artist website links to its YouTube channel: [15]
-서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요. 이동 촬영 버전입니다.
-
 ADDED 2026-11-09 (5 more official videos, each verified live via YouTube oEmbed; IDs found in Soompi articles, then confirmed against the official channel)
 - m87Xif9yZb4 | author IVE (https://www.youtube.com/@IVEstarship) | IVE 아이브 'ATTITUDE' DANCE PRACTICE
 - I8BzqbJYIdk | author IVE (https://www.youtube.com/@IVEstarship) | IVE 아이브 '해야(HEYA)' DANCE PRACTICE
-- ZJwC0VYzGIs | author LE SSERAFIM (https://www.youtube.com/@LESSERAFIM_official) | 'CRAZY' Dance Practice (Moving ver.)
-- JipcAMJcOB8 | author LE SSERAFIM (https://www.youtube.com/@LESSERAFIM_official) | 'EASY' Dance Practice (Fix ver.)
 - 8S9rHj7gTsA | author LE SSERAFIM (https://www.youtube.com/@LESSERAFIM_official) | 'UNFORGIVEN (feat. Nile Rodgers)' Dance Practice (Fix ver.)
 Playback speed / A-B loop use the embed's postMessage API (enablejsapi=1); no external script is loaded. Real in-app playback was NOT tested here.
 
@@ -156,5 +144,3 @@ SOURCES (registered from retrieved URLs)
 [13] https://www.youtube.com/watch?v=32si5cfrCNc
 [14] https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D32si5cfrCNc&format=json
 [15] https://www.blackpinkofficial.com/
-[16] https://www.youtube.com/watch?v=jOJbXvjZ-cQ
-[17] https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjOJbXvjZ-cQ&format=json

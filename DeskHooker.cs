@@ -621,9 +621,9 @@ namespace DeskHooker
                 result["relaxVideoOnly"]=true;
                 // 요리 레시피: videos only (two), started by itself; no picture and no step list.
                 ShowPopup("recipe"); await Popup.Ready.Task; await Task.Delay(500);
-                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="4") throw new Exception("Recipe sub-item list should have 4 items.");
-                string[] recipeIds={"s10KwYn064E","Rjfzpzj3bug","kLT591PuXB4","X8oI4ULOELE"};
-                for (int v=0; v<4; v++)
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="5") throw new Exception("Recipe sub-item list should have 5 items.");
+                string[] recipeIds={"s10KwYn064E","Rjfzpzj3bug","kLT591PuXB4","X8oI4ULOELE","iW92Cxhg9h0"};
+                for (int v=0; v<5; v++)
                 {
                     await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
                     await Task.Delay(300);
