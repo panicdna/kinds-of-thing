@@ -98,7 +98,8 @@
   }
   function sharePanel() {
     const L = core.LIMITS;
-    return `<details class="advanced share-panel" id="share-panel"><summary>내 쉼 공유하기 · GitHub에 올려 다른 사람 앱에도 나타나게</summary>
+    return `<div class="share-launch"><button id="share-open" class="secondary" type="button">내 쉼 공유하기 · GitHub에 올려 다른 사람 앱에도 나타나게 ↗</button></div>
+      <dialog class="share-panel" id="share-panel"><div class="share-head"><h2>내 쉼 공유하기</h2><button id="share-close" class="quiet" type="button">닫기 ×</button></div>
       <p class="small-help">여기서 쓴 내용이 위의 타일과 같은 모양으로 나와요. 아래 버튼을 누르면 GitHub의 새 파일 화면이 채워진 채 열리고, GitHub에서 로그인해 제안(Pull Request)을 보내면 저장소 관리자가 확인한 뒤 모두에게 나타나요.</p>
       <div class="share-grid"><form id="share-form" class="share-form" autocomplete="off">
         <label>이름 <small>${L.name}자</small><input id="share-name" maxlength="${L.name}" placeholder="예: 목 풀기 한 번"></label>
@@ -108,7 +109,7 @@
         <label>표시할 이름 <small>선택 · ${L.author}자 · 공개됩니다</small><input id="share-author" maxlength="${L.author}" placeholder="비워 두면 익명"></label>
         <div class="share-buttons"><button id="share-github" class="primary" type="submit">GitHub에 올리기 ↗</button><button id="share-copy" class="secondary" type="button">JSON 복사</button></div>
       </form>
-      <aside><div class="eyebrow">미리 보기 · 다른 사람 화면</div><div id="share-preview" class="themes one"></div><p class="small-help">링크·HTML 기호(&lt; &gt;)는 쓸 수 없어요. 올린 내용은 공개되며 치료·진단 주장은 받지 않아요. 개인정보는 넣지 마세요.</p></aside></div></details>`;
+      <aside><div class="eyebrow">미리 보기 · 다른 사람 화면</div><div id="share-preview" class="themes one"></div><p class="small-help">링크·HTML 기호(&lt; &gt;)는 쓸 수 없어요. 올린 내용은 공개되며 치료·진단 주장은 받지 않아요. 개인정보는 넣지 마세요.</p></aside></div></dialog>`;
   }
   function readShareForm() {
     return { name: $('#share-name').value, summary: $('#share-summary').value, steps: $('#share-steps').value, safety: $('#share-safety').value, author: $('#share-author').value };
@@ -122,6 +123,10 @@
     state.themes = old;
   }
   function bindShare() {
+    const dlg = $('#share-panel');
+    $('#share-open').addEventListener('click', () => { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); });
+    $('#share-close').addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', event => { if (event.target === dlg) dlg.close(); });
     ['name', 'summary', 'steps', 'safety', 'author'].forEach(key => $(`#share-${key}`).addEventListener('input', renderSharePreview));
     renderSharePreview();
     const validated = () => {
@@ -149,6 +154,9 @@
       <p class="side-note">몰입하는 시간 사이,<br>나를 돌보는 작은 틈.</p>
       <div class="side-badge"><i id="status-dot" class="dot"></i><span id="status-text"></span><br><span style="font-size:11px;color:#7d8c76">설정 창을 닫아도 트레이에 남아요.</span></div>
       <div class="next-label">다음 작은 쉼</div><div id="next-time" class="next-time"></div><div id="next-date" class="small-help"></div>
+      <fieldset class="mode-box"><legend>여러 개를 골랐을 때 실행 방식</legend>
+        <div class="mode-options">${themeModes.map(m => `<label><input type="radio" name="theme-mode" value="${m.id}" ${modeOf(s.ThemeMode).id === m.id ? 'checked' : ''}>${m.label}</label>`).join('')}</div>
+        <p id="theme-mode-help" class="small-help"></p></fieldset>
       <div class="side-bottom">내 PC 안에서만 동작합니다.<br>마이크·카메라·계정이 필요 없어요.<button id="hide-window" class="quiet">설정 창 닫기 / 트레이에 두기 ↗</button><button id="exit-app" class="quiet">알림기 완전히 종료</button></div></aside>
       <main class="main"><div class="heading"><div><div class="eyebrow">YOUR PERSONAL BREAK RITUAL</div><h1>잠깐, 나를 돌보는 시간.</h1><p>알림 간격과 하고 싶은 주제를 골라 주세요. 여러 개를 고르면 순서대로 만나요.</p></div><div class="stamp">◌</div></div>
       ${!host ? '<div class="native-warning">HTML 미리보기입니다. 창을 닫은 뒤에도 정해진 간격으로 전체 화면을 띄우려면 같은 폴더의 DeskHooker.exe를 실행하세요.</div>' : ''}
@@ -157,9 +165,6 @@
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
       <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
-      <fieldset class="mode-box"><legend>여러 개를 골랐을 때 실행 방식</legend>
-        <div class="mode-options">${themeModes.map(m => `<label><input type="radio" name="theme-mode" value="${m.id}" ${modeOf(s.ThemeMode).id === m.id ? 'checked' : ''}>${m.label}</label>`).join('')}</div>
-        <p id="theme-mode-help" class="small-help"></p></fieldset>
       ${sharePanel()}
       <details class="advanced"><summary>호흡·발성 가이드 시간 직접 고르기</summary><div class="breath-settings"><label>들숨 <input id="inhale" type="number" min="1" max="10" value="${s.InhaleSeconds}">초</label><label>멈춤 <input id="hold" type="number" min="0" max="30" value="${s.HoldSeconds}">초</label><label>날숨 <input id="exhale" type="number" min="1" max="30" value="${s.ExhaleSeconds}">초</label></div><p class="caution">기본은 숨참기 없이 들숨 4초·날숨 6초입니다. 숫자를 끝까지 채우려 하지 말고 편안한 만큼만 하세요. 멈춤은 선택 사항이며 최대 30초입니다. 몸 상태에 따른 제한이 있으면 의료진에게 먼저 확인하세요. 과호흡 후 숨참기, 힘주어 버티기는 하지 마세요.</p><label><input id="hold-consent" type="checkbox" ${s.HoldSeconds > 0 ? 'checked' : ''}>멈춤은 필수가 아니며 불편하면 즉시 편안한 호흡으로 돌아가야 함을 확인했습니다.</label></details>
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>

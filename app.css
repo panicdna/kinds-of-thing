@@ -17,3 +17,11 @@
 .practice-panel{margin:12px 0;padding:14px 18px;border-radius:14px;background:#e8efdc;display:grid;gap:8px}.practice-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.practice-row b{min-width:64px;font-size:13px}.practice-row button{font-size:12px;padding:8px 13px}.practice-state{font-size:12px;color:var(--muted);margin-left:6px}
 .popup-next{border:1px solid var(--ink);background:var(--ink);color:#fff;padding:13px 23px;font-size:14px;z-index:20;margin-right:10px;cursor:pointer}
 .popup-bar{gap:0}
+.sidebar .mode-box{margin:16px 0;padding:10px 12px;border-radius:12px;min-width:0}
+.sidebar .mode-options{flex-direction:column;gap:6px}
+.sidebar .mode-options label{font-size:12px}
+.sidebar .mode-box .small-help{font-size:11px}
+.share-launch{margin:14px 0}
+dialog.share-panel{width:min(960px,92vw);max-height:88vh;overflow:auto;padding:22px 26px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
+.share-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.share-head h2{margin:0;font-size:20px}

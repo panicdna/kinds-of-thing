@@ -489,9 +489,12 @@ namespace DeskHooker
                 if (await script.ExecuteScriptAsync("Boolean(document.querySelector('input[value=\"c-u-eye-20-20-20\"]')) && document.querySelector('input[value=stretch]').checked") != "true") throw new Exception("Sync lost the user's unsaved selection.");
                 await script.ExecuteScriptAsync("var f=function(i,v){var e=document.querySelector(i);e.value=v;e.dispatchEvent(new Event('input'));};f('#share-name','공유 확인');f('#share-summary','요약');f('#share-steps','하나\\n둘');f('#share-safety','아프면 중단');");
                 if (await script.ExecuteScriptAsync("document.querySelector('#share-preview h3').textContent") != "\"공유 확인\"") throw new Exception("Share preview did not render the tile.");
-                await script.ExecuteScriptAsync("var d=document.querySelector('#share-panel'); d.open=true; d.scrollIntoView({block:'start'});");
+                if (await script.ExecuteScriptAsync("document.querySelector('#share-panel').open") != "false") throw new Exception("Share dialog should be closed until its button is clicked.");
+                await script.ExecuteScriptAsync("document.querySelector('#share-open').click()");
                 await Task.Delay(300);
+                if (await script.ExecuteScriptAsync("document.querySelector('#share-panel').open") != "true") throw new Exception("Share button did not open the dialog.");
                 await Capture(SettingsWindow, Path.Combine(folder, "settings-community.png"));
+                await script.ExecuteScriptAsync("document.querySelector('#share-close').click()");
                 ShowPopup("c-u-eye-20-20-20"); await Popup.Ready.Task; await Task.Delay(350);
                 if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.text-stage')) && !document.querySelector('.motion-image') && document.querySelectorAll('.instruction-panel li').length===3") != "true") throw new Exception("Community popup did not render.");
                 Popup.Close();
