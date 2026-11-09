@@ -34,6 +34,8 @@
     change('#poem-category', 'nobel');
     check($('#poem-picker').options.length > 0, 'Nobel poetry is missing');
     check(Array.from($('#poem-picker').options).every(option => poems.find(poem => poem.id === option.value).category === 'nobel'), 'Nobel category mixed other works');
+    check($('#poem-unit-note') && $('#poem-unit-note').textContent.includes('산문시') && $('#poem-line-choice').textContent.includes('문단'), 'Original prose-poem paragraphs are mislabelled as verse lines');
+    check($('#poem-answer').tagName === 'TEXTAREA', 'Long original paragraphs need a multiline answer field');
     change('#poem-language', 'ko');
     check(Array.from($('#poem-picker').options).every(option => poems.find(poem => poem.id === option.value).language === 'ko'), 'Language filter is ignored');
     change('#poem-category', 'all'); change('#poem-language', 'all');
