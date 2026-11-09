@@ -23,6 +23,7 @@
   function send(action, values = {}) {
     if (host) { host.postMessage(JSON.stringify({ action, ...values })); return; }
     if (action === 'preview') { window.open(`app.html#popup=${encodeURIComponent(values.themeId)}`, '_blank'); return; }
+    if (action === 'run-now') { const ids = (state.settings && state.settings.ThemeIds) || []; if (ids.length) window.open(`app.html#popup=${encodeURIComponent(ids[0])}`, '_blank'); return; }
     if (action === 'close') { window.close(); toast('이 창의 오른쪽 위 X를 눌러 닫으세요.'); return; }
     if (action === 'open-link') { window.open(values.url, '_blank', 'noopener,noreferrer'); return; }
     if (action === 'save') {
@@ -133,7 +134,7 @@
       <div class="side-bottom">내 PC 안에서만 동작합니다.<br>마이크·카메라·계정이 필요 없어요.<button id="hide-window" class="quiet">설정 창 닫기 / 트레이에 두기 ↗</button><button id="exit-app" class="quiet">알림기 완전히 종료</button></div></aside>
       <main class="main"><div class="heading"><div><div class="eyebrow">YOUR PERSONAL BREAK RITUAL</div><h1>잠깐, 나를 돌보는 시간.</h1><p>알림 간격과 하고 싶은 주제를 골라 주세요. 여러 개를 고르면 순서대로 만나요.</p></div><div class="stamp">◌</div></div>
       ${!host ? '<div class="native-warning">HTML 미리보기입니다. 창을 닫은 뒤에도 정해진 간격으로 전체 화면을 띄우려면 같은 폴더의 DeskHooker.exe를 실행하세요.</div>' : ''}
-      <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="start-time" type="time" value="${hm(s.StartHour, s.StartMinute)}" aria-label="시작 시각 (시:분)"><span>부터</span><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분마다</span></div><p class="small-help">시작 시각(시:분)과 1~240 사이의 간격(분)을 직접 입력하세요.<br>아래 ‘시간대에만 알림 받기’를 켜면 이 시각부터 받아요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p></section>
+      <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="start-time" type="time" value="${hm(s.StartHour, s.StartMinute)}" aria-label="시작 시각 (시:분)"><span>부터</span><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분마다</span></div><p class="small-help">시작 시각(시:분)과 1~240 사이의 간격(분)을 직접 입력하세요.<br>아래 ‘시간대에만 알림 받기’를 켜면 이 시각부터 받아요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p><button id="run-now" class="secondary" type="button" style="margin-top:14px">▶ 즉시 실행 (시험용)</button><p class="small-help">시간대·요일·일시정지와 관계없이, 저장된 주제 순서대로 팝업을 바로 띄웁니다.</p></section>
       <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>시작·종료 시각 사이에만 알림 받기</label><div class="schedule-line">종료 <input id="end-time" type="time" value="${hm(s.EndHour, s.EndMinute)}" aria-label="종료 시각 (시:분)"> 전까지 (00:00은 자정)</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
@@ -144,6 +145,7 @@
       <p class="small-help">일반적인 휴식·움직임 안내이며 치료·재활 처방이 아닙니다. 통증이 늘거나 저림·어지럼이 생기면 중단하세요. 허리 통증과 함께 새로 생긴 다리 힘 빠짐, 회음부 감각 저하, 대소변 조절 변화가 있으면 운동보다 즉시 진료가 우선입니다.</p>
       </main></div>`;
     bindThemeGrid(); bindShare(); updateSync();
+    $('#run-now').addEventListener('click', () => send('run-now'));
     $('#sync-now').addEventListener('click', () => { if (!host) { toast('공유 동기화는 DeskHooker.exe에서 동작해요. 공유하기는 지금도 쓸 수 있어요.'); return; } send('sync'); });
     $('#start-reminders').addEventListener('click', () => save(true));
     $('#save-settings').addEventListener('click', () => save(s.Enabled));

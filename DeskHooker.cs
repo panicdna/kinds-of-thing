@@ -332,6 +332,7 @@ namespace DeskHooker
                     SendState(source); return;
                 }
                 if (action=="sync") { if (!source.IsPopup) StartSync(true); return; }
+                if (action=="run-now") { if (source.IsPopup) return; if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) throw new InvalidOperationException("저장된 주제가 없습니다."); ShowPopup(ReminderSchedule.NextTheme(Settings.ThemeIds,ref cursor)); return; }
                 if (action=="preview") { ShowPopup(Convert.ToString(msg["themeId"])); return; }
                 if (action=="exit") { if (!source.IsPopup) Quit(); return; }
                 if (action=="open-link")
