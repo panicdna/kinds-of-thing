@@ -216,11 +216,19 @@
       $('#breath-start').addEventListener('click', beginBreath);
       $('#breath-stop').addEventListener('click', stopBreath);
       ['#inhale', '#hold', '#exhale', '#hold-consent'].forEach(id => $(id).addEventListener('change', saveBreath));
+      try { speechSynthesis.addEventListener('voiceschanged', () => { const box = $('#voice-guide'); if (box && voiceEnabled()) box.checked = true; }); } catch (_) {}
+      $('#voice-guide').addEventListener('change', event => {
+        const on = event.target.checked;
+        if (on && !koreanVoice()) { event.target.checked = false; $('#voice-note').textContent = '이 PC에서 한국어 음성을 찾지 못했어요. Windows 설정의 음성에서 한국어를 추가하면 쓸 수 있어요.'; return; }
+        $('#voice-note').textContent = '';
+        try { localStorage.setItem('teum.voice', on ? '1' : '0'); } catch (_) {}
+        if (on) speak('음성 안내를 켰어요.'); else stopSpeech();
+      });
     }
   }
   function breathingControls() {
     const s = state.settings;
-    return `<section class="timer-box"><div class="eyebrow">선택형 호흡 가이드 · 소리 없음</div><div class="timer-display"><div id="breath-orb" class="breath-orb">—</div><div><div id="breath-phase" class="phase-label">편안한 호흡으로</div><div id="breath-caption" class="timer-caption">들숨 ${s.InhaleSeconds}초 / 멈춤 ${s.HoldSeconds}초 / 날숨 ${s.ExhaleSeconds}초</div></div></div><div class="timer-buttons"><button id="breath-start" class="primary">가이드 시작</button><button id="breath-stop" class="secondary">즉시 중단</button></div><details class="advanced breath-adjust"><summary>호흡 시간 직접 고르기 · 바로 저장돼요</summary><div class="breath-settings"><label>들숨 <input id="inhale" type="number" min="1" max="10" value="${s.InhaleSeconds}">초</label><label>멈춤 <input id="hold" type="number" min="0" max="30" value="${s.HoldSeconds}">초</label><label>날숨 <input id="exhale" type="number" min="1" max="30" value="${s.ExhaleSeconds}">초</label></div><p class="caution">기본은 숨참기 없이 들숨 4초·날숨 6초입니다. 숫자를 끝까지 채우려 하지 말고 편안한 만큼만 하세요. 멈춤은 선택 사항이며 최대 30초입니다. 몸 상태에 따른 제한이 있으면 의료진에게 먼저 확인하세요. 과호흡 후 숨참기, 힘주어 버티기는 하지 마세요.</p><label><input id="hold-consent" type="checkbox" ${s.HoldSeconds > 0 ? 'checked' : ''}>멈춤은 필수가 아니며 불편하면 즉시 편안한 호흡으로 돌아가야 함을 확인했습니다.</label></details><p class="timer-caption">시간은 목표가 아닙니다. 숨이 차거나 어지러우면 즉시 중단하고 자연스럽게 호흡하세요. 발성은 편한 높이·작은 소리로, 숨을 억지로 오래 밀어내지 마세요.</p></section>`;
+    return `<section class="timer-box"><div class="eyebrow">선택형 호흡 가이드 · 음성 안내는 선택</div><div class="timer-display"><div id="breath-orb" class="breath-orb">—</div><div><div id="breath-phase" class="phase-label">편안한 호흡으로</div><div id="breath-caption" class="timer-caption">들숨 ${s.InhaleSeconds}초 / 멈춤 ${s.HoldSeconds}초 / 날숨 ${s.ExhaleSeconds}초</div></div></div><label class="voice-toggle"><input id="voice-guide" type="checkbox" ${voiceEnabled() ? 'checked' : ''}>음성 안내 듣기 <small>(기본 꺼짐 · 이 PC의 한국어 음성 사용)</small></label><p id="voice-note" class="timer-caption"></p><div class="timer-buttons"><button id="breath-start" class="primary">가이드 시작</button><button id="breath-stop" class="secondary">즉시 중단</button></div><details class="advanced breath-adjust"><summary>호흡 시간 직접 고르기 · 바로 저장돼요</summary><div class="breath-settings"><label>들숨 <input id="inhale" type="number" min="1" max="10" value="${s.InhaleSeconds}">초</label><label>멈춤 <input id="hold" type="number" min="0" max="30" value="${s.HoldSeconds}">초</label><label>날숨 <input id="exhale" type="number" min="1" max="30" value="${s.ExhaleSeconds}">초</label></div><p class="caution">기본은 숨참기 없이 들숨 4초·날숨 6초입니다. 숫자를 끝까지 채우려 하지 말고 편안한 만큼만 하세요. 멈춤은 선택 사항이며 최대 30초입니다. 몸 상태에 따른 제한이 있으면 의료진에게 먼저 확인하세요. 과호흡 후 숨참기, 힘주어 버티기는 하지 마세요.</p><label><input id="hold-consent" type="checkbox" ${s.HoldSeconds > 0 ? 'checked' : ''}>멈춤은 필수가 아니며 불편하면 즉시 편안한 호흡으로 돌아가야 함을 확인했습니다.</label></details><p class="timer-caption">시간은 목표가 아닙니다. 숨이 차거나 어지러우면 즉시 중단하고 자연스럽게 호흡하세요. 발성은 편한 높이·작은 소리로, 숨을 억지로 오래 밀어내지 마세요.</p></section>`;
   }
   function saveBreath() {
     const timing = { InhaleSeconds: Number($('#inhale').value), HoldSeconds: Number($('#hold').value), ExhaleSeconds: Number($('#exhale').value) };
@@ -229,10 +237,33 @@
     if (timing.HoldSeconds && !$('#hold-consent').checked) { toast('숨참기 주의사항을 확인하거나 멈춤을 0초로 바꾸세요.'); return; }
     stopBreath(); send('save-breath', { ...timing, holdConsent: $('#hold-consent').checked });
   }
+  // Optional spoken cues via the browser's built-in speech synthesis: local voices only, nothing is sent anywhere.
+  function koreanVoice() {
+    try { return speechSynthesis.getVoices().find(v => /^ko/i.test(v.lang)) || null; } catch (_) { return null; }
+  }
+  function voiceEnabled() {
+    try { return localStorage.getItem('teum.voice') === '1' && Boolean(koreanVoice()); } catch (_) { return false; }
+  }
+  function speak(text) {
+    const voice = koreanVoice();
+    if (!voice) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.voice = voice; u.lang = voice.lang; u.rate = 0.9; u.volume = 0.8;
+      speechSynthesis.speak(u);
+    } catch (_) {}
+  }
+  function stopSpeech() { try { speechSynthesis.cancel(); } catch (_) {} }
   function beginBreath() {
     stopBreath(); breathStart = performance.now();
+    let lastPhase = '';
+    const cues = { inhale: '들이쉬세요', hold: '편안하게 쉬세요', exhale: state.themeId === 'voice' ? '부드럽게 허밍하며 내쉬세요' : '천천히 내쉬세요' };
+    const guide = () => $('#voice-guide') && $('#voice-guide').checked;
+    if (guide()) speak(state.themeId === 'voice' ? '편한 자세로 앉으세요. 작은 소리로 시작할게요.' : '편한 자세로 앉으세요. 천천히 시작할게요.');
     const tick = () => {
       const phase = core.breathPhase(performance.now() - breathStart, state.settings);
+      if (phase.phase !== lastPhase) { const first = lastPhase === ''; lastPhase = phase.phase; if (guide() && !first) speak(cues[phase.phase]); }
       $('#breath-phase').textContent = { inhale: '편안하게 들이쉬기', hold: '선택한 멈춤 · 힘주지 않기', exhale: state.themeId === 'voice' ? '가볍게 음~ · 편한 만큼만' : '부드럽고 길게 내쉬기' }[phase.phase];
       $('#breath-orb').textContent = phase.remaining;
       const amount = phase.phase === 'inhale' ? phase.progress : phase.phase === 'hold' ? 1 : 1 - phase.progress;
@@ -242,6 +273,7 @@
   }
   function stopBreath() {
     if (breathTimer) clearInterval(breathTimer); breathTimer = null;
+    stopSpeech();
     if ($('#breath-phase')) $('#breath-phase').textContent = '편안한 호흡으로';
     if ($('#breath-orb')) { $('#breath-orb').textContent = '—'; $('#breath-orb').style.transform = 'scale(1)'; }
   }

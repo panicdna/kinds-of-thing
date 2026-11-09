@@ -495,6 +495,14 @@ namespace DeskHooker
                 Popup.Close(); await Task.Delay(300);
                 Settings.InhaleSeconds=oldInhale; Settings.HoldSeconds=oldHold; Settings.ExhaleSeconds=oldExhale; Persist();
                 result["breathSavedFromPopup"]=true;
+                // Optional spoken guidance: present in both timer themes, off by default, silent when no Korean voice exists.
+                foreach (string voiceTheme in new string[]{"voice","breathing"})
+                {
+                    ShowPopup(voiceTheme); await Popup.Ready.Task; await Task.Delay(350);
+                    if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#voice-guide')) && !document.querySelector('#voice-guide').checked")!="true") throw new Exception("Voice-guide toggle missing or on by default in " + voiceTheme);
+                    Popup.Close(); await Task.Delay(300);
+                }
+                result["voiceGuideToggle"]=true;
                 ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(700);
                 if (Popup.Bounds!=Screen.PrimaryScreen.Bounds) throw new Exception("Popup is not fullscreen.");
                 var active=Popup;
