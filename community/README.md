@@ -36,3 +36,7 @@
 - 치료·진단·효능을 주장하지 마세요. 통증이 생기면 중단하라는 안내를 `safety`에 넣어 주세요.
 - 이름·연락처 등 개인정보를 넣지 마세요. 올린 내용은 공개됩니다.
 - 앱은 규칙에 어긋난 파일을 조용히 건너뜁니다. 앱 코드와 같은 규칙이 `ReminderCore.cs`(`CommunityContent`)와 `app-core.js`(`validateShare`)에 있습니다.
+
+## 인덱스 (`index.json`)
+
+앱은 `community/index.json`(파일 이름과 git sha 목록)을 먼저 읽고, **sha가 바뀐 파일만 다시 받습니다.** 기존 항목을 수정해도 앱이 다음 동기화 때 새 내용을 받습니다. 이 파일은 직접 고치지 않습니다. 병합되면 GitHub Action(`.github/workflows/community-index.yml`)이 `build_index.py`로 갱신합니다. 로컬에서 시험하려면 `git add` 후 `python community/build_index.py`를 실행하세요.

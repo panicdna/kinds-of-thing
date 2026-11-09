@@ -57,10 +57,21 @@ console.log('PASS: community share form validates like the C# parser and builds 
 
 // The seed item shipped in community/ must satisfy the same rules the app enforces.
 const sampleDir = path.join(__dirname, '..', 'community');
-for (const name of fs.readdirSync(sampleDir).filter(n => n.endsWith('.json'))) {
+for (const name of fs.readdirSync(sampleDir).filter(n => n.endsWith('.json') && n !== 'index.json')) {
   const item = JSON.parse(fs.readFileSync(path.join(sampleDir, name), 'utf8'));
   assert.equal(item.schema, 1); assert.equal(name, item.id + '.json');
   const check = core.validateShare({ name: item.name, summary: item.summary, steps: item.instructions.join('\n'), safety: item.safety, author: item.author });
   assert.equal(check.ok, true, `${name}: ${check.errors}`);
 }
 console.log('PASS: every community/*.json file is valid');
+
+// index.json is what the app syncs from; it must list exactly the shared items, with git's own blob shas.
+const { execFileSync } = require('node:child_process');
+const index = JSON.parse(fs.readFileSync(path.join(sampleDir, 'index.json'), 'utf8'));
+const shared = fs.readdirSync(sampleDir).filter(n => n.endsWith('.json') && n !== 'index.json').sort();
+assert.deepEqual(index.items.map(i => i.name), shared, 'community/index.json is stale: run python community/build_index.py');
+for (const item of index.items) {
+  const sha = execFileSync('git', ['hash-object', path.join(sampleDir, item.name)], { encoding: 'utf8' }).trim();
+  assert.equal(item.sha, sha, `${item.name}: index sha differs from the file; run python community/build_index.py`);
+}
+console.log('PASS: community/index.json matches the shared files and their git shas');

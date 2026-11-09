@@ -59,6 +59,7 @@ namespace DeskHooker
         private string syncEtag, syncError;
         private DateTime? lastSync;
         private int communityCount, communityRejected;
+        private List<SyncEntry> syncEntries = new List<SyncEntry>(); // what the last sync downloaded, keyed by file name + git sha
         private System.Windows.Forms.Timer syncTimer;
         public ReminderSettings Settings;
         public DateTime NextDue;
@@ -83,7 +84,8 @@ namespace DeskHooker
             list.Add(new Theme { id="poem", name="시 한 줄 채우기", summary="익숙한 서정시에서 사라진 한 줄을 기억해 보세요", file="", safety="정답은 선택한 공개 원문 판본 기준입니다. 띄어쓰기는 무시하지만 단어와 문장부호는 비교합니다.", instructions=new string[] { "빈 한 줄에 들어갈 문장을 입력하세요.", "제출하면 내 답과 원문을 나란히 비교할 수 있어요." } });
             baseThemes = list.ToArray();
             int cachedRejected;
-            var cached = ToThemes(LoadCommunityCache(), out cachedRejected);
+            syncEntries = LoadCommunityCache();
+            var cached = ToThemes(syncEntries.Select(e => e.Text), out cachedRejected);
             communityCount = cached.Count; communityRejected = cachedRejected;
             Themes = baseThemes.Concat(cached).ToArray();
             foreach (var theme in Themes.Where(t => !String.IsNullOrEmpty(t.file)))
@@ -126,28 +128,33 @@ namespace DeskHooker
         // ---- Community sharing: items live in the repository's community/ folder ----
         private string CachePath { get { return Path.Combine(dataFolder, "community-cache.json"); } }
 
-        private List<string> LoadCommunityCache()
+        private List<SyncEntry> LoadCommunityCache()
         {
-            var raws = new List<string>();
+            var raws = new List<SyncEntry>();
             try
             {
                 if (Testing || !File.Exists(CachePath)) return raws;
                 var map = Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(CachePath));
                 syncEtag = map.ContainsKey("etag") ? map["etag"] as string : null;
                 var items = map.ContainsKey("items") ? map["items"] as System.Collections.IEnumerable : null;
-                if (items != null) foreach (object item in items) { var text = item as string; if (text != null) raws.Add(text); }
+                if (items != null) foreach (object item in items)
+                {
+                    var entry = item as Dictionary<string, object>; // entries from older cache formats are ignored and re-downloaded
+                    if (entry == null || !entry.ContainsKey("name") || !entry.ContainsKey("sha") || !entry.ContainsKey("text")) continue;
+                    raws.Add(new SyncEntry { Name = Convert.ToString(entry["name"]), Sha = Convert.ToString(entry["sha"]), Text = Convert.ToString(entry["text"]) });
+                }
             }
             catch { syncEtag = null; raws.Clear(); }
             return raws;
         }
 
-        private void SaveCommunityCache(List<string> raws)
+        private void SaveCommunityCache(List<SyncEntry> entries)
         {
             if (Testing) return;
             try
             {
                 string tmp = CachePath + ".new";
-                File.WriteAllText(tmp, Json.Serialize(new Dictionary<string, object> { { "etag", syncEtag }, { "items", raws } }));
+                File.WriteAllText(tmp, Json.Serialize(new Dictionary<string, object> { { "etag", syncEtag }, { "items", entries.Select(e => new Dictionary<string, object> { { "name", e.Name }, { "sha", e.Sha }, { "text", e.Text } }).ToList() } }));
                 if (File.Exists(CachePath)) File.Replace(tmp, CachePath, null); else File.Move(tmp, CachePath);
             }
             catch { /* The cache only speeds up the next start; syncing again rebuilds it. */ }
@@ -176,10 +183,11 @@ namespace DeskHooker
             if (Testing || syncing || Exiting) return;
             syncing = true; syncError = null; SendThemes();
             string etag = syncEtag;
+            var known = syncEntries.ToList();
             Task.Factory.StartNew(delegate
             {
                 SyncResult result;
-                try { result = CommunitySync.Fetch(etag); }
+                try { result = CommunitySync.Fetch(etag, known); }
                 catch (Exception error) { result = new SyncResult { Error = error.Message }; }
                 pendingSync = result; // applied on the UI thread by the 1-second Tick
             });
@@ -193,11 +201,12 @@ namespace DeskHooker
             if (!result.NotModified)
             {
                 int rejected;
-                var list = ToThemes(result.Raw, out rejected);
+                var list = ToThemes(result.Entries.Select(e => e.Text), out rejected);
                 communityCount = list.Count; communityRejected = rejected + result.Rejected;
                 syncEtag = result.Etag;
                 Themes = baseThemes.Concat(list).ToArray();
-                SaveCommunityCache(result.Raw);
+                syncEntries = result.Entries;
+                SaveCommunityCache(result.Entries);
                 PruneRemovedSelections();
             }
             SendThemes();
@@ -391,7 +400,7 @@ namespace DeskHooker
                 var script = SettingsWindow.Browser.CoreWebView2;
                 await script.ExecuteScriptAsync("document.querySelector('input[value=stretch]').checked=true");
                 var sample = new SyncResult(); sample.Etag = "test";
-                sample.Raw.Add(File.ReadAllText(Path.Combine(Root, "community", "u-eye-20-20-20.json")));
+                sample.Entries.Add(new SyncEntry { Name = "u-eye-20-20-20.json", Sha = "test", Text = File.ReadAllText(Path.Combine(Root, "community", "u-eye-20-20-20.json")) });
                 ApplySync(sample); await Task.Delay(400);
                 if (Themes.Length != baseThemes.Length + 1) throw new Exception("Community theme was not added.");
                 if (await script.ExecuteScriptAsync("document.querySelectorAll('#theme-grid .theme-card').length") != Themes.Length.ToString()) throw new Exception("Community tile did not appear.");
@@ -433,7 +442,12 @@ namespace DeskHooker
         public bool NotModified;
         public string Error, Etag;
         public int Rejected;
-        public List<string> Raw = new List<string>();
+        public List<SyncEntry> Entries = new List<SyncEntry>();
+    }
+
+    internal sealed class SyncEntry
+    {
+        public string Name, Sha, Text;
     }
 
     // Read-only GitHub client. Fetches only this project's community/ folder; the web page itself never touches the network.
@@ -442,51 +456,102 @@ namespace DeskHooker
         private const string ListUrl = "https://api.github.com/repos/panicdna/kinds-of-thing/contents/community?ref=main";
         private const string RawPrefix = "https://raw.githubusercontent.com/panicdna/kinds-of-thing/main/community/";
         private const int MaxItems = 60, MaxListingBytes = 400000;
+        private static readonly System.Text.RegularExpressions.Regex ShaPattern = new System.Text.RegularExpressions.Regex("^[0-9a-f]{40}$");
         private static readonly System.Text.RegularExpressions.Regex FileName = new System.Text.RegularExpressions.Regex("^[a-z0-9][a-z0-9-]{2,39}\\.json$");
 
-        public static SyncResult Fetch(string etag)
+        // known: files from the previous sync. A file is downloaded again only when its git sha changed.
+        // Source order: community/index.json on raw.githubusercontent.com (no API quota; kept current by a GitHub Action),
+        // then the GitHub contents API (60 requests/hour per IP, so only a fallback for a repo without the index).
+        public static SyncResult Fetch(string etag, List<SyncEntry> known)
         {
             ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072; // TLS 1.2 on .NET Framework 4.x
             var result = new SyncResult();
-            string listing, newEtag;
-            try { listing = Get(ListUrl, etag, MaxListingBytes, out newEtag); }
-            catch (WebException error)
+            var files = new SortedDictionary<string, string>(StringComparer.Ordinal); // name -> git blob sha
+            string body, newTag;
+            int status = TryGet(RawPrefix + "index.json", Tag(etag, "idx:"), MaxListingBytes, out body, out newTag);
+            if (status == 304) { result.NotModified = true; return result; }
+            if (status == 200)
             {
-                var response = error.Response as HttpWebResponse;
-                if (response != null && response.StatusCode == HttpStatusCode.NotModified) { result.NotModified = true; return result; }
-                if (response != null && response.StatusCode == HttpStatusCode.NotFound) return result; // no community folder yet
-                if (response != null && ((int)response.StatusCode == 403 || (int)response.StatusCode == 429)) throw new Exception("GitHub 호출 한도에 도달했어요. 잠시 뒤 다시 시도합니다.");
-                throw new Exception("GitHub에 연결하지 못했어요. 인터넷 연결을 확인하세요.");
+                result.Etag = newTag == null ? null : "idx:" + newTag;
+                var index = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(body);
+                object items;
+                var list = index.TryGetValue("items", out items) ? items as System.Collections.IEnumerable : null;
+                if (list != null) foreach (object item in list) Add(files, item as Dictionary<string, object>);
             }
-            result.Etag = newEtag;
-            var entries = new JavaScriptSerializer().Deserialize<List<Dictionary<string, object>>>(listing);
-            var names = new List<string>();
-            foreach (var entry in entries)
+            else if (status == 404)
             {
-                object type, name;
-                if (!entry.TryGetValue("type", out type) || Convert.ToString(type) != "file" || !entry.TryGetValue("name", out name)) continue;
-                string text = Convert.ToString(name);
-                if (FileName.IsMatch(text)) names.Add(text);
+                status = TryGet(ListUrl, Tag(etag, "api:"), MaxListingBytes, out body, out newTag);
+                if (status == 304) { result.NotModified = true; return result; }
+                if (status == 404) return result; // no community folder yet
+                if (status == 403 || status == 429) throw new Exception("GitHub 호출 한도에 도달했어요. 잠시 뒤 다시 시도합니다.");
+                if (status != 200) throw new Exception("GitHub에 연결하지 못했어요. 인터넷 연결을 확인하세요.");
+                result.Etag = newTag == null ? null : "api:" + newTag;
+                foreach (var entry in new JavaScriptSerializer().Deserialize<List<Dictionary<string, object>>>(body)) Add(files, entry);
             }
-            names.Sort(StringComparer.Ordinal);
-            foreach (string name in names.Take(MaxItems))
+            else throw new Exception("GitHub에 연결하지 못했어요. 인터넷 연결을 확인하세요.");
+
+            foreach (var file in files.Take(MaxItems))
             {
-                string body, ignored;
-                try { body = Get(RawPrefix + name, null, CommunityContent.MaxFileBytes, out ignored); }
+                string name = file.Key;
+                SyncEntry previous = known == null ? null : known.FirstOrDefault(k => k.Name == name && k.Sha == file.Value);
+                if (previous != null) { result.Entries.Add(previous); continue; } // unchanged: reuse what we already validated
+                byte[] bytes; string ignored;
+                // raw.githubusercontent.com caches each URL for minutes; a new sha in the query forces a fresh copy of the edited file.
+                try { bytes = GetBytes(RawPrefix + name + "?v=" + file.Value, null, CommunityContent.MaxFileBytes, out ignored); }
                 catch (WebException) { throw new Exception("공유 항목 '" + name + "'을 읽지 못했어요. 다음 동기화에서 다시 시도합니다."); }
                 catch (InvalidDataException) { result.Rejected++; continue; }
+                // If the CDN still served an older copy, saving it under the new sha would hide the edit forever.
+                if (GitBlobSha(bytes) != file.Value) throw new Exception("공유 항목 '" + name + "'의 새 내용이 아직 반영되는 중이에요. 다음 동기화에서 다시 시도합니다.");
+                string text = System.Text.Encoding.UTF8.GetString(bytes);
                 try
                 {
-                    CommunityItem item = CommunityContent.Parse(body);
+                    CommunityItem item = CommunityContent.Parse(text);
                     if (item.Id + ".json" != name) throw new ArgumentException("File name must match id.");
-                    result.Raw.Add(body);
+                    result.Entries.Add(new SyncEntry { Name = name, Sha = file.Value, Text = text });
                 }
                 catch (ArgumentException) { result.Rejected++; }
             }
             return result;
         }
 
-        private static string Get(string url, string etag, int maxBytes, out string responseEtag)
+        private static string Tag(string etag, string prefix)
+        {
+            return etag != null && etag.StartsWith(prefix, StringComparison.Ordinal) ? etag.Substring(prefix.Length) : null;
+        }
+
+        // Accepts {"name": "...", "sha": "<40 hex>"} (index.json item or API entry); "type" is only checked when present.
+        private static void Add(SortedDictionary<string, string> files, Dictionary<string, object> entry)
+        {
+            object type, name, sha;
+            if (entry == null || !entry.TryGetValue("name", out name) || !entry.TryGetValue("sha", out sha)) return;
+            if (entry.TryGetValue("type", out type) && Convert.ToString(type) != "file") return;
+            string fileName = Convert.ToString(name), hash = Convert.ToString(sha);
+            if (fileName != "index.json" && FileName.IsMatch(fileName) && ShaPattern.IsMatch(hash)) files[fileName] = hash;
+        }
+
+        // The id git itself gives a file, so it can be compared with what the index/API announced.
+        private static string GitBlobSha(byte[] content)
+        {
+            byte[] header = System.Text.Encoding.ASCII.GetBytes("blob " + content.Length + "\0");
+            var all = new byte[header.Length + content.Length];
+            Buffer.BlockCopy(header, 0, all, 0, header.Length); Buffer.BlockCopy(content, 0, all, header.Length, content.Length);
+            using (var sha1 = System.Security.Cryptography.SHA1.Create())
+                return BitConverter.ToString(sha1.ComputeHash(all)).Replace("-", "").ToLowerInvariant();
+        }
+
+        // Returns the HTTP status (200/304/404/...), or -1 when the server could not be reached.
+        private static int TryGet(string url, string etag, int maxBytes, out string text, out string responseEtag)
+        {
+            text = null; responseEtag = null;
+            try { text = System.Text.Encoding.UTF8.GetString(GetBytes(url, etag, maxBytes, out responseEtag)); return 200; }
+            catch (WebException error)
+            {
+                var response = error.Response as HttpWebResponse;
+                return response == null ? -1 : (int)response.StatusCode;
+            }
+        }
+
+        private static byte[] GetBytes(string url, string etag, int maxBytes, out string responseEtag)
         {
             var request = (HttpWebRequest)WebRequest.Create(url);
             request.UserAgent = "DeskHooker-Teum"; request.Accept = "application/vnd.github+json"; request.Timeout = 15000; request.ReadWriteTimeout = 15000;
@@ -502,7 +567,7 @@ namespace DeskHooker
                     buffer.Write(chunk, 0, read);
                     if (buffer.Length > maxBytes) throw new InvalidDataException("Response too large.");
                 }
-                return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+                return buffer.ToArray();
             }
         }
     }
