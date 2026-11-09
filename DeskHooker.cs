@@ -537,6 +537,21 @@ namespace DeskHooker
                 if (await standCdp.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image'))")!="true") throw new Exception("Standing original picture did not show.");
                 Popup.Close(); await Task.Delay(300);
                 result["standingSubItems"]=true;
+                // Meditation shows only videos (two): a picker, but no original picture and no step list.
+                ShowPopup("meditation"); await Popup.Ready.Task; await Task.Delay(500);
+                var medCdp=Popup.Browser.CoreWebView2;
+                if (await medCdp.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="3") throw new Exception("Meditation sub-item list should have 3 items.");
+                string[] medIds={"6Qu5E3MrVH8","LaM3-_ntnjU","Og_Qli3M_nE"};
+                for (int v=0; v<3; v++)
+                {
+                    await medCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
+                    await Task.Delay(300);
+                    string medSrc=await medCdp.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
+                    if (!medSrc.Contains("youtube-nocookie.com/embed/"+medIds[v])) throw new Exception("Meditation item #"+(v+1)+" did not embed its video: "+medSrc);
+                    if (await medCdp.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image, .instruction-panel'))")!="false") throw new Exception("Meditation should show only the video.");
+                }
+                Popup.Close(); await Task.Delay(300);
+                result["meditationVideoOnly"]=true;
                 ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(500);
                 await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\"0\"]').click()");
                 await Task.Delay(300);

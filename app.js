@@ -232,7 +232,7 @@
   function renderWellness(theme, forcedIdx) {
     const list = variantList(theme.id);
     let current = 0, video = null;
-    if (list.length > 1) {
+    if (list.length >= 1) {
       current = Number.isInteger(forcedIdx) ? forcedIdx : pickVariant(theme.id, list.length);
       if (Number.isInteger(forcedIdx)) store.set('teum.variantIdx.' + theme.id, String(current));
       if (list[current].type === 'video') video = list[current];
