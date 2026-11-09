@@ -50,6 +50,14 @@ internal static class ReminderCoreTests
         Run("IsDue_FridayDismissalSchedulesMonday", IsDue_FridayDismissalSchedulesMonday);
         Run("NextTheme_RotatesInSelectedOrderAndWraps", NextTheme_RotatesInSelectedOrderAndWraps);
         Run("NextTheme_SingleSelectionAlwaysWrapsToZero", NextTheme_SingleSelectionAlwaysWrapsToZero);
+        Run("ThemeMode_DefaultsToOrderedOne", ThemeMode_DefaultsToOrderedOne);
+        Run("ThemeMode_ValidateAcceptsAllFourAndRejectsOthers", ThemeMode_ValidateAcceptsAllFourAndRejectsOthers);
+        Run("PlanRound_SequentialAllKeepsListOrder", PlanRound_SequentialAllKeepsListOrder);
+        Run("PlanRound_RandomAllIsPermutationAndAvoidsPrevious", PlanRound_RandomAllIsPermutationAndAvoidsPrevious);
+        Run("PlanRound_OrderedOneRotatesLikeNextTheme", PlanRound_OrderedOneRotatesLikeNextTheme);
+        Run("PlanRound_RandomOneStaysInSelectionAndAvoidsPrevious", PlanRound_RandomOneStaysInSelectionAndAvoidsPrevious);
+        Run("PlanRound_SingleThemeAlwaysWorks", PlanRound_SingleThemeAlwaysWorks);
+        Run("PlanRound_RejectsBadInput", PlanRound_RejectsBadInput);
         Run("Validate_AcceptsDefaults", delegate { Validate(new ReminderSettings(), KnownThemes()); });
         Run("Validate_AcceptsMinimumInterval", delegate { Validate(new ReminderSettings { IntervalMinutes = 1 }, KnownThemes()); });
         Run("Validate_AcceptsMaximumInterval", delegate { Validate(new ReminderSettings { IntervalMinutes = 240 }, KnownThemes()); });
@@ -494,6 +502,103 @@ internal static class ReminderCoreTests
         Equal(0, cursor, "No overflow");
     }
 
+    private static void ThemeMode_DefaultsToOrderedOne()
+    {
+        Equal("ordered-one", new ReminderSettings().ThemeMode, "Default mode keeps the old one-at-a-time rotation");
+        Equal("ordered-one", new JavaScriptSerializer().Deserialize<ReminderSettings>("{\"IntervalMinutes\":25}").ThemeMode, "Old config without ThemeMode");
+    }
+
+    private static void ThemeMode_ValidateAcceptsAllFourAndRejectsOthers()
+    {
+        foreach (string mode in new string[] { "sequential-all", "random-all", "ordered-one", "random-one" })
+            Validate(new ReminderSettings { ThemeMode = mode }, KnownThemes());
+        foreach (string mode in new string[] { null, "", "Random-One", "all", "random-one " })
+        {
+            string bad = mode;
+            ThrowsArgument(delegate { Validate(new ReminderSettings { ThemeMode = bad }, KnownThemes()); }, "Mode '" + mode + "'");
+        }
+    }
+
+    private static void PlanRound_SequentialAllKeepsListOrder()
+    {
+        int cursor = 0;
+        string[] selected = new string[] { "c", "a", "b" };
+        string[] round = ThemeRotation.PlanRound(selected, "sequential-all", ref cursor, new Random(1), null);
+        Equal("c,a,b", String.Join(",", round), "List order");
+        round[0] = "x";
+        Equal("c", selected[0], "Plan must be a copy");
+        Equal(0, cursor, "Cursor untouched");
+    }
+
+    private static void PlanRound_RandomAllIsPermutationAndAvoidsPrevious()
+    {
+        string[] selected = new string[] { "a", "b", "c", "d" };
+        bool changedOrder = false;
+        for (int seed = 0; seed < 200; seed++)
+        {
+            int cursor = 0;
+            string[] round = ThemeRotation.PlanRound(selected, "random-all", ref cursor, new Random(seed), "a");
+            string[] sorted = (string[])round.Clone(); Array.Sort(sorted, StringComparer.Ordinal);
+            Equal("a,b,c,d", String.Join(",", sorted), "Every theme exactly once");
+            if (round[0] == "a") throw new Exception("Round started with the previous theme at seed " + seed);
+            if (String.Join(",", round) != "a,b,c,d") changedOrder = true;
+        }
+        Equal(true, changedOrder, "Shuffle actually reorders");
+    }
+
+    private static void PlanRound_OrderedOneRotatesLikeNextTheme()
+    {
+        int cursor = 0;
+        string[] selected = new string[] { "x", "y", "z" };
+        string seen = "";
+        for (int i = 0; i < 4; i++)
+        {
+            string[] round = ThemeRotation.PlanRound(selected, "ordered-one", ref cursor, new Random(1), null);
+            Equal(1, round.Length, "One theme per reminder");
+            seen += round[0];
+        }
+        Equal("xyzx", seen, "Rotation and wrap");
+    }
+
+    private static void PlanRound_RandomOneStaysInSelectionAndAvoidsPrevious()
+    {
+        string[] selected = new string[] { "p", "q", "r" };
+        Random random = new Random(7);
+        int cursor = 0;
+        string previous = "p";
+        System.Collections.Generic.HashSet<string> seen = new System.Collections.Generic.HashSet<string>();
+        for (int i = 0; i < 300; i++)
+        {
+            string[] round = ThemeRotation.PlanRound(selected, "random-one", ref cursor, random, previous);
+            Equal(1, round.Length, "One theme per reminder");
+            if (Array.IndexOf(selected, round[0]) < 0) throw new Exception("Picked an unselected theme: " + round[0]);
+            if (round[0] == previous) throw new Exception("Repeated the previous theme at step " + i);
+            seen.Add(round[0]); previous = round[0];
+        }
+        Equal(3, seen.Count, "All themes eventually appear");
+        Equal(0, cursor, "Cursor untouched");
+    }
+
+    private static void PlanRound_SingleThemeAlwaysWorks()
+    {
+        foreach (string mode in new string[] { "sequential-all", "random-all", "ordered-one", "random-one" })
+        {
+            int cursor = 0;
+            string[] round = ThemeRotation.PlanRound(new string[] { "only" }, mode, ref cursor, new Random(3), "only");
+            Equal("only", String.Join(",", round), mode);
+        }
+    }
+
+    private static void PlanRound_RejectsBadInput()
+    {
+        int cursor = 0;
+        ThrowsArgument(delegate { int c = 0; ThemeRotation.PlanRound(null, "random-all", ref c, new Random(1), null); }, "Null selection");
+        ThrowsArgument(delegate { int c = 0; ThemeRotation.PlanRound(new string[0], "random-all", ref c, new Random(1), null); }, "Empty selection");
+        ThrowsArgument(delegate { int c = 0; ThemeRotation.PlanRound(new string[] { "a" }, "nope", ref c, new Random(1), null); }, "Unknown mode");
+        ThrowsArgument(delegate { int c = 0; ThemeRotation.PlanRound(new string[] { "a" }, "random-all", ref c, null, null); }, "No random source");
+        Equal(0, cursor, "Unused");
+    }
+
     private static void NextTheme_RejectsNullSelection()
     {
         int cursor = 4;
@@ -544,7 +649,7 @@ internal static class ReminderCoreTests
         ReminderSettings original = new ReminderSettings
         {
             IntervalMinutes = 37, WeekdaysOnly = false, LimitHours = false,
-            StartHour = 2, EndHour = 23, ThemeIds = new string[] { "eyes", "breathe" },
+            StartHour = 2, EndHour = 23, ThemeIds = new string[] { "eyes", "breathe" }, ThemeMode = "random-all",
             Enabled = true, StartAtLogin = true, InhaleSeconds = 5, HoldSeconds = 7, ExhaleSeconds = 9
         };
         JavaScriptSerializer serializer = new JavaScriptSerializer();

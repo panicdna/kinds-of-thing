@@ -70,6 +70,9 @@ namespace DeskHooker
         private readonly System.Windows.Forms.Timer timer;
         private bool locked, smokeStarted;
         private int cursor;
+        private readonly Random rng = new Random();
+        private readonly Queue<string> pendingRound = new Queue<string>(); // themes still to show in this reminder's round
+        private string lastShown;
         private DateTime lastTick = DateTime.Now;
         private string notice = "간격과 주제를 고른 뒤 알림 시작을 누르세요.";
 
@@ -104,7 +107,7 @@ namespace DeskHooker
             tray = new NotifyIcon { Icon=SystemIcons.Information, Text="틈 · 스트레칭과 작은 쉼", Visible=true };
             var menu = new ContextMenuStrip();
             menu.Items.Add("간격·주제 설정", null, delegate { ShowSettings(); });
-            menu.Items.Add("지금 한 번 보기", null, delegate { ShowPopup(Settings.ThemeIds[0]); });
+            menu.Items.Add("지금 한 번 보기", null, delegate { StartRound(); });
             menu.Items.Add("공유된 쉼 지금 동기화", null, delegate { StartSync(true); });
             menu.Items.Add("알림 일시정지", null, delegate { Settings.Enabled=false; Persist(); SendState(SettingsWindow); UpdateStatus(); });
             menu.Items.Add(new ToolStripSeparator());
@@ -219,7 +222,7 @@ namespace DeskHooker
             string[] kept = Settings.ThemeIds.Where(id => known.Contains(id)).ToArray();
             if (kept.Length == Settings.ThemeIds.Length) return;
             Settings.ThemeIds = kept.Length > 0 ? kept : new string[] { "stretch" };
-            cursor = 0; Persist();
+            cursor = 0; pendingRound.Clear(); Persist();
             notice = "공유가 삭제된 주제를 선택 목록에서 뺐습니다.";
         }
 
@@ -266,10 +269,35 @@ namespace DeskHooker
             Popup.Show(); Popup.Activate();
         }
 
+        // Plans one reminder from the saved selection and mode, then shows its first theme.
+        // In the "all" modes the remaining themes follow as each popup is closed.
+        private void StartRound()
+        {
+            if (Popup!=null) { Popup.Activate(); return; }
+            pendingRound.Clear();
+            foreach (var id in ThemeRotation.PlanRound(Settings.ThemeIds,Settings.ThemeMode,ref cursor,rng,lastShown)) pendingRound.Enqueue(id);
+            ShowNextInRound();
+        }
+
+        private void ShowNextInRound()
+        {
+            while (pendingRound.Count>0)
+            {
+                string id=pendingRound.Dequeue();
+                if (!Themes.Any(t => t.id==id)) continue;
+                lastShown=id; ShowPopup(id); return;
+            }
+        }
+
         public void PopupClosed(WebWindow window)
         {
             if (Popup==window) Popup=null;
-            if (!Exiting) { NextDue=ReminderSchedule.Next(DateTime.Now,Settings); UpdateStatus(); }
+            if (!Exiting)
+            {
+                NextDue=ReminderSchedule.Next(DateTime.Now,Settings);
+                ShowNextInRound();
+                UpdateStatus();
+            }
         }
 
         private void SessionChanged(object sender, SessionSwitchEventArgs e)
@@ -293,7 +321,7 @@ namespace DeskHooker
             var finished=pendingSync; if (finished!=null) { pendingSync=null; ApplySync(finished); }
             if (ReminderSchedule.IsDue(now,NextDue,Settings,Popup!=null,false,!locked && Environment.UserInteractive))
             {
-                ShowPopup(ReminderSchedule.NextTheme(Settings.ThemeIds,ref cursor));
+                StartRound();
             }
             UpdateStatus();
         }
@@ -327,13 +355,13 @@ namespace DeskHooker
                     bool previousStartup=Settings.StartAtLogin;
                     Settings=settings;
                     if (Settings.StartAtLogin!=previousStartup) Startup(Settings.StartAtLogin);
-                    Persist(); cursor=0; NextDue=ReminderSchedule.Next(DateTime.Now,Settings);
+                    Persist(); cursor=0; pendingRound.Clear(); NextDue=ReminderSchedule.Next(DateTime.Now,Settings);
                     notice=Settings.Enabled?"알림이 시작됐습니다. 창을 닫아도 트레이에서 계속 동작합니다.":"설정이 저장됐습니다. 알림은 일시정지 상태입니다.";
                     SendState(source); return;
                 }
                 if (action=="sync") { if (!source.IsPopup) StartSync(true); return; }
-                if (action=="run-now") { if (source.IsPopup) return; if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) throw new InvalidOperationException("저장된 주제가 없습니다."); ShowPopup(ReminderSchedule.NextTheme(Settings.ThemeIds,ref cursor)); return; }
-                if (action=="preview") { ShowPopup(Convert.ToString(msg["themeId"])); return; }
+                if (action=="run-now") { if (source.IsPopup) return; if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) throw new InvalidOperationException("저장된 주제가 없습니다."); StartRound(); return; }
+                if (action=="preview") { if (Popup==null) pendingRound.Clear(); ShowPopup(Convert.ToString(msg["themeId"])); return; }
                 if (action=="exit") { if (!source.IsPopup) Quit(); return; }
                 if (action=="open-link")
                 {

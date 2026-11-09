@@ -10,8 +10,15 @@
   const poemFilters = { category: 'all', language: 'all', query: '' };
   const poemCategories = { lyric: '서정시', song: '노랫말', nobel: '노벨 문학상' };
   let state, breathTimer = null, breathStart = 0, quiz = null, selectedPoemId = '';
-  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6 };
+  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'ordered-one' };
   const symbols = { stretch: '↟', meditation: '◌', yoga: '♧', pilates: '↥', core: '◎', breathing: '≈', voice: '♪', 'back-seated': '↕', 'back-standing': '↗', dance: '♫', poem: '文' };
+  const themeModes = [
+    { id: 'sequential-all', label: '모두 순서대로', help: '알림이 오면 고른 쉼을 목록 순서대로 전부, 하나가 끝나면 이어서' },
+    { id: 'random-all', label: '모두 무작위 순서로', help: '알림이 오면 고른 쉼을 전부, 순서를 섞어서 이어서' },
+    { id: 'ordered-one', label: '하나씩 순서대로', help: '알림마다 하나만, 목록 순서대로 돌아가며' },
+    { id: 'random-one', label: '하나만 무작위로', help: '알림마다 하나만, 고른 것 중에서 무작위로' }
+  ];
+  const modeOf = id => themeModes.find(m => m.id === id) || themeModes[2];
   const symbolFor = t => symbols[t.id] || (t.community ? '✿' : '◌');
   const tones = ['#e3e9ce', '#e4deec', '#eddcca', '#d9e6e7'];
   const $ = selector => document.querySelector(selector);
@@ -23,7 +30,13 @@
   function send(action, values = {}) {
     if (host) { host.postMessage(JSON.stringify({ action, ...values })); return; }
     if (action === 'preview') { window.open(`app.html#popup=${encodeURIComponent(values.themeId)}`, '_blank'); return; }
-    if (action === 'run-now') { const ids = (state.settings && state.settings.ThemeIds) || []; if (ids.length) window.open(`app.html#popup=${encodeURIComponent(ids[0])}`, '_blank'); return; }
+    if (action === 'run-now') {
+      const ids = (state.settings && state.settings.ThemeIds) || [];
+      if (!ids.length) return;
+      const mode = (state.settings && state.settings.ThemeMode) || 'ordered-one';
+      const pick = mode === 'random-one' ? [ids[Math.floor(Math.random() * ids.length)]] : mode === 'ordered-one' ? [ids[0]] : mode === 'random-all' ? ids.slice().sort(() => Math.random() - 0.5) : ids;
+      pick.forEach(id => window.open(`app.html#popup=${encodeURIComponent(id)}`, '_blank')); return;
+    }
     if (action === 'close') { window.close(); toast('이 창의 오른쪽 위 X를 눌러 닫으세요.'); return; }
     if (action === 'open-link') { window.open(values.url, '_blank', 'noopener,noreferrer'); return; }
     if (action === 'save') {
@@ -66,8 +79,13 @@
   }
   function bindThemeGrid() {
     document.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', () => send('preview', { themeId: button.dataset.preview })));
-    const count = () => { $('#selected-count').textContent = `${document.querySelectorAll('input[name=theme]:checked').length}개 선택 · 목록 순서대로`; };
-    document.querySelectorAll('input[name=theme]').forEach(input => input.addEventListener('change', count)); count();
+    const count = () => {
+      const n = document.querySelectorAll('input[name=theme]:checked').length;
+      const mode = modeOf((document.querySelector('input[name=theme-mode]:checked') || {}).value);
+      $('#selected-count').textContent = `${n}개 선택 · ${mode.label}`;
+      $('#theme-mode-help').textContent = n > 1 ? mode.help : '두 개 이상 고르면 아래 방식으로 실행돼요.';
+    };
+    document.querySelectorAll('input[name=theme], input[name=theme-mode]').forEach(input => input.addEventListener('change', count)); count();
   }
   // Rebuilds only the tiles, so choices the user ticked but has not saved yet survive a background sync.
   function refreshThemeGrid() {
@@ -139,6 +157,9 @@
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
       <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
+      <fieldset class="mode-box"><legend>여러 개를 골랐을 때 실행 방식</legend>
+        <div class="mode-options">${themeModes.map(m => `<label><input type="radio" name="theme-mode" value="${m.id}" ${modeOf(s.ThemeMode).id === m.id ? 'checked' : ''}>${m.label}</label>`).join('')}</div>
+        <p id="theme-mode-help" class="small-help"></p></fieldset>
       ${sharePanel()}
       <details class="advanced"><summary>호흡·발성 가이드 시간 직접 고르기</summary><div class="breath-settings"><label>들숨 <input id="inhale" type="number" min="1" max="10" value="${s.InhaleSeconds}">초</label><label>멈춤 <input id="hold" type="number" min="0" max="30" value="${s.HoldSeconds}">초</label><label>날숨 <input id="exhale" type="number" min="1" max="30" value="${s.ExhaleSeconds}">초</label></div><p class="caution">기본은 숨참기 없이 들숨 4초·날숨 6초입니다. 숫자를 끝까지 채우려 하지 말고 편안한 만큼만 하세요. 멈춤은 선택 사항이며 최대 30초입니다. 몸 상태에 따른 제한이 있으면 의료진에게 먼저 확인하세요. 과호흡 후 숨참기, 힘주어 버티기는 하지 마세요.</p><label><input id="hold-consent" type="checkbox" ${s.HoldSeconds > 0 ? 'checked' : ''}>멈춤은 필수가 아니며 불편하면 즉시 편안한 호흡으로 돌아가야 함을 확인했습니다.</label></details>
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>
@@ -163,7 +184,8 @@
       IntervalMinutes: Number($('#interval').value), WeekdaysOnly: $('#weekdays').checked, LimitHours: $('#limit-hours').checked,
       StartHour: st[0], StartMinute: st[1], EndHour: et[0] === 0 && et[1] === 0 ? 24 : et[0], EndMinute: et[0] === 0 && et[1] === 0 ? 0 : et[1], StartAtLogin: $('#login-start').checked,
       ThemeIds: Array.from(document.querySelectorAll('input[name=theme]:checked'), x => x.value), Enabled: enabled,
-      InhaleSeconds: Number($('#inhale').value), HoldSeconds: Number($('#hold').value), ExhaleSeconds: Number($('#exhale').value)
+      InhaleSeconds: Number($('#inhale').value), HoldSeconds: Number($('#hold').value), ExhaleSeconds: Number($('#exhale').value),
+      ThemeMode: (document.querySelector('input[name=theme-mode]:checked') || {}).value || 'ordered-one'
     };
     if (!Number.isInteger(settings.IntervalMinutes) || settings.IntervalMinutes < 1 || settings.IntervalMinutes > 240) { toast('간격은 1~240분 사이의 정수로 고르세요.'); return; }
     if (!settings.ThemeIds.length) { toast('주제를 하나 이상 골라 주세요.'); return; }
@@ -356,7 +378,7 @@
     if (message.type === 'error') { toast(message.message); return; }
     if (message.type === 'themes') {
       if (!state || state.mode === 'popup') return;
-      state.themes = message.themes; state.settings = { ...state.settings, ThemeIds: message.settings.ThemeIds }; state.sync = message.sync;
+      state.themes = message.themes; state.settings = { ...state.settings, ThemeIds: message.settings.ThemeIds, ThemeMode: message.settings.ThemeMode }; state.sync = message.sync;
       refreshThemeGrid();
       if (message.notice && message.notice !== state.notice) { state.notice = message.notice; toast(message.notice); }
       return;

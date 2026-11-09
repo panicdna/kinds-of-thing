@@ -20,6 +20,8 @@ namespace DeskHooker
         public int InhaleSeconds { get; set; }
         public int HoldSeconds { get; set; }
         public int ExhaleSeconds { get; set; }
+        // How several selected themes are used per reminder; see ThemeRotation.
+        public string ThemeMode { get; set; }
 
         public ReminderSettings()
         {
@@ -36,6 +38,7 @@ namespace DeskHooker
             InhaleSeconds = 4;
             HoldSeconds = 0;
             ExhaleSeconds = 6;
+            ThemeMode = ThemeRotation.OrderedOne;
         }
     }
 
@@ -64,6 +67,8 @@ namespace DeskHooker
                 throw new ArgumentException("HoldSeconds must be between 0 and 30.", "settings");
             if (settings.ExhaleSeconds < 1 || settings.ExhaleSeconds > 30)
                 throw new ArgumentException("ExhaleSeconds must be between 1 and 30.", "settings");
+            if (!ThemeRotation.IsValidMode(settings.ThemeMode))
+                throw new ArgumentException("ThemeMode must be sequential-all, random-all, ordered-one or random-one.", "settings");
             if (settings.ThemeIds == null || settings.ThemeIds.Length == 0)
                 throw new ArgumentException("At least one theme must be selected.", "settings");
             HashSet<string> known = new HashSet<string>(knownThemeIds, StringComparer.Ordinal);
@@ -125,6 +130,56 @@ namespace DeskHooker
             return candidate;
         }
     }
+    // Decides which of the selected themes one reminder shows, and in what order.
+    // Kept apart from ReminderSchedule so that class keeps its small public surface.
+    public static class ThemeRotation
+    {
+        public const string SequentialAll = "sequential-all"; // every theme, in list order, back to back
+        public const string RandomAll = "random-all";         // every theme, shuffled, back to back
+        public const string OrderedOne = "ordered-one";       // one theme per reminder, in list order (default)
+        public const string RandomOne = "random-one";         // one random theme per reminder
+
+        public static bool IsValidMode(string mode)
+        {
+            return mode == SequentialAll || mode == RandomAll || mode == OrderedOne || mode == RandomOne;
+        }
+
+        // Returns the themes to show for one reminder, first to last. cursor is only used and advanced
+        // by OrderedOne. previous (may be null) is the theme shown last; random modes avoid starting
+        // with it when there is a choice, so the same tile is not repeated back to back.
+        public static string[] PlanRound(string[] selected, string mode, ref int cursor, Random random, string previous)
+        {
+            if (selected == null || selected.Length == 0)
+                throw new ArgumentException("At least one theme must be selected.", "selected");
+            if (!IsValidMode(mode))
+                throw new ArgumentException("Unknown theme mode.", "mode");
+            if (random == null)
+                throw new ArgumentException("A random source is required.", "random");
+            if (mode == OrderedOne)
+                return new string[] { ReminderSchedule.NextTheme(selected, ref cursor) };
+            if (mode == SequentialAll)
+                return (string[])selected.Clone();
+            string[] order = (string[])selected.Clone();
+            if (mode == RandomOne)
+            {
+                List<string> pool = new List<string>(order);
+                if (pool.Count > 1) pool.RemoveAll(delegate(string id) { return id == previous; });
+                return new string[] { pool[random.Next(pool.Count)] };
+            }
+            for (int i = order.Length - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                string swap = order[i]; order[i] = order[j]; order[j] = swap;
+            }
+            if (order.Length > 1 && order[0] == previous)
+            {
+                int j = 1 + random.Next(order.Length - 1);
+                string swap = order[0]; order[0] = order[j]; order[j] = swap;
+            }
+            return order;
+        }
+    }
+
     // A validated, plain-text wellness item shared by other people through the
     // repository's community/ folder. Limits MUST match validateShare() in app-core.js.
     public sealed class CommunityItem
