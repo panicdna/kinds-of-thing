@@ -122,6 +122,13 @@ internal static class ReminderCoreTests
         Run("Community_RejectsMarkupLinksAndBadIds", Community_RejectsMarkupLinksAndBadIds);
         Run("Community_EnforcesLimits", Community_EnforcesLimits);
         Run("Community_RejectsUnknownSchemaAndNonObjects", Community_RejectsUnknownSchemaAndNonObjects);
+        Run("Break_IsOffByDefaultAndChangesNothing", Break_IsOffByDefaultAndChangesNothing);
+        Run("Break_PostponesAReminderThatLandsInsideIt", Break_PostponesAReminderThatLandsInsideIt);
+        Run("Break_StartIsInsideEndIsOutside", Break_StartIsInsideEndIsOutside);
+        Run("Break_ThatEndsAfterTheWindowRollsToTomorrow", Break_ThatEndsAfterTheWindowRollsToTomorrow);
+        Run("Break_WorksWithoutAWindowAndOnWeekends", Break_WorksWithoutAWindowAndOnWeekends);
+        Run("Break_IsAllowedHonoursTheBreak", Break_IsAllowedHonoursTheBreak);
+        Run("Break_ValidateRejectsBadRanges", Break_ValidateRejectsBadRanges);
         Run("Community_AcceptsYouTubeVideoIds", Community_AcceptsYouTubeVideoIds);
         Run("Community_RejectsBadVideos", Community_RejectsBadVideos);
         Run("Community_VideoOnlyItemMayOmitInstructions", Community_VideoOnlyItemMayOmitInstructions);
@@ -809,6 +816,84 @@ internal static class ReminderCoreTests
         DateTime from = new DateTime(2026, 11, 9, 9, 0, 0);
         Equal(new DateTime(2026, 11, 9, 9, 1, 0), Next(from, new ReminderSettings { IntervalMinutes = 1 }), "One minute");
         Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(from, new ReminderSettings { IntervalMinutes = 240 }), "240 minutes");
+    }
+
+    private static ReminderSettings Lunch(int intervalMinutes)
+    {
+        // Weekdays 09:00-18:00 with a 12:00-13:00 lunch break.
+        return new ReminderSettings { IntervalMinutes = intervalMinutes, BreakEnabled = true, BreakStartHour = 12, BreakStartMinute = 0, BreakEndHour = 13, BreakEndMinute = 0 };
+    }
+
+    private static void Break_IsOffByDefaultAndChangesNothing()
+    {
+        ReminderSettings plain = new ReminderSettings { IntervalMinutes = 60 };
+        Equal(false, plain.BreakEnabled, "Default");
+        Equal(new DateTime(2026, 11, 9, 12, 0, 0), Next(new DateTime(2026, 11, 9, 11, 0, 0), plain), "Lunch hour is a normal hour when the break is off");
+        plain.BreakStartHour = 11; plain.BreakEndHour = 14; // values are ignored while disabled
+        Equal(new DateTime(2026, 11, 9, 12, 0, 0), Next(new DateTime(2026, 11, 9, 11, 0, 0), plain), "Disabled break stays ignored");
+    }
+
+    private static void Break_PostponesAReminderThatLandsInsideIt()
+    {
+        // Monday 2026-11-09. 11:30 + 60 min = 12:30 is lunch, so it waits for 13:00.
+        Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 11, 30, 0), Lunch(60)), "Lands in lunch");
+        Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 11, 59, 0), Lunch(1)), "One minute before lunch");
+        Equal(new DateTime(2026, 11, 9, 11, 30, 0), Next(new DateTime(2026, 11, 9, 10, 30, 0), Lunch(60)), "Before lunch is untouched");
+        Equal(new DateTime(2026, 11, 9, 14, 0, 0), Next(new DateTime(2026, 11, 9, 13, 0, 0), Lunch(60)), "After lunch is untouched");
+    }
+
+    private static void Break_StartIsInsideEndIsOutside()
+    {
+        ReminderSettings s = Lunch(60);
+        Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 11, 0, 0), s), "Exactly at the break start is inside the break");
+        Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 12, 0, 0), s), "From inside the break");
+        Equal(new DateTime(2026, 11, 9, 13, 1, 0), Next(new DateTime(2026, 11, 9, 13, 0, 0), Lunch(1)), "Exactly at the break end is outside the break");
+    }
+
+    private static void Break_ThatEndsAfterTheWindowRollsToTomorrow()
+    {
+        // Window 09:00-18:00; break 17:00-19:00 runs past the end of the day.
+        ReminderSettings s = new ReminderSettings { IntervalMinutes = 30, BreakEnabled = true, BreakStartHour = 17, BreakEndHour = 19 };
+        Equal(new DateTime(2026, 11, 10, 9, 0, 0), Next(new DateTime(2026, 11, 9, 16, 45, 0), s), "17:15 is in the break, 19:00 is after the window");
+        // Friday evening rolls over the weekend to Monday morning.
+        Equal(new DateTime(2026, 11, 16, 9, 0, 0), Next(new DateTime(2026, 11, 13, 16, 45, 0), s), "Friday into Monday");
+    }
+
+    private static void Break_WorksWithoutAWindowAndOnWeekends()
+    {
+        ReminderSettings s = new ReminderSettings { IntervalMinutes = 30, LimitHours = false, WeekdaysOnly = false, BreakEnabled = true, BreakStartHour = 0, BreakEndHour = 6 };
+        // Quiet night 00:00-06:00 on a Saturday.
+        Equal(new DateTime(2026, 11, 14, 6, 0, 0), Next(new DateTime(2026, 11, 14, 0, 10, 0), s), "Night break on a Saturday");
+        // A break ending at 24:00 pushes to the next midnight, which is itself outside the break.
+        ReminderSettings late = new ReminderSettings { IntervalMinutes = 30, LimitHours = false, WeekdaysOnly = false, BreakEnabled = true, BreakStartHour = 22, BreakEndHour = 24 };
+        Equal(new DateTime(2026, 11, 15, 0, 0, 0), Next(new DateTime(2026, 11, 14, 22, 0, 0), late), "Break ending at 24:00");
+    }
+
+    private static void Break_IsAllowedHonoursTheBreak()
+    {
+        ReminderSettings s = Lunch(60);
+        Equal(true, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 11, 59, 0), s), "Just before lunch");
+        Equal(false, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 12, 0, 0), s), "Lunch start");
+        Equal(false, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 12, 59, 0), s), "Lunch last minute");
+        Equal(true, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 13, 0, 0), s), "Lunch end");
+    }
+
+    private static void Break_ValidateRejectsBadRanges()
+    {
+        Validate(Lunch(60), KnownThemes());
+        Validate(new ReminderSettings { BreakEnabled = true, BreakStartHour = 17, BreakEndHour = 24 }, KnownThemes());
+        foreach (int[] bad in new int[][] {
+            new int[] { 13, 0, 12, 0 }, new int[] { 12, 0, 12, 0 }, new int[] { 24, 0, 24, 0 }, new int[] { 12, 60, 13, 0 },
+            new int[] { 12, 0, 13, 60 }, new int[] { 12, 0, 25, 0 }, new int[] { 12, 0, 24, 30 }, new int[] { -1, 0, 13, 0 } })
+        {
+            int[] r = bad;
+            ThrowsArgument(delegate { Validate(new ReminderSettings { BreakEnabled = true, BreakStartHour = r[0], BreakStartMinute = r[1], BreakEndHour = r[2], BreakEndMinute = r[3] }, KnownThemes()); }, "Break " + String.Join(",", Array.ConvertAll(r, x => x.ToString())));
+        }
+        // A break may not swallow the whole allowed time.
+        ThrowsArgument(delegate { Validate(new ReminderSettings { BreakEnabled = true, BreakStartHour = 8, BreakEndHour = 19 }, KnownThemes()); }, "Break covers the window");
+        ThrowsArgument(delegate { Validate(new ReminderSettings { LimitHours = false, BreakEnabled = true, BreakStartHour = 0, BreakEndHour = 24 }, KnownThemes()); }, "Break covers the whole day");
+        // Same ranges are fine while the break is switched off.
+        Validate(new ReminderSettings { BreakEnabled = false, BreakStartHour = 13, BreakEndHour = 12 }, KnownThemes());
     }
 
     private static void Next_CrossesYearBoundary()

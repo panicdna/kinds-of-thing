@@ -455,6 +455,22 @@ namespace DeskHooker
                 await Task.Delay(400);
                 if (Settings.StartHour!=8 || Settings.EndHour!=17) throw new Exception("Restoring the test window failed.");
                 result["time24Inputs"]=true;
+                // Quiet period (lunch): off by default; when on, it is saved with the other settings and bad ranges are refused.
+                if (await set24.ExecuteScriptAsync("document.querySelector('#break-on').checked")!="false" || await set24.ExecuteScriptAsync("document.querySelector('#break-start').disabled")!="true") throw new Exception("The break should start switched off with its times disabled.");
+                await set24.ExecuteScriptAsync("document.querySelector('#break-on').click(); document.querySelector('#break-start').value='12:00'; document.querySelector('#break-end').value='13:30'; document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (!Settings.BreakEnabled || Settings.BreakStartHour!=12 || Settings.BreakStartMinute!=0 || Settings.BreakEndHour!=13 || Settings.BreakEndMinute!=30) throw new Exception("The break was not saved.");
+                if (await set24.ExecuteScriptAsync("document.querySelector('#break-on').checked && !document.querySelector('#break-start').disabled && document.querySelector('#break-end').value")!="\"13:30\"") throw new Exception("The saved break is not shown again after saving.");
+                await set24.ExecuteScriptAsync("document.querySelector('#break-end').value='11:00'; document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (Settings.BreakEndHour!=13) throw new Exception("A break that ends before it starts was accepted.");
+                await set24.ExecuteScriptAsync("document.querySelector('#break-start').value='08:00'; document.querySelector('#break-end').value='18:00'; document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (Settings.BreakStartHour!=12) throw new Exception("A break covering the whole reminder window was accepted.");
+                await set24.ExecuteScriptAsync("document.querySelector('#break-on').click(); document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (Settings.BreakEnabled) throw new Exception("Switching the break off was not saved.");
+                result["breakTimes"]=true;
                 // Immediate-run button: opens the next theme in saved order right away, regardless of schedule.
                 if (Popup!=null) throw new Exception("A popup was open before the immediate-run check.");
                 if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#run-now'))")!="true") throw new Exception("Immediate-run button is missing.");

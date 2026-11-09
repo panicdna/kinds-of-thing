@@ -6,7 +6,7 @@
   const core = window.TeumCore;
   const content = window.GAME_CONTENT || { dances: [] };
   let state;
-  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'ordered-one' };
+  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], BreakEnabled: false, BreakStartHour: 12, BreakStartMinute: 0, BreakEndHour: 13, BreakEndMinute: 0, Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'ordered-one' };
   const symbols = { stretch: '↟', meditation: '◌', voice: '♪', 'back-standing': '↗', dance: '♫', relax: '☾' };
   const themeModes = [
     { id: 'ordered-one', label: '하나씩 순서대로', help: '알림마다 하나만, 목록 순서대로 돌아가며' },
@@ -179,7 +179,7 @@
       <main class="main"><div class="heading"><div><div class="eyebrow">YOUR PERSONAL BREAK RITUAL</div><h1>잠깐, 나를 돌보는 시간.</h1><p>알림 간격과 하고 싶은 주제를 골라 주세요. 여러 개를 고르면 순서대로 만나요.</p></div><div class="stamp">◌</div></div>
       ${!host ? '<div class="native-warning">HTML 미리보기입니다. 창을 닫은 뒤에도 정해진 간격으로 전체 화면을 띄우려면 같은 폴더의 DeskHooker.exe를 실행하세요.</div>' : ''}
       <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="start-time" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.StartHour, s.StartMinute)}" aria-label="시작 시각 (24시간, 시:분)"><span>부터</span><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분마다</span></div><p class="small-help">시작 시각은 24시간제(시:분, 예: 13:30)로, 간격은 1~240 사이의 분으로 직접 입력하세요.<br>아래 ‘시간대에만 알림 받기’를 켜면 이 시각부터 받아요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p><button id="run-now" class="secondary" type="button" style="margin-top:14px">▶ 즉시 실행 (시험용)</button><p class="small-help">시간대·요일·일시정지와 관계없이, 저장된 주제 순서대로 팝업을 바로 띄웁니다.</p></section>
-      <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>시작·종료 시각 사이에만 알림 받기</label><div class="schedule-line">종료 <input id="end-time" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.EndHour, s.EndMinute)}" aria-label="종료 시각 (24시간, 시:분)"> 전까지 (24시간제 · 24:00 또는 00:00은 자정)</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
+      <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>시작·종료 시각 사이에만 알림 받기</label><div class="schedule-line">종료 <input id="end-time" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.EndHour, s.EndMinute)}" aria-label="종료 시각 (24시간, 시:분)"> 전까지 (24시간제 · 24:00 또는 00:00은 자정)</div><label class="schedule-line"><input id="break-on" type="checkbox" ${s.BreakEnabled ? 'checked' : ''}>중간에 쉬는 시간(예: 점심)에는 알림 끄기</label><div class="schedule-line break-times">쉬는 시간 <input id="break-start" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.BreakStartHour, s.BreakStartMinute)}" aria-label="쉬는 시간 시작 (24시간, 시:분)" ${s.BreakEnabled ? '' : 'disabled'}> 부터 <input id="break-end" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.BreakEndHour, s.BreakEndMinute)}" aria-label="쉬는 시간 끝 (24시간, 시:분)" ${s.BreakEnabled ? '' : 'disabled'}> 까지</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
       <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
@@ -188,7 +188,8 @@
       <p class="small-help">일반적인 휴식·움직임 안내이며 치료·재활 처방이 아닙니다. 통증이 늘거나 저림·어지럼이 생기면 중단하세요. 허리 통증과 함께 새로 생긴 다리 힘 빠짐, 회음부 감각 저하, 대소변 조절 변화가 있으면 운동보다 즉시 진료가 우선입니다.</p>
       </main></div>`;
     bindThemeGrid(); bindShare(); updateSync();
-    ['#start-time', '#end-time'].forEach(sel => $(sel).addEventListener('blur', () => { const t = parseTime($(sel).value); if (t) $(sel).value = hm(t[0], t[1]); }));
+    ['#start-time', '#end-time', '#break-start', '#break-end'].forEach(sel => $(sel).addEventListener('blur', () => { const t = parseTime($(sel).value); if (t) $(sel).value = hm(t[0], t[1]); }));
+    $('#break-on').addEventListener('change', event => { $('#break-start').disabled = $('#break-end').disabled = !event.target.checked; });
     $('#run-now').addEventListener('click', () => send('run-now'));
     $('#sync-now').addEventListener('click', () => { if (!host) { toast('공유 동기화는 DeskHooker.exe에서 동작해요. 공유하기는 지금도 쓸 수 있어요.'); return; } send('sync'); });
     $('#start-reminders').addEventListener('click', () => save(true));
@@ -211,15 +212,30 @@
   function save(enabled) {
     const st = parseTime($('#start-time').value), et = parseTime($('#end-time').value);
     if (!st || !et || st[0] > 23) { toast('시작·종료 시각을 24시간제 시:분으로 입력하세요. (예: 09:00, 18:30)'); return; }
+    // Quiet period (e.g. lunch): only used when switched on, so a half-typed value never blocks saving while it is off.
+    const breakOn = $('#break-on').checked;
+    const breakStart = parseTime($('#break-start').value) || [defaults.BreakStartHour, defaults.BreakStartMinute];
+    const breakEnd = parseTime($('#break-end').value) || [defaults.BreakEndHour, defaults.BreakEndMinute];
+    if (breakOn) {
+      if (!parseTime($('#break-start').value) || !parseTime($('#break-end').value) || breakStart[0] > 23) { toast('쉬는 시간을 24시간제 시:분으로 입력하세요. (예: 12:00 ~ 13:00)'); return; }
+      if (breakEnd[0] * 60 + breakEnd[1] <= breakStart[0] * 60 + breakStart[1]) { toast('쉬는 시간은 끝이 시작보다 늦어야 해요. (자정까지는 24:00)'); return; }
+    }
     const settings = {
       IntervalMinutes: Number($('#interval').value), WeekdaysOnly: $('#weekdays').checked, LimitHours: $('#limit-hours').checked,
       StartHour: st[0], StartMinute: st[1], EndHour: (et[0] === 0 && et[1] === 0) || et[0] === 24 ? 24 : et[0], EndMinute: (et[0] === 0 && et[1] === 0) || et[0] === 24 ? 0 : et[1], StartAtLogin: $('#login-start').checked,
+      BreakEnabled: $('#break-on').checked, BreakStartHour: breakStart[0], BreakStartMinute: breakStart[1], BreakEndHour: breakEnd[0], BreakEndMinute: breakEnd[1],
       ThemeIds: Array.from(document.querySelectorAll('input[name=theme]:checked'), x => x.value), Enabled: enabled,
       ThemeMode: (document.querySelector('input[name=theme-mode]:checked') || {}).value || 'ordered-one'
     };
     if (!Number.isInteger(settings.IntervalMinutes) || settings.IntervalMinutes < 1 || settings.IntervalMinutes > 240) { toast('간격은 1~240분 사이의 정수로 고르세요.'); return; }
     if (!settings.ThemeIds.length) { toast('주제를 하나 이상 골라 주세요.'); return; }
     if (!Number.isInteger(settings.StartHour) || !Number.isInteger(settings.EndHour) || settings.StartHour < 0 || settings.StartHour > 23 || settings.EndHour < 1 || settings.EndHour > 24 || settings.StartHour * 60 + settings.StartMinute >= settings.EndHour * 60 + settings.EndMinute) { toast('종료 시각은 시작 시각보다 늦어야 해요. (자정까지는 00:00)'); return; }
+    if (breakOn) {
+      const minutes = (h, m) => h * 60 + m;
+      const allowedStart = settings.LimitHours ? minutes(settings.StartHour, settings.StartMinute) : 0;
+      const allowedEnd = settings.LimitHours ? minutes(settings.EndHour, settings.EndMinute) : 1440;
+      if (minutes(breakStart[0], breakStart[1]) <= allowedStart && minutes(breakEnd[0], breakEnd[1]) >= allowedEnd) { toast('쉬는 시간이 알림을 받는 시간 전체를 덮고 있어요. 범위를 줄여 주세요.'); return; }
+    }
     send('save', { settings });
   }
   function popupFrame(theme) {

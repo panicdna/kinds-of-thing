@@ -24,6 +24,12 @@ namespace DeskHooker
         public string ThemeMode { get; set; }
         // Per card (theme id): how that card's sub-items are picked, "random" (default when absent) or "sequential".
         public Dictionary<string, string> VariantModes { get; set; }
+        // A quiet period inside the day (e.g. lunch): reminders that would fall in [BreakStart, BreakEnd) wait until it ends.
+        public bool BreakEnabled { get; set; }
+        public int BreakStartHour { get; set; }
+        public int BreakStartMinute { get; set; }
+        public int BreakEndHour { get; set; }
+        public int BreakEndMinute { get; set; }
 
         public ReminderSettings()
         {
@@ -42,6 +48,9 @@ namespace DeskHooker
             ExhaleSeconds = 6;
             ThemeMode = ThemeRotation.OrderedOne;
             VariantModes = new Dictionary<string, string>();
+            BreakEnabled = false;
+            BreakStartHour = 12; BreakStartMinute = 0;
+            BreakEndHour = 13; BreakEndMinute = 0;
         }
 
         public const string VariantRandom = "random", VariantSequential = "sequential";
@@ -67,6 +76,20 @@ namespace DeskHooker
             if (settings.EndHour < 1 || settings.EndHour > 24 || (settings.EndHour == 24 && settings.EndMinute != 0) ||
                 WindowEnd(settings) <= WindowStart(settings))
                 throw new ArgumentException("End time must be later than start time and not after 24:00.", "settings");
+            if (settings.BreakEnabled)
+            {
+                if (settings.BreakStartHour < 0 || settings.BreakStartHour > 23 || settings.BreakStartMinute < 0 || settings.BreakStartMinute > 59 ||
+                    settings.BreakEndMinute < 0 || settings.BreakEndMinute > 59 || settings.BreakEndHour < 0 || settings.BreakEndHour > 24 ||
+                    (settings.BreakEndHour == 24 && settings.BreakEndMinute != 0))
+                    throw new ArgumentException("Break times must be 00:00-23:59 (the end may be 24:00).", "settings");
+                if (BreakEnd(settings) <= BreakStart(settings))
+                    throw new ArgumentException("The break must end after it starts.", "settings");
+                // A break that swallows the whole allowed time would leave no moment to remind.
+                TimeSpan allowedStart = settings.LimitHours ? WindowStart(settings) : TimeSpan.Zero;
+                TimeSpan allowedEnd = settings.LimitHours ? WindowEnd(settings) : TimeSpan.FromHours(24);
+                if (BreakStart(settings) <= allowedStart && BreakEnd(settings) >= allowedEnd)
+                    throw new ArgumentException("The break must leave some time for reminders.", "settings");
+            }
             if (settings.InhaleSeconds < 1 || settings.InhaleSeconds > 10)
                 throw new ArgumentException("InhaleSeconds must be between 1 and 10.", "settings");
             if (settings.HoldSeconds < 0 || settings.HoldSeconds > 30)
@@ -96,6 +119,9 @@ namespace DeskHooker
 
         private static TimeSpan WindowStart(ReminderSettings s) { return new TimeSpan(s.StartHour, s.StartMinute, 0); }
         private static TimeSpan WindowEnd(ReminderSettings s) { return new TimeSpan(s.EndHour, s.EndMinute, 0); }
+        private static TimeSpan BreakStart(ReminderSettings s) { return new TimeSpan(s.BreakStartHour, s.BreakStartMinute, 0); }
+        private static TimeSpan BreakEnd(ReminderSettings s) { return new TimeSpan(s.BreakEndHour, s.BreakEndMinute, 0); }
+        private static bool InBreak(ReminderSettings s, TimeSpan timeOfDay) { return s.BreakEnabled && timeOfDay >= BreakStart(s) && timeOfDay < BreakEnd(s); }
 
         // Schedule-only predicate: Enabled is checked separately by IsDue.
         // All supplied DateTimes must use the caller's consistent wall-clock basis.
@@ -103,6 +129,8 @@ namespace DeskHooker
         {
             if (settings.WeekdaysOnly &&
                 (when.DayOfWeek == DayOfWeek.Saturday || when.DayOfWeek == DayOfWeek.Sunday))
+                return false;
+            if (InBreak(settings, when.TimeOfDay))
                 return false;
             return !settings.LimitHours ||
                 (when.TimeOfDay >= WindowStart(settings) && when.TimeOfDay < WindowEnd(settings));
@@ -134,13 +162,23 @@ namespace DeskHooker
         public static DateTime Next(DateTime from, ReminderSettings settings)
         {
             DateTime candidate = from.AddMinutes(settings.IntervalMinutes);
-            if (settings.LimitHours && candidate.TimeOfDay >= WindowEnd(settings))
-                candidate = candidate.Date.AddDays(1) + WindowStart(settings);
-            if (settings.LimitHours && candidate.TimeOfDay < WindowStart(settings))
-                candidate = candidate.Date + WindowStart(settings);
-            while (settings.WeekdaysOnly &&
-                (candidate.DayOfWeek == DayOfWeek.Saturday || candidate.DayOfWeek == DayOfWeek.Sunday))
-                candidate = candidate.Date.AddDays(1) + (settings.LimitHours ? WindowStart(settings) : TimeSpan.Zero);
+            // Each rule can push the time into another rule's forbidden zone (a break ending after the window, a weekend...),
+            // so repeat until nothing moves. Validate() guarantees that some allowed time exists, so this ends quickly.
+            for (int pass = 0; pass < 16; pass++)
+            {
+                DateTime before = candidate;
+                if (settings.LimitHours && candidate.TimeOfDay >= WindowEnd(settings))
+                    candidate = candidate.Date.AddDays(1) + WindowStart(settings);
+                if (settings.LimitHours && candidate.TimeOfDay < WindowStart(settings))
+                    candidate = candidate.Date + WindowStart(settings);
+                if (InBreak(settings, candidate.TimeOfDay))
+                    candidate = candidate.Date + BreakEnd(settings);
+                while (settings.WeekdaysOnly &&
+                    (candidate.DayOfWeek == DayOfWeek.Saturday || candidate.DayOfWeek == DayOfWeek.Sunday))
+                    candidate = candidate.Date.AddDays(1) + (settings.LimitHours ? WindowStart(settings) : TimeSpan.Zero);
+                if (candidate == before)
+                    break;
+            }
             return candidate;
         }
     }
