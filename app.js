@@ -305,7 +305,8 @@
     const origin = 'https://www.youtube-nocookie.com';
     const state = { time: 0, a: null, b: null, rate: 1 };
     const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-    const command = (func, args = []) => { if (frame.contentWindow) frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), origin); };
+    window.danceCommandLog = []; // inspected by tests/dance-ui.js
+    const command = (func, args = []) => { window.danceCommandLog.push({ func, args }); if (frame.contentWindow) frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), origin); };
     const label = () => { $('#practice-loop').textContent = state.a == null ? '반복 꺼짐' : state.b == null ? `A ${fmt(state.a)} 지정됨 · B를 정하세요` : `${fmt(state.a)} ~ ${fmt(state.b)} 반복 중`; };
     const startListening = () => { if (frame.contentWindow) frame.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), origin); };
     const onMessage = event => {

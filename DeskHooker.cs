@@ -450,6 +450,15 @@ namespace DeskHooker
                 if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.text-stage')) && !document.querySelector('.motion-image') && document.querySelectorAll('.instruction-panel li').length===3") != "true") throw new Exception("Community popup did not render.");
                 Popup.Close();
                 result["communitySyncAndShare"] = true;
+                ShowPopup("dance"); await Popup.Ready.Task; await Task.Delay(350);
+                string danceReport=await Popup.Browser.CoreWebView2.ExecuteScriptAsync(File.ReadAllText(Path.Combine(Root,"tests","dance-ui.js")));
+                var danceCheck=Json.Deserialize<Dictionary<string,object>>(danceReport);
+                if (danceCheck==null || !Convert.ToBoolean(danceCheck["passed"])) throw new Exception("Dance UI failed: " + (danceCheck==null ? danceReport : Convert.ToString(danceCheck["error"])));
+                result["danceControls"]=danceCheck;
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-dance=\"2\"]').click()");
+                await Task.Delay(300);
+                await Capture(Popup,Path.Combine(folder,"dance-player.png"));
+                Popup.Close();
                 ShowPopup("breathing"); await Popup.Ready.Task; await Task.Delay(350);
                 await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#breath-start').click()");
                 await Task.Delay(150);
