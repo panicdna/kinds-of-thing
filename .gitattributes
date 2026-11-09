@@ -1,0 +1,8 @@
+* text=auto
+*.gif binary
+*.png binary
+*.jpg binary
+*.dll binary
+*.exe binary
+*.ico binary
+lib/WebView2-LICENSE.txt whitespace=-blank-at-eol

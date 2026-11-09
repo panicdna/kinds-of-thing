@@ -1,0 +1,144 @@
+GAME CONTENT — SOURCE AND VERIFICATION RECORD
+Verified: 2026-11-09T15:07:37+09:00
+
+COUNTS AND CONTRACT
+3 poems; 32 nonempty complete lines; 3 official choreography videos.
+games-content.js assigns window.GAME_CONTENT = { poems, dances }; no external libraries, imports, requests, players, or autoplay.
+year means first-publication year, not the date of the transcribed edition.
+lines contains complete lines; an empty string marks a stanza gap, NEVER an answer candidate.
+Blank one entire nonempty line and compare to that same canonical line. If needed normalize NFC/trim user input separately; never modernize the stored answer.
+
+POEMS — EDITION-SPECIFIC CANONICAL ANSWERS
+
+진달래꽃 / 김소월 / first published 1922
+Canonical source: [1]
+Text was extracted programmatically from Wikisource RAW’s 원문 (original) poem block, NOT 현대어. Only the heading was removed; original spelling, spacing, archaic jamo, and stanza gaps remain.
+Transcribed edition: 진달래꽃, 매문사, 1925-12-26, as documented by its collection page. [2]
+RAW retrieval route: [3]
+First publication: 1922-07, 개벽. The 1925 collection revised the magazine text; the game deliberately uses the 1925 original edition, not the 1922 wording. [4]
+Nonempty lines: 12
+SHA-256, UTF-8 compact JSON array of lines: 613d24ab49d82e2b332f02cdaa69690d4a8ce90338997b37a0aa04300fe4f9d8
+Canonical lines (empty display lines are stanza gaps):
+나보기가 역겨워
+가실ᄯᅢ에는
+말업시 고히 보내드리우리다
+
+寧邊에藥山
+진달내ᄭᅩᆺ
+아름ᄯᅡ다 가실길에 ᄲᅮ리우리다
+
+가시는거름거름
+노힌그ᄭᅩᆺ츨
+삽분히즈려밟고 가시옵소서
+
+나보기가 역겨워
+가실ᄯᅢ에는
+죽어도아니 눈물흘니우리다
+
+산유화 / 김소월 / first published 1924
+Canonical source: [5]
+Text was extracted programmatically from Wikisource RAW’s 원문 (original) poem block, NOT 현대어. Only the heading was removed; original spelling, spacing, archaic jamo, and stanza gaps remain.
+Transcribed edition: 진달래꽃, 매문사, 1925-12-26, as documented by its collection page. [2]
+RAW retrieval route: [6]
+First publication: 1924-10, 영대 no. 3, verified by the National Museum of World Writing Systems. Its catalog describes a 1959 reprint but dates the original poem to 1924; the 1959 book is not the copied edition. [7]
+Nonempty lines: 16
+SHA-256, UTF-8 compact JSON array of lines: 69c8ae23618cbd8db85f9df097761160553f9813159c346eb235e798a40c5dba
+Canonical lines (empty display lines are stanza gaps):
+山에는 ᄭᅩᆺ픠네
+ᄭᅩᆺ치픠네
+갈 봄 녀름업시
+ᄭᅩᆺ치픠네
+
+山에
+山에
+픠는ᄭᅩᆺ츤
+저만치 혼자서 픠여잇네
+
+山에서우는 적은새요
+ᄭᅩᆺ치죠와
+山에서
+사노라네
+
+山에는 ᄭᅩᆺ지네
+ᄭᅩᆺ치지네
+갈 봄 녀름업시
+ᄭᅩᆺ치지네
+
+엄마야 누나야 / 김소월 / first published 1922
+Canonical source: [8]
+Exact four-line text was extracted from the National Institute of Korean History’s original-magazine transcription: 金잔듸 (小曲) (外), by 素月; 개벽 no. 19, 1922-01-10, pp. 35–36; subsection 엄마야 누나야. [8]
+Heading excluded; 江邊, 金, 門, 밧게는, 갈닙, punctuation, and internal spaces preserved. No translation or modern transcription substituted; adjacent 달마지 subsection excluded.
+Nonempty lines: 4
+SHA-256, UTF-8 compact JSON array of lines: 6d461bcbacaf3830ad9abbc98572f8ab576207943397981c15344ab7deb4549d
+Canonical lines (empty display lines are stanza gaps):
+엄마야 누나야 江邊에 살자,
+뜰에는 반짝이는 金 모래빗
+뒷門 밧게는 갈닙의 노래,
+엄마야 누나야 江邊에 살자.
+
+PUBLIC-DOMAIN SELECTION BASIS
+Kim Sowol died in 1934, verified by the Academy of Korean Studies biography. [9]
+The two Wikisource poem pages and their 1925 collection explicitly mark the original work PD-old-70. [1][5][2]
+All selected works and transcribed editions predate 1930. No modern copyrighted poem, translation, editorial analysis, photograph, musical setting, music, or video footage is reproduced. This records historical dates and source public-domain designations, not a claim of a worldwide legal clearance.
+
+OFFICIAL CHOREOGRAPHY RECOMMENDATIONS
+
+TWICE "What is Love?" Dance Video
+ID: WhHEQ-W3x5Y
+Official video: [10]
+Live verification: YouTube oEmbed JSON [11]
+Returned author_name: TWICE
+Returned author_url: https://www.youtube.com/@TWICE
+Returned title: TWICE "What is Love?" Dance Video
+Official company/artist website links to its YouTube channel: [12]
+서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요.
+
+BLACKPINK - 'How You Like That' DANCE PERFORMANCE VIDEO
+ID: 32si5cfrCNc
+Official video: [13]
+Live verification: YouTube oEmbed JSON [14]
+Returned author_name: BLACKPINK
+Returned author_url: https://www.youtube.com/@BLACKPINK
+Returned title: BLACKPINK - 'How You Like That' DANCE PERFORMANCE VIDEO
+Official company/artist website links to its YouTube channel: [15]
+서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요.
+
+BLACKPINK - '뚜두뚜두 (DDU-DU DDU-DU)' DANCE PRACTICE VIDEO (MOVING VER.)
+ID: jOJbXvjZ-cQ
+Official video: [16]
+Live verification: YouTube oEmbed JSON [17]
+Returned author_name: BLACKPINK
+Returned author_url: https://www.youtube.com/@BLACKPINK
+Returned title: BLACKPINK - '뚜두뚜두 (DDU-DU DDU-DU)' DANCE PRACTICE VIDEO (MOVING VER.)
+Official company/artist website links to its YouTube channel: [15]
+서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요. 이동 촬영 버전입니다.
+
+MEDIA LOADING AND RIGHTS
+Links and metadata only. Do not download/rehost videos or music. Only after explicit user selection, open the chosen official URL. If the UI embeds a player, create that iframe only on selection and set autoplay=0; keep an official-link fallback.
+This file does not create an iframe or start audio. Metadata and official-channel identity were checked; actual playback, geographic restrictions, login/cookies, and file:// embedding were NOT tested.
+
+LIMITATIONS AND BLOCKERS
+No content-count blocker: 3 poems and 3 official videos verified.
+Native web search failed due to transport configuration/certificate errors; web extraction was unavailable. Direct HTTPS system curl succeeded. No guessed text or metadata shipped.
+The history archive initially blocked some requests; /item/level.do with a browser User-Agent supplied the exact original text and date.
+Rejected candidate ay5eXfzyGL4 returned Not Found and is excluded.
+Archaic spelling/Hanja are intentional and harder to type. The UI should identify this as an original-edition game; do not replace answers with remembered textbook wording.
+
+SOURCES (registered from retrieved URLs)
+[1] https://ko.wikisource.org/w/index.php?title=%EC%A7%84%EB%8B%AC%EB%9E%98%EA%BD%83+%28%EC%8B%9C%EC%A7%91%29%2F%EC%A7%84%EB%8B%AC%EB%9E%98%EA%BD%83&oldid=430575
+[2] https://ko.wikisource.org/wiki/%EC%A7%84%EB%8B%AC%EB%9E%98%EA%BD%83_%28%EC%8B%9C%EC%A7%91%29
+[3] https://ko.wikisource.org/w/index.php?title=%EC%A7%84%EB%8B%AC%EB%9E%98%EA%BD%83+%28%EC%8B%9C%EC%A7%91%29%2F%EC%A7%84%EB%8B%AC%EB%9E%98%EA%BD%83&action=raw
+[4] https://encykorea.aks.ac.kr/Article/E0054623
+[5] https://ko.wikisource.org/w/index.php?title=%EC%A7%84%EB%8B%AC%EB%9E%98%EA%BD%83+%28%EC%8B%9C%EC%A7%91%29%2F%EC%82%B0%EC%9C%A0%ED%99%94&oldid=430577
+[6] https://ko.wikisource.org/w/index.php?title=%EC%A7%84%EB%8B%AC%EB%9E%98%EA%BD%83+%28%EC%8B%9C%EC%A7%91%29%2F%EC%82%B0%EC%9C%A0%ED%99%94&action=raw
+[7] https://openarchives.mow.or.kr/collection/1254
+[8] https://db.history.go.kr/item/level.do?levelId=ma_013_0190_0220
+[9] https://encykorea.aks.ac.kr/Article/E0009535
+[10] https://www.youtube.com/watch?v=WhHEQ-W3x5Y
+[11] https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DWhHEQ-W3x5Y&format=json
+[12] https://twice.jype.com/
+[13] https://www.youtube.com/watch?v=32si5cfrCNc
+[14] https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D32si5cfrCNc&format=json
+[15] https://www.blackpinkofficial.com/
+[16] https://www.youtube.com/watch?v=jOJbXvjZ-cQ
+[17] https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjOJbXvjZ-cQ&format=json

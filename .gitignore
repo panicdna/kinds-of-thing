@@ -1,0 +1,27 @@
+# Local caches, editor locks, and scratch output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.node_repl_history
+~$*
+*.tmp
+*.new
+*.log
+.DS_Store
+Thumbs.db
+
+# Tests can render UI and compile disposable runners locally
+tests/bin/
+tests/.bin/
+tests/ui/
+tests/*.exe
+tests/*.pdb
+startup-error.txt
+webview-error.txt
+
+# Local credentials and user-specific settings are never published
+.env
+.env.*
+settings.json
+*.user
+.vs/

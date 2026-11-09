@@ -1,0 +1,102 @@
+{
+  "poster": {
+    "file": "desk-stretch-guide.png",
+    "size": [
+      1800,
+      2110
+    ]
+  },
+  "gif": {
+    "file": "desk-stretch-motion.gif",
+    "size": [
+      840,
+      960
+    ],
+    "frames": 189,
+    "duration_seconds": 23.07
+  },
+  "steps": [
+    {
+      "name": "어깨 으쓱, 편하게 내리기",
+      "time": "3~5초 × 3회",
+      "lines": [
+        "어깨를 귀 쪽으로 올렸다가 내려요.",
+        "목은 길게, 숨은 편하게."
+      ],
+      "labels": [
+        "준비",
+        "올리기 → 내리기"
+      ]
+    },
+    {
+      "name": "목을 좌우로 살짝",
+      "time": "좌우 각각 10초",
+      "lines": [
+        "귀를 어깨 쪽으로 조금 기울여요.",
+        "어깨는 그대로, 손으로 당기지 않아요."
+      ],
+      "labels": [
+        "가운데",
+        "왼쪽 · 오른쪽"
+      ]
+    },
+    {
+      "name": "가슴 활짝 펴기",
+      "time": "10초 × 2회",
+      "lines": [
+        "팔꿈치를 뒤로 보내 어깨뼈를 모아요.",
+        "허리를 젖히지 말고 가슴만 편하게."
+      ],
+      "labels": [
+        "옆에서 본 준비",
+        "팔꿈치를 뒤로"
+      ]
+    },
+    {
+      "name": "앞으로 뻗어 등 늘리기",
+      "time": "10~20초 유지",
+      "lines": [
+        "양손을 모아 앞으로 뻗어요.",
+        "등은 부드럽게 둥글게, 고개는 살짝만."
+      ],
+      "labels": [
+        "옆에서 본 준비",
+        "앞으로 쭉"
+      ]
+    },
+    {
+      "name": "좌우 옆구리 늘리기",
+      "time": "좌우 각각 10초",
+      "lines": [
+        "두 팔을 올려 몸통을 조금 기울여요.",
+        "양쪽 엉덩이는 의자에 붙여요."
+      ],
+      "labels": [
+        "팔 올리고 준비",
+        "왼쪽 · 오른쪽"
+      ]
+    },
+    {
+      "name": "손목 위아래 늘리기",
+      "time": "각 3~5초 · 양손",
+      "lines": [
+        "반대 손으로 손가락 쪽을 살짝 잡아요.",
+        "손목을 위아래로, 세게 당기지 않아요."
+      ],
+      "labels": [
+        "손목 위로 살짝",
+        "손목 아래로 살짝"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://www.ccohs.ca/oshanswers/ergonomics/office/stretching.html",
+      "role": "movement and safety reference; sequence and timings adapted"
+    },
+    {
+      "url": "https://commons.wikimedia.org/wiki/File:Simple_Stick_Figure.svg",
+      "role": "public-domain visual reference; poses newly drawn"
+    }
+  ]
+}

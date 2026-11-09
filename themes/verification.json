@@ -1,0 +1,124 @@
+{
+  "catalogue_entries": 9,
+  "new_gifs": 8,
+  "referenced_gifs": 9,
+  "new_gif_resolution": [
+    720,
+    800
+  ],
+  "files": [
+    {
+      "file": "themes/meditation.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 40,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 876777,
+      "sha256": "b056da700b7204ec864b8c21706a55183251862302936f2c628ffdc2e1031e2b",
+      "unique_frames": 40
+    },
+    {
+      "file": "themes/yoga.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 48,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 1026977,
+      "sha256": "929bc1411b9924156c5530e85cb445d68f47eedbe2b62eed9eb566a668ba6323",
+      "unique_frames": 48
+    },
+    {
+      "file": "themes/pilates.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 48,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 1013420,
+      "sha256": "a7223c0eebde7768a9837eeab7943e329756b848fbcec7dd7492788b368296b1",
+      "unique_frames": 48
+    },
+    {
+      "file": "themes/core.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 42,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 929879,
+      "sha256": "62f295c025a2f8d9cf33168074e4ac2061121f18b0f9830340511505a1f2dcc8",
+      "unique_frames": 23
+    },
+    {
+      "file": "themes/breathing.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 45,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 979597,
+      "sha256": "f3def5e07c651e0cdfadf22fd2d1f6934d61fda26ca243bf3c64f4dc77a25274",
+      "unique_frames": 45
+    },
+    {
+      "file": "themes/voice.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 38,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 810887,
+      "sha256": "11d7d6b5b150efb169add1458ef61541aaa88234b3d9bc5539216b68f4215e31",
+      "unique_frames": 30
+    },
+    {
+      "file": "themes/back-seated.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 46,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 1076371,
+      "sha256": "3e31c3dd7da1958d6b297ef3a70a81c7faa6a020f840024aa95d475e9456124a",
+      "unique_frames": 46
+    },
+    {
+      "file": "themes/back-standing.gif",
+      "size": [
+        720,
+        800
+      ],
+      "frames": 40,
+      "duration_ms": 7680,
+      "loop": 0,
+      "bytes": 912359,
+      "sha256": "88c08fb81c150507a3c889de7f6784e4e099add9887a4e9e215ea546d6596cf9",
+      "unique_frames": 37
+    }
+  ],
+  "original_inputs_unchanged": true,
+  "original_input_sha256": {
+    "make_art.py": "e2f6724c9bc0cd536a37c91a91c4df56ef3fb35b5005a2a118689eadaf247184",
+    "desk-stretch-motion.gif": "f81caf26b8493be9dc5726a521a7c3e324f52ed5bab8cdbb413cd9f86d42dbb9"
+  },
+  "contact_sheet": "themes/contact-sheet.png",
+  "preview_only": true,
+  "audio": false,
+  "mandatory_breath_holds": false
+}
