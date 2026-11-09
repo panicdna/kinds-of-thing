@@ -348,7 +348,15 @@ namespace DeskHooker
         private static bool AllowedLink(Uri uri)
         {
             if (uri.Scheme!="https" || !String.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort) return false;
-            if (uri.Host=="www.youtube.com" || uri.Host=="youtube.com" || uri.Host=="youtu.be" || uri.Host=="ko.wikisource.org") return true;
+            // Exact-host match only: video plus the literature sources shown in the poem library.
+            switch (uri.Host)
+            {
+                case "www.youtube.com": case "youtube.com": case "youtu.be":
+                case "ko.wikisource.org": case "en.wikisource.org":
+                case "www.changbi.com": case "www.bobdylan.com":
+                case "www.penguinrandomhouse.com": case "www.penguin.co.uk": case "www.ndbooks.com":
+                    return true;
+            }
             // Sharing may only open GitHub's "new file" page for this project's community folder.
             return uri.Host=="github.com" && uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/new/main/community", StringComparison.Ordinal);
         }
