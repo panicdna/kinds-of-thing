@@ -4,57 +4,6 @@
   else root.TeumCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  function normalizeAnswer(value) {
-    return String(value == null ? '' : value).normalize('NFC').replace(/\s+/gu, '');
-  }
-  function compareAnswer(answer, expected) {
-    return normalizeAnswer(answer) === normalizeAnswer(expected);
-  }
-  function filterPoems(poems, filters = {}) {
-    const query = String(filters.query || '').normalize('NFC').trim().toLocaleLowerCase();
-    return poems.filter(poem => (!filters.category || filters.category === 'all' || poem.category === filters.category)
-      && (!filters.language || filters.language === 'all' || poem.language === filters.language)
-      && (!query || `${poem.title} ${poem.author}`.normalize('NFC').toLocaleLowerCase().includes(query)));
-  }
-  function randomIndex(length, random) {
-    const value = Number(random());
-    return Math.min(length - 1, Math.floor(Math.max(0, Number.isFinite(value) ? value : 0) * length));
-  }
-  function choosePoem(poems, previousId = '', random = Math.random) {
-    if (!poems.length) return null;
-    const others = poems.filter(poem => poem.id !== previousId);
-    const pool = others.length ? others : poems;
-    return pool[randomIndex(pool.length, random)];
-  }
-  function chooseQuestion(poem, random = Math.random, options = {}) {
-    const lines = (poem.lines || []).slice();
-    const nonblank = lines.map((line, index) => ({ line, index })).filter(item => normalizeAnswer(item.line).length);
-    let eligible = options.includeShort ? nonblank : nonblank.filter(item => normalizeAnswer(item.line).length >= 7);
-    if (!eligible.length) eligible = nonblank;
-    if (!eligible.length) throw new Error('비울 수 있는 시의 한 줄이 없습니다.');
-    let selected;
-    if (options.blankIndex != null) {
-      selected = nonblank.find(item => item.index === options.blankIndex);
-      if (!selected) throw new Error('비울 수 있는 줄 번호를 선택하세요.');
-    } else {
-      const others = eligible.filter(item => item.index !== options.previousIndex);
-      const pool = others.length ? others : eligible;
-      selected = pool[randomIndex(pool.length, random)];
-    }
-    return { poemId: poem.id, lines, blankIndex: selected.index, expected: selected.line };
-  }
-  function breathPhase(elapsedMs, timing) {
-    const inhale = Number(timing.InhaleSeconds), hold = Number(timing.HoldSeconds), exhale = Number(timing.ExhaleSeconds);
-    if (!Number.isFinite(inhale) || inhale < 1 || inhale > 10 || !Number.isFinite(hold) || hold < 0 || hold > 30 || !Number.isFinite(exhale) || exhale < 1 || exhale > 30) {
-      throw new Error('들숨 1~10초, 멈춤 0~30초, 날숨 1~30초 안에서 선택하세요.');
-    }
-    let position = Math.max(0, elapsedMs / 1000) % (inhale + hold + exhale);
-    for (const [phase, seconds] of [['inhale', inhale], ['hold', hold], ['exhale', exhale]]) {
-      if (seconds && position < seconds) return { phase, remaining: Math.ceil(seconds - position), progress: position / seconds };
-      position -= seconds;
-    }
-    return { phase: 'inhale', remaining: inhale, progress: 0 };
-  }
   // Community sharing. Limits MUST match CommunityContent in ReminderCore.cs.
   const LIMITS = { name: 30, summary: 60, step: 60, steps: 6, safety: 150, author: 20 };
   const SHARE_REPO = { owner: 'panicdna', repo: 'kinds-of-thing', branch: 'main', dir: 'community' };
@@ -94,5 +43,5 @@
     if (url.length > MAX_SHARE_URL) throw new Error('내용이 너무 길어 GitHub 주소에 담을 수 없어요. 조금 줄여 주세요.');
     return url;
   }
-  return { normalizeAnswer, compareAnswer, filterPoems, choosePoem, chooseQuestion, breathPhase, LIMITS, validateShare, shareJson, buildShareUrl };
+  return { LIMITS, validateShare, shareJson, buildShareUrl };
 });

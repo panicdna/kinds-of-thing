@@ -103,6 +103,9 @@ namespace DeskHooker
                 try { Settings = Json.Deserialize<ReminderSettings>(File.ReadAllText(config)); ReminderSchedule.Validate(Settings, Themes.Select(t => t.id)); }
                 catch { Settings = new ReminderSettings(); notice = "이전 설정을 읽지 못해 안전한 기본값으로 시작했습니다. 설정을 다시 저장하세요."; }
             }
+            // The "all at once" run modes were removed from the menu; settings saved with them keep working as the one-per-reminder modes.
+            if (Settings.ThemeMode == ThemeRotation.SequentialAll) Settings.ThemeMode = ThemeRotation.OrderedOne;
+            else if (Settings.ThemeMode == ThemeRotation.RandomAll) Settings.ThemeMode = ThemeRotation.RandomOne;
             NextDue = ReminderSchedule.Next(DateTime.Now, Settings);
             tray = new NotifyIcon { Icon=SystemIcons.Information, Text="틈 · 스트레칭과 작은 쉼", Visible=true };
             var menu = new ContextMenuStrip();
@@ -350,8 +353,8 @@ namespace DeskHooker
                 {
                     if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 변경할 수 있습니다.");
                     var settings=Json.Deserialize<ReminderSettings>(Json.Serialize(msg["settings"]));
-                    // Breathing timings are edited only from the breathing popup (save-breath); keep the stored ones.
-                    settings.InhaleSeconds=Settings.InhaleSeconds; settings.HoldSeconds=Settings.HoldSeconds; settings.ExhaleSeconds=Settings.ExhaleSeconds;
+                    // The settings window no longer edits the breathing timings; keep the stored ones (the file format is unchanged).
+                    settings.VariantModes=Settings.VariantModes; settings.InhaleSeconds=Settings.InhaleSeconds; settings.HoldSeconds=Settings.HoldSeconds; settings.ExhaleSeconds=Settings.ExhaleSeconds;
                     ReminderSchedule.Validate(settings,Themes.Select(t => t.id));
                     bool previousStartup=Settings.StartAtLogin;
                     Settings=settings;
@@ -360,16 +363,15 @@ namespace DeskHooker
                     notice=Settings.Enabled?"알림이 시작됐습니다. 창을 닫아도 트레이에서 계속 동작합니다.":"설정이 저장됐습니다. 알림은 일시정지 상태입니다.";
                     SendState(source); return;
                 }
-                if (action=="save-breath")
+                if (action=="save-variant-mode")
                 {
-                    if (!source.IsPopup) throw new InvalidOperationException("호흡 시간은 호흡 가이드 팝업에서 바꿉니다.");
-                    var updated=Json.Deserialize<ReminderSettings>(Json.Serialize(Settings));
-                    updated.InhaleSeconds=Convert.ToInt32(msg["InhaleSeconds"]); updated.HoldSeconds=Convert.ToInt32(msg["HoldSeconds"]); updated.ExhaleSeconds=Convert.ToInt32(msg["ExhaleSeconds"]);
-                    ReminderSchedule.Validate(updated,Themes.Select(t => t.id));
-                    bool breathConsent=msg.ContainsKey("holdConsent") && Convert.ToBoolean(msg["holdConsent"]);
-                    if (updated.HoldSeconds>0 && !breathConsent) throw new ArgumentException("숨참기는 선택 사항입니다. 주의사항을 확인하거나 멈춤을 0초로 바꾸세요.");
-                    Settings=updated; Persist();
-                    source.Send(new { type="breath", InhaleSeconds=Settings.InhaleSeconds, HoldSeconds=Settings.HoldSeconds, ExhaleSeconds=Settings.ExhaleSeconds }); return;
+                    // A card's sub-item order ("보여 주는 순서") is chosen in that card's popup and remembered in settings.json.
+                    if (!source.IsPopup) throw new InvalidOperationException("보여 주는 순서는 카드 팝업에서 바꿉니다.");
+                    string cardId=Convert.ToString(msg["themeId"]), mode=Convert.ToString(msg["mode"]);
+                    if (!Themes.Any(t => t.id==cardId) || !ReminderSettings.IsValidVariantMode(mode)) throw new ArgumentException("알 수 없는 카드이거나 순서 값이 올바르지 않습니다.");
+                    var modes=new Dictionary<string,string>(Settings.VariantModes ?? new Dictionary<string,string>());
+                    modes[cardId]=mode;
+                    Settings.VariantModes=modes; Persist(); return;
                 }
                 if (action=="sync") { if (!source.IsPopup) StartSync(true); return; }
                 if (action=="run-now") { if (source.IsPopup) return; if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) throw new InvalidOperationException("저장된 주제가 없습니다."); StartRound(); return; }
@@ -389,17 +391,14 @@ namespace DeskHooker
         private static bool AllowedLink(Uri uri)
         {
             if (uri.Scheme!="https" || !String.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort) return false;
-            // Exact-host match only: video plus the literature sources shown in the poem library.
+            // Exact-host match only: the videos shown in the cards.
             switch (uri.Host)
             {
                 case "www.youtube.com": case "youtube.com": case "youtu.be":
-                case "ko.wikisource.org": case "en.wikisource.org":
-                case "www.changbi.com": case "www.bobdylan.com":
-                case "www.penguinrandomhouse.com": case "www.penguin.co.uk": case "www.ndbooks.com":
                     return true;
             }
-            // Sharing may only open GitHub's "new file" page for this project's community folder.
-            return uri.Host=="github.com" && uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/new/main/community", StringComparison.Ordinal);
+            // GitHub: only this project's "new file" page for the community folder and its documents on main.
+            return uri.Host=="github.com" && (uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/new/main/community", StringComparison.Ordinal) || uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/blob/main/", StringComparison.Ordinal));
         }
 
         public void Quit()
@@ -418,8 +417,9 @@ namespace DeskHooker
             string folder=Path.Combine(Root,"tests","ui"); Directory.CreateDirectory(folder);
             try
             {
-                foreach (string blocked in new string[] { "http://ko.wikisource.org/wiki/Test", "https://ko.wikisource.org.evil.invalid/wiki/Test", "https://user@ko.wikisource.org/wiki/Test", "https://ko.wikisource.org:8443/wiki/Test", "file:///C:/Windows/notepad.exe" })
-                    if (AllowedLink(new Uri(blocked))) throw new Exception("Unsafe external literature URL was accepted: " + blocked);
+                foreach (string blocked in new string[] { "http://www.youtube.com/watch?v=Test", "https://www.youtube.com.evil.invalid/watch?v=Test", "https://user@www.youtube.com/watch?v=Test", "https://www.youtube.com:8443/watch?v=Test", "https://ko.wikisource.org/wiki/Test", "https://github.com/evil/kinds-of-thing/blob/main/README.md", "file:///C:/Windows/notepad.exe" })
+                    if (AllowedLink(new Uri(blocked))) throw new Exception("Unsafe external URL was accepted: " + blocked);
+                if (!AllowedLink(new Uri("https://github.com/panicdna/kinds-of-thing/blob/main/%EC%89%BC-%EC%B6%94%EA%B0%80-%EA%B0%80%EC%9D%B4%EB%93%9C.md"))) throw new Exception("The guide link must be openable.");
                 await Task.Delay(700);
                 string count=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#theme-grid .theme-card').length");
                 if (Int32.Parse(count)!=Themes.Length) throw new Exception("Theme cards are missing.");
@@ -437,6 +437,20 @@ namespace DeskHooker
                 if (shown!="\"08:15|17:45\"") throw new Exception("Saved hour:minute window is not shown in the inputs: " + shown);
                 result["timeOfDayInputs"]=true;
                 result["settingsRoundTrip"]=true;
+                // 24-hour inputs: plain text "HH:MM" (no 오전/오후); 9:05 is normalised, 24:00 means midnight, 25:00 is rejected.
+                var set24=SettingsWindow.Browser.CoreWebView2;
+                if (await set24.ExecuteScriptAsync("document.querySelector('#end-time').type")!="\"text\"") throw new Exception("End time should be a plain 24-hour text input.");
+                await set24.ExecuteScriptAsync("var a=document.querySelector('#start-time'); a.value='9:05'; a.dispatchEvent(new Event('blur')); document.querySelector('#end-time').value='24:00'; document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (Settings.StartHour!=9 || Settings.StartMinute!=5 || Settings.EndHour!=24 || Settings.EndMinute!=0) throw new Exception("24-hour times (9:05 and 24:00) were not saved.");
+                if (await set24.ExecuteScriptAsync("document.querySelector('#start-time').value+'|'+document.querySelector('#end-time').value")!="\"09:05|24:00\"") throw new Exception("24-hour times are not shown as HH:MM.");
+                await set24.ExecuteScriptAsync("document.querySelector('#end-time').value='25:00'; document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (Settings.EndHour!=24) throw new Exception("25:00 was accepted as an end time.");
+                await set24.ExecuteScriptAsync("document.querySelector('#start-time').value='08:15'; document.querySelector('#end-time').value='17:45'; document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (Settings.StartHour!=8 || Settings.EndHour!=17) throw new Exception("Restoring the test window failed.");
+                result["time24Inputs"]=true;
                 // Immediate-run button: opens the next theme in saved order right away, regardless of schedule.
                 if (Popup!=null) throw new Exception("A popup was open before the immediate-run check.");
                 if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#run-now'))")!="true") throw new Exception("Immediate-run button is missing.");
@@ -453,9 +467,9 @@ namespace DeskHooker
                 }
                 if (!runOrder.SequenceEqual(new string[]{"meditation","voice"})) throw new Exception("Immediate run did not follow saved theme order: " + String.Join(",",runOrder));
                 result["immediateRunButton"]=true;
-                // Run-mode menu lives in the left sidebar (and only there), with all four choices.
+                // Run-mode menu lives in the left sidebar (and only there), with its two choices.
                 string sideMenu=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('.sidebar input[name=theme-mode]').length+'|'+document.querySelectorAll('.main input[name=theme-mode]').length");
-                if (sideMenu!="\"4|0\"") throw new Exception("Run-mode menu is not exactly in the sidebar: " + sideMenu);
+                if (sideMenu!="\"2|0\"") throw new Exception("Run-mode menu is not exactly in the sidebar: " + sideMenu);
                 result["sidebarRunMode"]=true;
                 // "Next rest" button: shown only while rests remain in a run-all round; Next continues, Close ends the round.
                 string savedMode=Settings.ThemeMode; string[] savedThemes=Settings.ThemeIds;
@@ -558,6 +572,20 @@ namespace DeskHooker
                 result["fullscreenGifAndDismiss"]=true;
                 // 릴렉스 음향: only videos (two), started by itself; no picture and no step list.
                 ShowPopup("relax"); await Popup.Ready.Task; await Task.Delay(500);
+                // "보여 주는 순서": random by default, remembered in the settings when changed, kept when the settings window saves.
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#variant-mode').value")!="\"random\"") throw new Exception("Default order should be random.");
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var m=document.querySelector('#variant-mode'); m.value='sequential'; m.dispatchEvent(new Event('change'));");
+                await Task.Delay(300);
+                if (!Settings.VariantModes.ContainsKey("relax") || Settings.VariantModes["relax"]!="sequential") throw new Exception("The chosen order was not remembered in the settings.");
+                await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#save-settings').click()");
+                await Task.Delay(400);
+                if (Settings.VariantModes["relax"]!="sequential") throw new Exception("Saving the settings window dropped the remembered order.");
+                Popup.Close(); await Task.Delay(300);
+                ShowPopup("relax"); await Popup.Ready.Task; await Task.Delay(500);
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#variant-mode').value")!="\"sequential\"") throw new Exception("The remembered order was not applied on the next open.");
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var m=document.querySelector('#variant-mode'); m.value='random'; m.dispatchEvent(new Event('change'));");
+                await Task.Delay(300);
+                result["variantOrderRemembered"]=true;
                 if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="3") throw new Exception("Relax sub-item list should have 3 items.");
                 string[] relaxIds={"5yApImDt_Fk","srz5h0UQ6tc","Yma-nUogjao"};
                 for (int v=0; v<3; v++)
@@ -586,6 +614,15 @@ namespace DeskHooker
                 await Task.Delay(300);
                 if (await script.ExecuteScriptAsync("document.querySelector('#share-panel').open") != "true") throw new Exception("Share button did not open the dialog.");
                 await Capture(SettingsWindow, Path.Combine(folder, "settings-community.png"));
+                // In-app guide inside the share dialog: visible, and the example button fills the form.
+                if (await script.ExecuteScriptAsync("Boolean(document.querySelector('.share-guide')) && Boolean(document.querySelector('#share-guide-open'))") != "true") throw new Exception("The share guide is not shown in the dialog.");
+                await script.ExecuteScriptAsync("document.querySelector('#share-example').click()");
+                await Task.Delay(200);
+                if (await script.ExecuteScriptAsync("document.querySelector('#share-name').value") != "\"목 풀기 한 번\"") throw new Exception("The example button did not fill the form.");
+                await script.ExecuteScriptAsync("document.querySelector('#share-name').value=''; document.querySelector('#share-name').dispatchEvent(new Event('input')); document.querySelector('#share-copy').click();");
+                await Task.Delay(200);
+                if (await script.ExecuteScriptAsync("document.querySelector('#share-note').textContent.length>0") != "true") throw new Exception("A form error is not shown inside the dialog.");
+                result["shareGuide"]=true;
                 await script.ExecuteScriptAsync("document.querySelector('#share-close').click()");
                 ShowPopup("c-u-eye-20-20-20"); await Popup.Ready.Task; await Task.Delay(350);
                 string[] eyeIds={"356wdTdVaTs","2oojWWfappA"};

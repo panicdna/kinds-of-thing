@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Web.Script.Serialization;
 using DeskHooker;
@@ -50,6 +51,9 @@ internal static class ReminderCoreTests
         Run("IsDue_FridayDismissalSchedulesMonday", IsDue_FridayDismissalSchedulesMonday);
         Run("NextTheme_RotatesInSelectedOrderAndWraps", NextTheme_RotatesInSelectedOrderAndWraps);
         Run("NextTheme_SingleSelectionAlwaysWrapsToZero", NextTheme_SingleSelectionAlwaysWrapsToZero);
+        Run("VariantModes_DefaultsToEmptyAndOldConfigsStillLoad", VariantModes_DefaultsToEmptyAndOldConfigsStillLoad);
+        Run("VariantModes_ValidateAcceptsRandomAndSequentialOnly", VariantModes_ValidateAcceptsRandomAndSequentialOnly);
+        Run("VariantModes_JavaScriptSerializerRoundTrip", VariantModes_JavaScriptSerializerRoundTrip);
         Run("ThemeMode_DefaultsToOrderedOne", ThemeMode_DefaultsToOrderedOne);
         Run("ThemeMode_ValidateAcceptsAllFourAndRejectsOthers", ThemeMode_ValidateAcceptsAllFourAndRejectsOthers);
         Run("PlanRound_SequentialAllKeepsListOrder", PlanRound_SequentialAllKeepsListOrder);
@@ -502,6 +506,35 @@ internal static class ReminderCoreTests
         Equal(0, cursor, "No overflow");
     }
 
+    private static void VariantModes_DefaultsToEmptyAndOldConfigsStillLoad()
+    {
+        Equal(0, new ReminderSettings().VariantModes.Count, "New settings have no per-card choice, so every card uses the random default");
+        ReminderSettings old = new JavaScriptSerializer().Deserialize<ReminderSettings>("{\"IntervalMinutes\":25}");
+        Equal(0, old.VariantModes.Count, "Old config without VariantModes");
+        Validate(old, KnownThemes());
+    }
+
+    private static void VariantModes_ValidateAcceptsRandomAndSequentialOnly()
+    {
+        Validate(new ReminderSettings { VariantModes = new Dictionary<string, string> { { "relax", "random" }, { "dance", "sequential" } } }, KnownThemes());
+        Validate(new ReminderSettings { VariantModes = null }, KnownThemes());
+        foreach (string mode in new string[] { null, "", "Random", "all", "sequential " })
+        {
+            string bad = mode;
+            ThrowsArgument(delegate { Validate(new ReminderSettings { VariantModes = new Dictionary<string, string> { { "relax", bad } } }, KnownThemes()); }, "Mode '" + mode + "'");
+        }
+        ThrowsArgument(delegate { Validate(new ReminderSettings { VariantModes = new Dictionary<string, string> { { " ", "random" } } }, KnownThemes()); }, "Blank card id");
+    }
+
+    private static void VariantModes_JavaScriptSerializerRoundTrip()
+    {
+        ReminderSettings settings = new ReminderSettings();
+        settings.VariantModes["stretch"] = "sequential";
+        JavaScriptSerializer serializer = new JavaScriptSerializer();
+        ReminderSettings back = serializer.Deserialize<ReminderSettings>(serializer.Serialize(settings));
+        Equal("sequential", back.VariantModes["stretch"], "Saved choice survives the settings file");
+    }
+
     private static void ThemeMode_DefaultsToOrderedOne()
     {
         Equal("ordered-one", new ReminderSettings().ThemeMode, "Default mode keeps the old one-at-a-time rotation");
@@ -650,7 +683,8 @@ internal static class ReminderCoreTests
         {
             IntervalMinutes = 37, WeekdaysOnly = false, LimitHours = false,
             StartHour = 2, EndHour = 23, ThemeIds = new string[] { "eyes", "breathe" }, ThemeMode = "random-all",
-            Enabled = true, StartAtLogin = true, InhaleSeconds = 5, HoldSeconds = 7, ExhaleSeconds = 9
+            Enabled = true, StartAtLogin = true, InhaleSeconds = 5, HoldSeconds = 7, ExhaleSeconds = 9,
+            VariantModes = new Dictionary<string, string> { { "relax", "sequential" }, { "dance", "random" } }
         };
         JavaScriptSerializer serializer = new JavaScriptSerializer();
         ReminderSettings restored = serializer.Deserialize<ReminderSettings>(serializer.Serialize(original));
@@ -658,6 +692,8 @@ internal static class ReminderCoreTests
         {
             if (property.Name == "ThemeIds")
                 Equal(String.Join(",", original.ThemeIds), String.Join(",", restored.ThemeIds), "ThemeIds round trip");
+            else if (property.Name == "VariantModes")
+                Equal("dance=random,relax=sequential", String.Join(",", new SortedDictionary<string, string>(restored.VariantModes).Select(e => e.Key + "=" + e.Value).ToArray()), "VariantModes round trip");
             else
                 Equal(property.GetValue(original, null), property.GetValue(restored, null), property.Name + " round trip");
         }

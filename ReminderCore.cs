@@ -22,6 +22,8 @@ namespace DeskHooker
         public int ExhaleSeconds { get; set; }
         // How several selected themes are used per reminder; see ThemeRotation.
         public string ThemeMode { get; set; }
+        // Per card (theme id): how that card's sub-items are picked, "random" (default when absent) or "sequential".
+        public Dictionary<string, string> VariantModes { get; set; }
 
         public ReminderSettings()
         {
@@ -39,7 +41,11 @@ namespace DeskHooker
             HoldSeconds = 0;
             ExhaleSeconds = 6;
             ThemeMode = ThemeRotation.OrderedOne;
+            VariantModes = new Dictionary<string, string>();
         }
+
+        public const string VariantRandom = "random", VariantSequential = "sequential";
+        public static bool IsValidVariantMode(string mode) { return mode == VariantRandom || mode == VariantSequential; }
     }
 
     public static class ReminderSchedule
@@ -69,6 +75,14 @@ namespace DeskHooker
                 throw new ArgumentException("ExhaleSeconds must be between 1 and 30.", "settings");
             if (!ThemeRotation.IsValidMode(settings.ThemeMode))
                 throw new ArgumentException("ThemeMode must be sequential-all, random-all, ordered-one or random-one.", "settings");
+            if (settings.VariantModes != null)
+            {
+                if (settings.VariantModes.Count > 64)
+                    throw new ArgumentException("VariantModes has too many entries.", "settings");
+                foreach (KeyValuePair<string, string> entry in settings.VariantModes)
+                    if (String.IsNullOrWhiteSpace(entry.Key) || entry.Key.Length > 64 || !ReminderSettings.IsValidVariantMode(entry.Value))
+                        throw new ArgumentException("VariantModes must map a theme id to random or sequential.", "settings");
+            }
             if (settings.ThemeIds == null || settings.ThemeIds.Length == 0)
                 throw new ArgumentException("At least one theme must be selected.", "settings");
             HashSet<string> known = new HashSet<string>(knownThemeIds, StringComparer.Ordinal);
