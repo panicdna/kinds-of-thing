@@ -504,6 +504,42 @@ namespace DeskHooker
                 }
                 result["voiceGuideToggle"]=true;
                 ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(700);
+                // Sub-item list: 4 items, direct picking switches between the original GIF and the embedded videos.
+                var stretchCdp=Popup.Browser.CoreWebView2;
+                if (await stretchCdp.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="15") throw new Exception("Stretch sub-item list should have 15 items.");
+                if (await stretchCdp.ExecuteScriptAsync("Boolean(document.querySelector('#variant-mode'))")!="true") throw new Exception("Stretch order selector is missing.");
+                string[] expectIds={"Md24PbVP72U","-yOiTWEgU_Y","-_Oqek7ARlk","2DRvc74GgYM","5fnEEzi_ev0","QteVMsNU3dk","ngbWg9WUMoE","VF20iXwq29U","dNZ2aJp2rwI","02pSlIL7lig","A50ClACVyFE","Q7ogtZAplLM","u5GPq0CC7U8","HCjvbjbCSsk"};
+                for (int v=1; v<=14; v++)
+                {
+                    await stretchCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
+                    await Task.Delay(300);
+                    string frameSrc=await stretchCdp.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
+                    if (!frameSrc.Contains("youtube-nocookie.com/embed/"+expectIds[v-1])) throw new Exception("Stretch item #"+(v+1)+" did not embed its video: "+frameSrc);
+                }
+                await stretchCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\"0\"]').click()");
+                await Task.Delay(500);
+                result["stretchSubItems"]=true;
+                Popup.Close(); await Task.Delay(300);
+                // "일어나 움직이기" also has a sub-item list: 4 videos first, the original picture last.
+                ShowPopup("back-standing"); await Popup.Ready.Task; await Task.Delay(500);
+                var standCdp=Popup.Browser.CoreWebView2;
+                if (await standCdp.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="5") throw new Exception("Standing sub-item list should have 5 items.");
+                string[] standIds={"N-V53dmXJ9M","qB7oUZeiV98","exQ8fzkiZjg","uw1aUHnMfo8"};
+                for (int v=0; v<4; v++)
+                {
+                    await standCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
+                    await Task.Delay(300);
+                    string standSrc=await standCdp.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
+                    if (!standSrc.Contains("youtube-nocookie.com/embed/"+standIds[v])) throw new Exception("Standing item #"+(v+1)+" did not embed its video: "+standSrc);
+                }
+                await standCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\"4\"]').click()");
+                await Task.Delay(400);
+                if (await standCdp.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image'))")!="true") throw new Exception("Standing original picture did not show.");
+                Popup.Close(); await Task.Delay(300);
+                result["standingSubItems"]=true;
+                ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(500);
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\"0\"]').click()");
+                await Task.Delay(300);
                 if (Popup.Bounds!=Screen.PrimaryScreen.Bounds) throw new Exception("Popup is not fullscreen.");
                 var active=Popup;
                 string loaded=await active.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image') && document.querySelector('.motion-image').naturalWidth>0)");
@@ -768,7 +804,8 @@ namespace DeskHooker
         {
             try
             {
-                var environment=await CoreWebView2Environment.CreateAsync(null,host.ProfilePath);
+                // Videos in the popups start by themselves, so the browser must not wait for a click before playing.
+                var environment=await CoreWebView2Environment.CreateAsync(null,host.ProfilePath,new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required"));
                 await Browser.EnsureCoreWebView2Async(environment);
                 Browser.CoreWebView2.Settings.IsStatusBarEnabled=false;
                 Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled=false;

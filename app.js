@@ -209,9 +209,41 @@
     else if (theme.id === 'dance') renderDances();
     else renderWellness(theme);
   }
-  function renderWellness(theme) {
+  // Some themes have a list of sub-items (theme-variants.js): shown in order or at random, or picked directly.
+  const variantList = id => ((window.THEME_VARIANTS || {})[id] || []).filter(v => v.type === 'gif' || /^[A-Za-z0-9_-]{11}$/.test(v.youtubeId || ''));
+  const store = {
+    get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch (_) {} }
+  };
+  function variantMode(id) { return store.get('teum.variantMode.' + id) === 'random' ? 'random' : 'sequential'; }
+  function pickVariant(id, count) {
+    const last = Number(store.get('teum.variantIdx.' + id));
+    let idx = 0;
+    if (count > 1) {
+      if (variantMode(id) === 'random') { do { idx = Math.floor(Math.random() * count); } while (idx === last); }
+      else idx = Number.isInteger(last) && store.get('teum.variantIdx.' + id) !== null ? (last + 1) % count : 0;
+    }
+    store.set('teum.variantIdx.' + id, String(idx));
+    return idx;
+  }
+  function variantPicker(id, list, current) {
+    return `<div class="stretch-picker"><div class="stretch-pick-top"><b>${current + 1} / ${list.length}</b><label>보여 주는 순서 <select id="variant-mode"><option value="sequential" ${variantMode(id) === 'sequential' ? 'selected' : ''}>순서대로</option><option value="random" ${variantMode(id) === 'random' ? 'selected' : ''}>무작위</option></select></label><span class="small-help">다음 알림부터 적용돼요. 아래에서 바로 골라도 돼요.</span></div><div class="stretch-pick-list">${list.map((v, i) => `<button type="button" class="${i === current ? 'primary' : 'secondary'}" data-variant="${i}" aria-pressed="${i === current}">#${i + 1} ${escape(v.title)}</button>`).join('')}</div></div>`;
+  }
+  function renderWellness(theme, forcedIdx) {
+    const list = variantList(theme.id);
+    let current = 0, video = null;
+    if (list.length > 1) {
+      current = Number.isInteger(forcedIdx) ? forcedIdx : pickVariant(theme.id, list.length);
+      if (Number.isInteger(forcedIdx)) store.set('teum.variantIdx.' + theme.id, String(current));
+      if (list[current].type === 'video') video = list[current];
+    }
+    const picker = list.length > 1 ? variantPicker(theme.id, list, current) : '';
+    const videoStage = video ? `<div class="video-stage"><iframe id="variant-frame" class="${video.wide ? 'wide-player' : 'short-player'}" title="${escape(video.title)}" src="https://www.youtube-nocookie.com/embed/${video.youtubeId}?autoplay=1&rel=0&playsinline=1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe><p class="video-credit">${escape(video.title)} · ${escape(video.author)} · 재생기로만 보여 줘요 <button id="variant-external" class="quiet" type="button">YouTube에서 열기 ↗</button></p><p class="video-safety">${escape(theme.safety)}</p></div>` : '';
     const visual = theme.file ? `<img class="motion-image" src="${escape(theme.file)}" alt="${escape(theme.name)} 따라 하기 움직이는 그림">` : `<div class="text-stage"><div class="text-symbol" aria-hidden="true">${symbolFor(theme)}</div></div>`;
-    $('#popup-stage').innerHTML = `<div class="wellness-layout"><div class="motion-stage">${visual}</div><aside class="instruction-panel"><div class="eyebrow">천천히 따라 해 보세요</div><ol>${(theme.instructions || []).map(line => `<li>${escape(line)}</li>`).join('')}</ol>${['breathing', 'voice'].includes(theme.id) ? breathingControls() : ''}<div class="safety">${escape(theme.safety)}</div></aside></div>`;
+    $('#popup-stage').innerHTML = video ? `${picker}${videoStage}` : `${picker}<div class="wellness-layout"><div class="motion-stage">${visual}</div><aside class="instruction-panel"><div class="eyebrow">천천히 따라 해 보세요</div><ol>${(theme.instructions || []).map(line => `<li>${escape(line)}</li>`).join('')}</ol>${['breathing', 'voice'].includes(theme.id) ? breathingControls() : ''}<div class="safety">${escape(theme.safety)}</div></aside></div>`;
+    document.querySelectorAll('[data-variant]').forEach(button => button.addEventListener('click', () => renderWellness(theme, Number(button.dataset.variant))));
+    if ($('#variant-mode')) $('#variant-mode').addEventListener('change', event => store.set('teum.variantMode.' + theme.id, event.target.value === 'random' ? 'random' : 'sequential'));
+    if ($('#variant-external')) $('#variant-external').addEventListener('click', () => send('open-link', { url: video.url }));
     if ($('#breath-start')) {
       $('#breath-start').addEventListener('click', beginBreath);
       $('#breath-stop').addEventListener('click', stopBreath);
