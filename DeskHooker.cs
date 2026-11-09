@@ -619,11 +619,18 @@ namespace DeskHooker
                 }
                 Popup.Close(); await Task.Delay(300);
                 result["relaxVideoOnly"]=true;
-                // 요리 레시피: a single video, started by itself, nothing else on the page.
+                // 요리 레시피: videos only (two), started by itself; no picture and no step list.
                 ShowPopup("recipe"); await Popup.Ready.Task; await Task.Delay(500);
-                string recipeSrc=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
-                if (!recipeSrc.Contains("youtube-nocookie.com/embed/s10KwYn064E") || !recipeSrc.Contains("autoplay=1")) throw new Exception("Recipe did not embed its autoplaying video: "+recipeSrc);
-                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image, .instruction-panel, .stretch-picker'))")!="false") throw new Exception("Recipe should show only the video.");
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="3") throw new Exception("Recipe sub-item list should have 3 items.");
+                string[] recipeIds={"s10KwYn064E","Rjfzpzj3bug","kLT591PuXB4"};
+                for (int v=0; v<3; v++)
+                {
+                    await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
+                    await Task.Delay(300);
+                    string recipeSrc=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
+                    if (!recipeSrc.Contains("youtube-nocookie.com/embed/"+recipeIds[v]) || !recipeSrc.Contains("autoplay=1")) throw new Exception("Recipe item #"+(v+1)+" did not embed its autoplaying video: "+recipeSrc);
+                    if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image, .instruction-panel'))")!="false") throw new Exception("Recipe should show only the video.");
+                }
                 Popup.Close(); await Task.Delay(300);
                 result["recipeVideoOnly"]=true;
                 // Community sync: apply a fetched result without the network. Tiles must update and the user's unsaved tick must survive.
