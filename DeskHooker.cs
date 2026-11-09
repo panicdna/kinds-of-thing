@@ -81,7 +81,7 @@ namespace DeskHooker
             var themes = Json.Deserialize<Theme[]>(File.ReadAllText(Path.Combine(Root, "themes.json")));
             var list = new List<Theme>(themes);
             list.Add(new Theme { id="dance", name="걸그룹 안무", summary="공식 안무 영상으로 원본 동작 따라 보기", file="", safety="서서 하는 안무입니다. 충분한 공간을 확보하고 어려운 점프·비틀기는 건너뛰세요. 허리 통증이 있으면 이 주제 대신 저강도 자세 전환을 고르세요.", instructions=new string[] { "공식 채널의 연습 영상을 선택하세요.", "처음에는 느리게 보고, 편한 범위에서만 따라 하세요." } });
-            list.Add(new Theme { id="poem", name="시 한 줄 채우기", summary="익숙한 서정시에서 사라진 한 줄을 기억해 보세요", file="", safety="정답은 선택한 공개 원문 판본 기준입니다. 띄어쓰기는 무시하지만 단어와 문장부호는 비교합니다.", instructions=new string[] { "빈 한 줄에 들어갈 문장을 입력하세요.", "제출하면 내 답과 원문을 나란히 비교할 수 있어요." } });
+            list.Add(new Theme { id="poem", name="시 한 줄 채우기", summary="다양한 시·노랫말·노벨 문학상 작품에서 무작위 한 줄", file="", safety="정답은 선택한 공개 원문 판본 기준입니다. 최신 저작물은 공식 감상 링크로 구분합니다.", instructions=new string[] { "작품과 빈칸 줄을 무작위로 뽑거나 직접 고르세요.", "제출하면 내 답과 원문을 나란히 비교할 수 있어요." } });
             baseThemes = list.ToArray();
             int cachedRejected;
             syncEntries = LoadCommunityCache();
@@ -347,7 +347,7 @@ namespace DeskHooker
 
         private static bool AllowedLink(Uri uri)
         {
-            if (uri.Scheme!="https") return false;
+            if (uri.Scheme!="https" || !String.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort) return false;
             if (uri.Host=="www.youtube.com" || uri.Host=="youtube.com" || uri.Host=="youtu.be" || uri.Host=="ko.wikisource.org") return true;
             // Sharing may only open GitHub's "new file" page for this project's community folder.
             return uri.Host=="github.com" && uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/new/main/community", StringComparison.Ordinal);
@@ -369,6 +369,8 @@ namespace DeskHooker
             string folder=Path.Combine(Root,"tests","ui"); Directory.CreateDirectory(folder);
             try
             {
+                foreach (string blocked in new string[] { "http://ko.wikisource.org/wiki/Test", "https://ko.wikisource.org.evil.invalid/wiki/Test", "https://user@ko.wikisource.org/wiki/Test", "https://ko.wikisource.org:8443/wiki/Test", "file:///C:/Windows/notepad.exe" })
+                    if (AllowedLink(new Uri(blocked))) throw new Exception("Unsafe external literature URL was accepted: " + blocked);
                 await Task.Delay(700);
                 string count=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#theme-grid .theme-card').length");
                 if (Int32.Parse(count)!=Themes.Length) throw new Exception("Theme cards are missing.");
@@ -389,11 +391,29 @@ namespace DeskHooker
                 if (Popup!=null || !Settings.Enabled || NextDue<=DateTime.Now) throw new Exception("Closing popup stopped background reminders or failed to rearm.");
                 result["fullscreenGifAndDismiss"]=true;
                 ShowPopup("poem"); await Popup.Ready.Task; await Task.Delay(350);
+                string poetryReport=await Popup.Browser.CoreWebView2.ExecuteScriptAsync(File.ReadAllText(Path.Combine(Root,"tests","poetry-ui.js")));
+                var poetryCheck=Json.Deserialize<Dictionary<string,object>>(poetryReport);
+                if (poetryCheck==null || !Convert.ToBoolean(poetryCheck["passed"])) throw new Exception("Poetry library UI failed: " + (poetryCheck==null ? poetryReport : Convert.ToString(poetryCheck["error"])));
+                result["poetryLibrary"]=poetryCheck;
+                string sourcesReport=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("window.POEM_LIBRARY.poems.map(p=>p.source).concat(window.POEM_READING.items.map(p=>p.url))");
+                foreach (string url in Json.Deserialize<string[]>(sourcesReport))
+                    if (!AllowedLink(new Uri(url))) throw new Exception("A displayed literature source cannot be opened: " + url);
+                result["literatureLinkAllowlist"]=true;
                 await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#poem-answer').value=window.teumGameQuestion.expected; document.querySelector('#poem-submit').click();");
                 await Task.Delay(150);
                 string correct=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#poem-result').dataset.correct");
                 if (correct!="\"true\"") throw new Exception("Poem answer comparison failed.");
                 await Capture(Popup,Path.Combine(folder,"poem-answer.png"));
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#poem-reading-tab').click();window.scrollTo(0,0)");
+                await Capture(Popup,Path.Combine(folder,"poem-reading.png"));
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#poem-quiz-tab').click();window.scrollTo(0,0)");
+                Rectangle fullBounds=Popup.Bounds; Popup.Bounds=new Rectangle(fullBounds.X,fullBounds.Y,720,900);
+                await Task.Delay(200);
+                string compact=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.documentElement.scrollWidth<=innerWidth && document.querySelector('.popup-close').getBoundingClientRect().bottom<=innerHeight");
+                if (compact!="true") throw new Exception("Compact poetry UI overflows horizontally or hides Close.");
+                await Capture(Popup,Path.Combine(folder,"poem-compact.png"));
+                Popup.Bounds=fullBounds;
+                result["poetryCompactLayout"]=true;
                 Popup.Close();
                 result["poemInputComparison"]=true;
                 // Community sync: apply a fetched result without the network. Tiles must update and the user's unsaved tick must survive.

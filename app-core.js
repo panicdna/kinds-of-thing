@@ -10,12 +10,37 @@
   function compareAnswer(answer, expected) {
     return normalizeAnswer(answer) === normalizeAnswer(expected);
   }
-  function chooseQuestion(poem, random = Math.random) {
+  function filterPoems(poems, filters = {}) {
+    const query = String(filters.query || '').normalize('NFC').trim().toLocaleLowerCase();
+    return poems.filter(poem => (!filters.category || filters.category === 'all' || poem.category === filters.category)
+      && (!filters.language || filters.language === 'all' || poem.language === filters.language)
+      && (!query || `${poem.title} ${poem.author}`.normalize('NFC').toLocaleLowerCase().includes(query)));
+  }
+  function randomIndex(length, random) {
+    const value = Number(random());
+    return Math.min(length - 1, Math.floor(Math.max(0, Number.isFinite(value) ? value : 0) * length));
+  }
+  function choosePoem(poems, previousId = '', random = Math.random) {
+    if (!poems.length) return null;
+    const others = poems.filter(poem => poem.id !== previousId);
+    const pool = others.length ? others : poems;
+    return pool[randomIndex(pool.length, random)];
+  }
+  function chooseQuestion(poem, random = Math.random, options = {}) {
     const lines = (poem.lines || []).slice();
-    let eligible = lines.map((line, index) => ({ line, index })).filter(item => normalizeAnswer(item.line).length >= 7);
-    if (!eligible.length) eligible = lines.map((line, index) => ({ line, index })).filter(item => normalizeAnswer(item.line).length);
+    const nonblank = lines.map((line, index) => ({ line, index })).filter(item => normalizeAnswer(item.line).length);
+    let eligible = options.includeShort ? nonblank : nonblank.filter(item => normalizeAnswer(item.line).length >= 7);
+    if (!eligible.length) eligible = nonblank;
     if (!eligible.length) throw new Error('비울 수 있는 시의 한 줄이 없습니다.');
-    const selected = eligible[Math.min(eligible.length - 1, Math.floor(Math.max(0, random()) * eligible.length))];
+    let selected;
+    if (options.blankIndex != null) {
+      selected = nonblank.find(item => item.index === options.blankIndex);
+      if (!selected) throw new Error('비울 수 있는 줄 번호를 선택하세요.');
+    } else {
+      const others = eligible.filter(item => item.index !== options.previousIndex);
+      const pool = others.length ? others : eligible;
+      selected = pool[randomIndex(pool.length, random)];
+    }
     return { poemId: poem.id, lines, blankIndex: selected.index, expected: selected.line };
   }
   function breathPhase(elapsedMs, timing) {
@@ -69,5 +94,5 @@
     if (url.length > MAX_SHARE_URL) throw new Error('내용이 너무 길어 GitHub 주소에 담을 수 없어요. 조금 줄여 주세요.');
     return url;
   }
-  return { normalizeAnswer, compareAnswer, chooseQuestion, breathPhase, LIMITS, validateShare, shareJson, buildShareUrl };
+  return { normalizeAnswer, compareAnswer, filterPoems, choosePoem, chooseQuestion, breathPhase, LIMITS, validateShare, shareJson, buildShareUrl };
 });

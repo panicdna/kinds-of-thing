@@ -5,7 +5,11 @@
   const root = document.querySelector('#app');
   const core = window.TeumCore;
   const content = window.GAME_CONTENT || { poems: [], dances: [] };
-  let state, breathTimer = null, breathStart = 0, quiz = null, poemCursor = 0;
+  const poetry = window.POEM_LIBRARY || { poems: content.poems || [] };
+  const reading = window.POEM_READING || { items: [] };
+  const poemFilters = { category: 'all', language: 'all', query: '' };
+  const poemCategories = { lyric: '서정시', song: '노랫말', nobel: '노벨 문학상' };
+  let state, breathTimer = null, breathStart = 0, quiz = null, selectedPoemId = '';
   const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, EndHour: 18, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6 };
   const symbols = { stretch: '↟', meditation: '◌', yoga: '♧', pilates: '↥', core: '◎', breathing: '≈', voice: '♪', 'back-seated': '↕', 'back-standing': '↗', dance: '♫', poem: '文' };
   const symbolFor = t => symbols[t.id] || (t.community ? '✿' : '◌');
@@ -40,7 +44,7 @@
   function extraThemes() {
     return [
       { id: 'dance', name: '걸그룹 안무', summary: '공식 안무 영상으로 원본 동작 따라 보기', instructions: ['공식 연습영상을 고르세요.', '서서 하는 움직임이므로 충분한 공간을 확보하세요.'], safety: '앉아서 하는 운동이 아닙니다. 통증이 있으면 어려운 동작을 건너뛰세요.', file: '' },
-      { id: 'poem', name: '시 한 줄 채우기', summary: '서정시에서 사라진 한 줄을 기억해 보세요', instructions: [], safety: '공개 원문 판본 기준으로 비교합니다.', file: '' }
+      { id: 'poem', name: '시 한 줄 채우기', summary: '다양한 시·노랫말·노벨 문학상 작품에서 무작위 한 줄', instructions: [], safety: '공개 원문 판본 기준으로 비교합니다. 최신 저작물은 공식 감상 링크로 구분합니다.', file: '' }
     ];
   }
   function themeCards(checked) {
@@ -129,7 +133,7 @@
       <div class="side-bottom">내 PC 안에서만 동작합니다.<br>마이크·카메라·계정이 필요 없어요.<button id="hide-window" class="quiet">설정 창 닫기 / 트레이에 두기 ↗</button><button id="exit-app" class="quiet">알림기 완전히 종료</button></div></aside>
       <main class="main"><div class="heading"><div><div class="eyebrow">YOUR PERSONAL BREAK RITUAL</div><h1>잠깐, 나를 돌보는 시간.</h1><p>알림 간격과 하고 싶은 주제를 골라 주세요. 여러 개를 고르면 순서대로 만나요.</p></div><div class="stamp">◌</div></div>
       ${!host ? '<div class="native-warning">HTML 미리보기입니다. 창을 닫은 뒤에도 정해진 간격으로 전체 화면을 띄우려면 같은 폴더의 DeskHooker.exe를 실행하세요.</div>' : ''}
-      <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분에 한 번</span></div><div class="pills">${[15, 30, 45, 60, 90, 120].map(n => `<button type="button" data-minutes="${n}" class="${s.IntervalMinutes === n ? 'active' : ''}">${n}분</button>`).join('')}</div><p class="small-help">1~240분을 직접 입력할 수도 있어요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p></section>
+      <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분마다</span></div><p class="small-help">1~240 사이의 분을 직접 입력하세요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p></section>
       <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>아래 시간대에만 알림 받기</label><div class="schedule-line"><input id="start-hour" type="number" min="0" max="23" value="${s.StartHour}" aria-label="시작 시각">시부터 <input id="end-hour" type="number" min="1" max="24" value="${s.EndHour}" aria-label="종료 시각">시 전까지</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
@@ -139,7 +143,6 @@
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>
       <p class="small-help">일반적인 휴식·움직임 안내이며 치료·재활 처방이 아닙니다. 통증이 늘거나 저림·어지럼이 생기면 중단하세요. 허리 통증과 함께 새로 생긴 다리 힘 빠짐, 회음부 감각 저하, 대소변 조절 변화가 있으면 운동보다 즉시 진료가 우선입니다.</p>
       </main></div>`;
-    document.querySelectorAll('[data-minutes]').forEach(button => button.addEventListener('click', () => { $('#interval').value = button.dataset.minutes; document.querySelectorAll('[data-minutes]').forEach(b => b.classList.toggle('active', b === button)); }));
     bindThemeGrid(); bindShare(); updateSync();
     $('#sync-now').addEventListener('click', () => { if (!host) { toast('공유 동기화는 DeskHooker.exe에서 동작해요. 공유하기는 지금도 쓸 수 있어요.'); return; } send('sync'); });
     $('#start-reminders').addEventListener('click', () => save(true));
@@ -205,19 +208,67 @@
     if ($('#breath-orb')) { $('#breath-orb').textContent = '—'; $('#breath-orb').style.transform = 'scale(1)'; }
   }
   function renderPoem() {
-    const poems = content.poems || [];
-    if (!poems.length) { $('#popup-stage').innerHTML = '<div class="error-panel">검증된 시 원문을 준비하지 못했습니다. 다른 주제를 골라 주세요.</div>'; return; }
-    const poem = poems[poemCursor % poems.length];
-    quiz = core.chooseQuestion(poem);
-    window.teumGameQuestion = quiz;
-    $('#popup-stage').innerHTML = `<div class="quiz-layout"><article class="poem-paper"><div class="poem-meta">${escape(poem.title)} · ${escape(poem.author)}${poem.year ? ` · ${escape(poem.year)}` : ''}</div><div id="poem-lines" class="poem-lines">${quiz.lines.map((line, index) => index === quiz.blankIndex ? '<div class="poem-blank">이 한 줄을 채워 주세요. ✎</div>' : `<div class="poem-line ${line ? '' : 'stanza'}">${escape(line)}</div>`).join('')}</div></article><section class="answer-panel"><div class="eyebrow">ONE MISSING LINE</div><h2>이다음의 마음은 무엇일까요?</h2><p>시에서 사라진 한 줄을 떠올려 적어 보세요.<br>띄어쓰기는 무시하고, 단어와 문장부호는 원문과 비교해요.</p><form id="poem-form"><input id="poem-answer" autocomplete="off" aria-label="빈 줄에 들어갈 시 구절" placeholder="한 줄을 입력하세요"><div class="quiz-buttons"><button id="poem-submit" class="primary" type="submit">입력한 답과 원문 비교</button><button id="poem-next" class="secondary" type="button">다음 시 ↗</button></div></form><div id="poem-result" hidden aria-live="polite"></div><p class="source-note">원문 판본: ${escape(poem.source || '')}<br>저작권이 만료된 원문을 사용합니다. 정답은 이 판본의 표기 기준이에요. 답안은 저장하거나 전송하지 않습니다.</p></section></div>`;
-    $('#poem-form').addEventListener('submit', event => { event.preventDefault(); comparePoem(); });
-    $('#poem-next').addEventListener('click', () => { poemCursor++; renderPoem(); });
-    const blank = $('.poem-blank'); if (blank) blank.scrollIntoView({ block: 'nearest' });
+    $('#popup-stage').innerHTML = `<section class="poetry-library"><div class="poetry-top"><p class="small-help">오프라인 출제 ${poetry.poems.length}편 · 공식 감상 링크 ${reading.items.length}개 · 답안은 저장·전송하지 않아요.</p><div class="poetry-tabs" role="group" aria-label="시 감상 방식"><button id="poem-quiz-tab" class="primary" aria-pressed="true">한 줄 채우기</button><button id="poem-reading-tab" class="secondary" aria-pressed="false">최근 시·가사·노벨 작품 ↗</button></div></div>
+      <div id="poem-library"><div class="poetry-filters"><label>작품 분류<select id="poem-category"><option value="all">전체 작품</option>${Object.entries(poemCategories).map(([id, label]) => `<option value="${id}" ${poemFilters.category === id ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label>원문 언어<select id="poem-language"><option value="all">모든 언어</option><option value="ko" ${poemFilters.language === 'ko' ? 'selected' : ''}>한국어</option><option value="en" ${poemFilters.language === 'en' ? 'selected' : ''}>영어 원문</option></select></label><label class="poetry-search">제목·작가 검색<input id="poem-search" type="search" placeholder="제목 또는 작가" value="${escape(poemFilters.query)}" autocomplete="off"></label><label class="poetry-picker">직접 작품 고르기<select id="poem-picker"></select></label></div><div class="poetry-status"><span id="poem-count" role="status" aria-live="polite"></span><button id="poem-next" class="secondary" type="button">다른 작품 무작위 ↗</button></div><div id="poem-body"></div></div>
+      <section id="poem-reading-section" hidden><p class="reading-notice">최근 출간 시·노랫가사·노벨 문학상 작품의 공식 감상 안내입니다. 저작권이 남아 있는 전문은 이 앱에 복제하거나 빈칸 문제로 만들지 않아요. 버튼을 눌렀을 때만 외부 브라우저를 열며, 목록은 자동 수집·실시간 갱신되지 않습니다.${reading.checkedAt ? ` 출처 확인: ${escape(reading.checkedAt)}.` : ''}</p><label class="reading-filter">감상 링크 분류<select id="reading-category"><option value="all">전체 감상 링크</option><option value="recent">최근 출간 시</option><option value="song">공식 노랫말</option><option value="nobel">노벨 문학상 작품</option></select></label><div id="poem-reading-list" class="reading-grid"></div></section></section>`;
+    const tab = mode => {
+      const playing = mode === 'quiz';
+      $('#poem-library').hidden = !playing; $('#poem-reading-section').hidden = playing;
+      for (const [selector, active] of [['#poem-quiz-tab', playing], ['#poem-reading-tab', !playing]]) {
+        $(selector).setAttribute('aria-pressed', String(active));
+        $(selector).className = active ? 'primary' : 'secondary';
+      }
+    };
+    $('#poem-quiz-tab').addEventListener('click', () => { tab('quiz'); refreshPoems(); });
+    $('#poem-reading-tab').addEventListener('click', () => { tab('reading'); $('#poem-body').innerHTML = ''; quiz = null; window.teumGameQuestion = null; });
+    for (const [selector, key, event] of [['#poem-category', 'category', 'change'], ['#poem-language', 'language', 'change'], ['#poem-search', 'query', 'input']]) {
+      $(selector).addEventListener(event, () => { poemFilters[key] = $(selector).value; refreshPoems(); });
+    }
+    $('#poem-picker').addEventListener('change', () => { selectedPoemId = $('#poem-picker').value; refreshPoems(); });
+    $('#poem-next').addEventListener('click', () => refreshPoems(true));
+    $('#reading-category').addEventListener('change', renderPoemReading);
+    refreshPoems(); renderPoemReading();
   }
-  function comparePoem() {
+  function refreshPoems(randomWork = false) {
+    const pool = core.filterPoems(poetry.poems, poemFilters);
+    const poem = (!randomWork && pool.find(item => item.id === selectedPoemId)) || core.choosePoem(pool, selectedPoemId);
+    selectedPoemId = poem ? poem.id : '';
+    $('#poem-picker').innerHTML = pool.map(item => `<option value="${escape(item.id)}" ${item.id === selectedPoemId ? 'selected' : ''}>${escape(item.title)} · ${escape(item.author)}</option>`).join('');
+    $('#poem-count').textContent = `${pool.length}편 선택 가능 / 전체 ${poetry.poems.length}편 · 작품과 빈칸 줄은 무작위로 만나요`;
+    $('#poem-picker').disabled = !poem; $('#poem-next').disabled = !poem;
+    if (!poem) {
+      quiz = null; window.teumGameQuestion = null;
+      $('#poem-body').innerHTML = '<div id="poem-empty" class="poetry-empty" role="status">조건에 맞는 작품이 없어요. 검색어를 지우거나 분류·언어를 바꿔 주세요.</div>'; return;
+    }
+    renderPoemQuestion(poem);
+  }
+  function renderPoemQuestion(poem, blankIndex = null) {
+    const previousIndex = quiz && quiz.poemId === poem.id ? quiz.blankIndex : null;
+    quiz = core.chooseQuestion(poem, Math.random, { includeShort: true, blankIndex, previousIndex });
+    window.teumGameQuestion = quiz;
+    const nonblank = poem.lines.map((line, index) => ({ line, index })).filter(item => core.normalizeAnswer(item.line).length);
+    const lineNumber = nonblank.findIndex(item => item.index === quiz.blankIndex) + 1;
+    $('#poem-body').innerHTML = `<div class="quiz-layout"><article class="poem-paper" lang="${poem.language === 'en' ? 'en' : 'ko'}"><div class="poem-meta">${escape(poem.title)} · ${escape(poem.author)}${poem.year ? ` · ${escape(poem.year)}` : ''}<span class="poem-badge">${escape(poemCategories[poem.category] || '서정시')} · ${poem.language === 'en' ? '영어 원문' : '한국어'}${poem.nobelYear ? ` · ${escape(poem.nobelYear)} 수상 작가` : ''}</span></div><div id="poem-lines" class="poem-lines">${quiz.lines.map((line, index) => index === quiz.blankIndex ? `<div class="poem-blank">${lineNumber}번째 줄을 채워 주세요. ✎</div>` : `<div class="poem-line ${line.trim() ? '' : 'stanza'}">${escape(line)}</div>`).join('')}</div></article><section class="answer-panel"><div class="eyebrow">ONE MISSING LINE</div><h2>이다음의 마음은 무엇일까요?</h2><p>작품에서 사라진 한 줄을 떠올려 적어 보세요.<br>띄어쓰기는 무시하고, 단어와 문장부호는 원문과 비교해요.</p><div class="poem-line-controls"><label>빈칸 줄 고르기<select id="poem-line-choice"><option value="random" ${blankIndex == null ? 'selected' : ''}>매번 무작위</option>${nonblank.map((item, order) => `<option value="${item.index}" ${item.index === blankIndex ? 'selected' : ''}>${order + 1}번째 줄</option>`).join('')}</select></label><button id="poem-reroll" class="secondary" type="button" ${nonblank.length < 2 ? 'disabled' : ''}>같은 작품 · 다른 줄 ↻</button></div><p class="small-help">현재 ${nonblank.length}줄 중 ${lineNumber}번째 줄 · 빈 줄은 출제하지 않아요.</p><form id="poem-form"><input id="poem-answer" autocomplete="off" aria-label="빈 줄에 들어갈 시 구절" placeholder="한 줄을 입력하세요"><div class="quiz-buttons"><button id="poem-submit" class="primary" type="submit">입력한 답과 원문 비교</button><button id="poem-reveal" class="quiet" type="button">정답 보기</button></div></form><div id="poem-result" hidden aria-live="polite"></div><p class="source-note">${escape(poem.edition || '공개 원문 판본')}<br>저작권이 만료된 원문 기준이며 옛 표기·한자가 남아 있을 수 있어요. 영어 작품은 번역이 아닌 영어 원문입니다. 정답은 이 판본의 표기 기준이에요.</p><button id="poem-source" class="quiet" type="button">출처 원문 브라우저에서 열기 ↗</button></section></div>`;
+    $('#poem-form').addEventListener('submit', event => { event.preventDefault(); comparePoem(); });
+    $('#poem-reveal').addEventListener('click', () => comparePoem(true));
+    $('#poem-reroll').addEventListener('click', () => renderPoemQuestion(poem));
+    $('#poem-line-choice').addEventListener('change', () => renderPoemQuestion(poem, $('#poem-line-choice').value === 'random' ? null : Number($('#poem-line-choice').value)));
+    $('#poem-source').addEventListener('click', () => send('open-link', { url: poem.source }));
+    const blank = $('.poem-blank'); if (blank) $('#poem-lines').scrollTop = Math.max(0, blank.offsetTop - $('#poem-lines').offsetTop - 40);
+  }
+  function renderPoemReading() {
+    const category = $('#reading-category').value;
+    const items = reading.items.filter(item => category === 'all' || item.category === category);
+    $('#poem-reading-list').innerHTML = items.map(item => `<article class="reading-card"><div class="eyebrow">${escape({ recent: '최근 출간 시', song: '공식 노랫말', nobel: '노벨 문학상' }[item.category] || '공식 감상')}</div><h2>${escape(item.title)}</h2><p>${escape(item.author)}${item.year ? ` · ${escape(item.year)}` : ''}</p><p>${escape(item.note)}</p><span class="reading-only">외부 감상 전용 · 빈칸 출제 제외</span><button class="secondary" type="button" data-reading="${escape(item.id)}">공식 페이지 열기 ↗</button></article>`).join('') || '<p class="poetry-empty">이 분류의 공식 감상 링크를 준비하지 못했어요.</p>';
+    document.querySelectorAll('[data-reading]').forEach(button => button.addEventListener('click', () => {
+      const item = items.find(entry => entry.id === button.dataset.reading);
+      if (item) send('open-link', { url: item.url });
+    }));
+  }
+  function comparePoem(reveal = false) {
+    if (!quiz) return;
     const entered = $('#poem-answer').value;
-    if (!entered.trim()) { toast('기억나는 한 줄을 먼저 적어 주세요.'); $('#poem-answer').focus(); return; }
+    if (!entered.trim() && !reveal) { toast('기억나는 한 줄을 먼저 적어 주세요.'); $('#poem-answer').focus(); return; }
     const correct = core.compareAnswer(entered, quiz.expected);
     const box = $('#poem-result'); box.hidden = false; box.dataset.correct = String(correct);
     box.innerHTML = `<strong>${correct ? '원문과 같은 정답이에요.' : '원문과 나란히 비교해 보세요.'}</strong><div class="answer-label">내가 적은 한 줄</div><div class="answer-value user-answer"></div><div class="answer-label">원문의 한 줄</div><div class="answer-value canonical-answer"></div>`;
