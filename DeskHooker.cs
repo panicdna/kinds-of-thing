@@ -106,6 +106,9 @@ namespace DeskHooker
                 try { Settings = Json.Deserialize<ReminderSettings>(File.ReadAllText(config)); ReminderSchedule.Validate(Settings, Themes.Select(t => t.id)); }
                 catch { Settings = new ReminderSettings(); notice = "이전 설정을 읽지 못해 안전한 기본값으로 시작했습니다. 설정을 다시 저장하세요."; }
             }
+            // A card is either in the interval rotation or starts at a fixed time. Settings saved while both were possible keep the fixed time.
+            if (Settings.CardSchedules != null && Settings.ThemeIds != null)
+                Settings.ThemeIds = Settings.ThemeIds.Where(id => { CardSchedule cs; return !(Settings.CardSchedules.TryGetValue(id, out cs) && cs != null && cs.Enabled); }).ToArray();
             // The "all at once" run modes were removed from the menu; settings saved with them keep working as the one-per-reminder modes.
             if (Settings.ThemeMode == ThemeRotation.SequentialAll) Settings.ThemeMode = ThemeRotation.OrderedOne;
             else if (Settings.ThemeMode == ThemeRotation.RandomAll) Settings.ThemeMode = ThemeRotation.RandomOne;
@@ -499,6 +502,13 @@ namespace DeskHooker
                 var cardUi=SettingsWindow.Browser.CoreWebView2;
                 if (await cardUi.ExecuteScriptAsync("document.querySelectorAll('[data-ct-on]').length>0 && document.querySelectorAll('[data-ct-on]').length===document.querySelectorAll('#theme-grid .theme-card').length && document.querySelectorAll('[data-ct-time]').length===document.querySelectorAll('[data-ct-on]').length && document.querySelectorAll('#theme-grid .rotation-label').length===document.querySelectorAll('#theme-grid .theme-card').length")!="true") throw new Exception("Every tile should show the interval-rotation caption and the fixed-start-time checkbox with its time input.");
                 if (await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-time=\"relax\"]').disabled")!="true") throw new Exception("The time input should be disabled until its checkbox is on.");
+                // Exclusive per card: fixed start time on -> rotation off; rotation on -> fixed start time off (and its input disabled again).
+                await cardUi.ExecuteScriptAsync("window.__sel=document.querySelector('input[name=theme][value=\"stretch\"]'); window.__on=document.querySelector('[data-ct-on=\"stretch\"]'); window.__time=document.querySelector('[data-ct-time=\"stretch\"]'); window.__sel.checked=true; window.__sel.dispatchEvent(new Event('change')); window.__on.click();");
+                if (await cardUi.ExecuteScriptAsync("[window.__sel.checked, window.__on.checked, window.__time.disabled].join('|')")!="\"false|true|false\"") throw new Exception("Turning the fixed start time on should turn the interval rotation off for that card.");
+                await cardUi.ExecuteScriptAsync("window.__sel.click();");
+                if (await cardUi.ExecuteScriptAsync("[window.__sel.checked, window.__on.checked, window.__time.disabled].join('|')")!="\"true|false|true\"") throw new Exception("Turning the interval rotation on should turn the fixed start time off for that card.");
+                if (await cardUi.ExecuteScriptAsync("document.querySelector('#selected-count').textContent.indexOf('주기 실행')===0")!="true") throw new Exception("The selected-card counter should count interval-rotation cards.");
+                await cardUi.ExecuteScriptAsync("window.__sel.click();"); // leave the 'stretch' tile as it was (rotation off in the test settings)
                 await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-on=\"relax\"]').click(); var t=document.querySelector('[data-ct-time=\"relax\"]'); t.value='9:05'; t.dispatchEvent(new Event('blur')); document.querySelector('#save-settings').click();");
                 await Task.Delay(400);
                 if (!Settings.CardSchedules.ContainsKey("relax") || !Settings.CardSchedules["relax"].Enabled || Settings.CardSchedules["relax"].Time!="09:05:00") throw new Exception("The card start time (9:05 -> 09:05:00) was not saved.");

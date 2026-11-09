@@ -104,6 +104,18 @@
       $('#theme-mode-help').textContent = n > 1 ? mode.help : '두 개 이상 고르면 아래 방식으로 실행돼요.';
     };
     document.querySelectorAll('input[name=theme], input[name=theme-mode]').forEach(input => input.addEventListener('change', count)); count();
+    // A card is either in the interval rotation or starts at a fixed time, never both: turning one on turns the other off.
+    const tileOf = el => el.closest('.theme-card');
+    document.querySelectorAll('[data-ct-on]').forEach(box => box.addEventListener('change', () => {
+      if (!box.checked) return;
+      const rotation = tileOf(box).querySelector('input[name=theme]');
+      if (rotation && rotation.checked) { rotation.checked = false; count(); }
+    }));
+    document.querySelectorAll('input[name=theme]').forEach(rotation => rotation.addEventListener('change', () => {
+      if (!rotation.checked) return;
+      const box = tileOf(rotation).querySelector('[data-ct-on]');
+      if (box && box.checked) { box.checked = false; tileOf(rotation).querySelector('[data-ct-time]').disabled = true; setCardSchedule(box.dataset.ctOn, { Enabled: false }); }
+    }));
   }
   // Rebuilds only the tiles, so choices the user ticked but has not saved yet survive a background sync.
   function refreshThemeGrid() {
@@ -197,8 +209,8 @@
       <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>시작·종료 시각 사이에만 알림 받기</label><div class="schedule-line">종료 <input id="end-time" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.EndHour, s.EndMinute)}" aria-label="종료 시각 (24시간, 시:분)"> 전까지 (24시간제 · 24:00 또는 00:00은 자정)</div><label class="schedule-line"><input id="break-on" type="checkbox" ${s.BreakEnabled ? 'checked' : ''}>중간에 쉬는 시간(예: 점심)에는 알림 끄기</label><div class="schedule-line break-times">쉬는 시간 <input id="break-start" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.BreakStartHour, s.BreakStartMinute)}" aria-label="쉬는 시간 시작 (24시간, 시:분)" ${s.BreakEnabled ? '' : 'disabled'}> 부터 <input id="break-end" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.BreakEndHour, s.BreakEndMinute)}" aria-label="쉬는 시간 끝 (24시간, 시:분)" ${s.BreakEnabled ? '' : 'disabled'}> 까지</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
-      <p class="small-help card-help"><b>주기 실행</b>: 체크한 쉼이 위에서 정한 간격마다 돌아가며 나와요. <b>정해진 시각에 시작</b>: 체크하고 시:분:초(24시간제)를 적으면 매일 그 시각에 그 쉼만 따로 떠요(간격·시간대·쉬는 시간과 무관, '월~금만'과 일시정지는 따릅니다).</p>
-      <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
+      <p class="small-help card-help"><b>주기 실행</b>: 체크한 쉼이 위에서 정한 간격마다 돌아가며 나와요. <b>정해진 시각에 시작</b>: 체크하고 시:분:초(24시간제)를 적으면 매일 그 시각에 그 쉼만 따로 떠요(간격·시간대·쉬는 시간과 무관, '월~금만'과 일시정지는 따릅니다). <b>한 카드에는 둘 중 하나만</b> 켤 수 있어요.</p>
+      <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds.filter(id => !(((s.CardSchedules || {})[id]) || {}).Enabled)))}</div>
       ${sharePanel()}
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>
       <p class="small-help">일반적인 휴식·움직임 안내이며 치료·재활 처방이 아닙니다. 통증이 늘거나 저림·어지럼이 생기면 중단하세요. 허리 통증과 함께 새로 생긴 다리 힘 빠짐, 회음부 감각 저하, 대소변 조절 변화가 있으면 운동보다 즉시 진료가 우선입니다.</p>
