@@ -12,6 +12,8 @@ namespace DeskHooker
         public bool LimitHours { get; set; }
         public int StartHour { get; set; }
         public int EndHour { get; set; }
+        public int StartMinute { get; set; }
+        public int EndMinute { get; set; }
         public string[] ThemeIds { get; set; }
         public bool Enabled { get; set; }
         public bool StartAtLogin { get; set; }
@@ -26,6 +28,8 @@ namespace DeskHooker
             LimitHours = true;
             StartHour = 9;
             EndHour = 18;
+            StartMinute = 0;
+            EndMinute = 0;
             ThemeIds = new string[] { "stretch" };
             Enabled = false;
             StartAtLogin = false;
@@ -49,8 +53,11 @@ namespace DeskHooker
                 throw new ArgumentException("IntervalMinutes must be between 1 and 240.", "settings");
             if (settings.StartHour < 0 || settings.StartHour > 23)
                 throw new ArgumentException("StartHour must be between 0 and 23.", "settings");
-            if (settings.EndHour < 1 || settings.EndHour > 24 || settings.EndHour <= settings.StartHour)
-                throw new ArgumentException("EndHour must be between 1 and 24 and later than StartHour.", "settings");
+            if (settings.StartMinute < 0 || settings.StartMinute > 59 || settings.EndMinute < 0 || settings.EndMinute > 59)
+                throw new ArgumentException("StartMinute and EndMinute must be between 0 and 59.", "settings");
+            if (settings.EndHour < 1 || settings.EndHour > 24 || (settings.EndHour == 24 && settings.EndMinute != 0) ||
+                WindowEnd(settings) <= WindowStart(settings))
+                throw new ArgumentException("End time must be later than start time and not after 24:00.", "settings");
             if (settings.InhaleSeconds < 1 || settings.InhaleSeconds > 10)
                 throw new ArgumentException("InhaleSeconds must be between 1 and 10.", "settings");
             if (settings.HoldSeconds < 0 || settings.HoldSeconds > 30)
@@ -68,6 +75,9 @@ namespace DeskHooker
             }
         }
 
+        private static TimeSpan WindowStart(ReminderSettings s) { return new TimeSpan(s.StartHour, s.StartMinute, 0); }
+        private static TimeSpan WindowEnd(ReminderSettings s) { return new TimeSpan(s.EndHour, s.EndMinute, 0); }
+
         // Schedule-only predicate: Enabled is checked separately by IsDue.
         // All supplied DateTimes must use the caller's consistent wall-clock basis.
         public static bool IsAllowed(DateTime when, ReminderSettings settings)
@@ -76,8 +86,7 @@ namespace DeskHooker
                 (when.DayOfWeek == DayOfWeek.Saturday || when.DayOfWeek == DayOfWeek.Sunday))
                 return false;
             return !settings.LimitHours ||
-                (when.TimeOfDay >= TimeSpan.FromHours(settings.StartHour) &&
-                 when.TimeOfDay < TimeSpan.FromHours(settings.EndHour));
+                (when.TimeOfDay >= WindowStart(settings) && when.TimeOfDay < WindowEnd(settings));
         }
 
         // Stateless: mark popupOpen before the next timer tick. sessionActive=false
@@ -106,13 +115,13 @@ namespace DeskHooker
         public static DateTime Next(DateTime from, ReminderSettings settings)
         {
             DateTime candidate = from.AddMinutes(settings.IntervalMinutes);
-            if (settings.LimitHours && candidate.TimeOfDay >= TimeSpan.FromHours(settings.EndHour))
-                candidate = candidate.Date.AddDays(1).AddHours(settings.StartHour);
-            if (settings.LimitHours && candidate.TimeOfDay < TimeSpan.FromHours(settings.StartHour))
-                candidate = candidate.Date.AddHours(settings.StartHour);
+            if (settings.LimitHours && candidate.TimeOfDay >= WindowEnd(settings))
+                candidate = candidate.Date.AddDays(1) + WindowStart(settings);
+            if (settings.LimitHours && candidate.TimeOfDay < WindowStart(settings))
+                candidate = candidate.Date + WindowStart(settings);
             while (settings.WeekdaysOnly &&
                 (candidate.DayOfWeek == DayOfWeek.Saturday || candidate.DayOfWeek == DayOfWeek.Sunday))
-                candidate = candidate.Date.AddDays(1).AddHours(settings.LimitHours ? settings.StartHour : 0);
+                candidate = candidate.Date.AddDays(1) + (settings.LimitHours ? WindowStart(settings) : TimeSpan.Zero);
             return candidate;
         }
     }

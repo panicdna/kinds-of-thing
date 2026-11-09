@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'poetry-sources.json'
 OUTPUT = ROOT / 'poetry-data.js'
 CACHE = Path(os.environ.get('TMPDIR', Path.home() / '.cache')) / 'desk-stretch-poetry'
+RETRIEVED: set[str] = set()
 UA = 'Mozilla/5.0 (compatible; DeskStretchPoetry/1.0; public-domain educational corpus)'
 SEP = '\u241e'
 
@@ -44,7 +45,9 @@ def json_text(value) -> str:
 def get(url: str) -> str:
     CACHE.mkdir(parents=True, exist_ok=True)
     path = CACHE / (digest(url) + '.html')
-    if path.exists():
+    # A new --refresh run must not silently reuse yesterday's cached page.
+    # Reuse only URLs that this process has already retrieved successfully.
+    if url in RETRIEVED and path.exists():
         return path.read_text(encoding='utf-8')
     context = ssl.create_default_context()
     # Accept an explicitly configured trust bundle, including local enterprise CAs.
@@ -63,6 +66,7 @@ def get(url: str) -> str:
                 if 'wikisource.org' in url:
                     raise ValueError(f'Not a Wikisource content/API response: {url}')
             path.write_text(body, encoding='utf-8')
+            RETRIEVED.add(url)
             return body
         except Exception:
             if attempt == 2:

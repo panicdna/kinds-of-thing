@@ -24,6 +24,7 @@ internal static class ReminderCoreTests
         Run("Next_EndIsExclusive", Next_EndIsExclusive);
         Run("Next_AfterHoursUsesNextDayStart", Next_AfterHoursUsesNextDayStart);
         Run("Next_UsesCustomHours", Next_UsesCustomHours);
+        Run("Next_UsesMinuteWindow", Next_UsesMinuteWindow);
         Run("Next_FridayEndSkipsToMonday", Next_FridayEndSkipsToMonday);
         Run("Next_WeekendSkipsToMonday", Next_WeekendSkipsToMonday);
         Run("Next_UnlimitedHoursStillSkipsWeekends", Next_UnlimitedHoursStillSkipsWeekends);
@@ -255,6 +256,19 @@ internal static class ReminderCoreTests
         ReminderSettings settings = new ReminderSettings { StartHour = 13, EndHour = 15, IntervalMinutes = 30 };
         Equal(new DateTime(2026, 11, 10, 13, 0, 0),
             Next(new DateTime(2026, 11, 9, 14, 30, 0), settings), "Custom next-day start");
+    }
+
+    private static void Next_UsesMinuteWindow()
+    {
+        ReminderSettings settings = new ReminderSettings { StartHour = 9, StartMinute = 30, EndHour = 17, EndMinute = 45, IntervalMinutes = 20 };
+        Equal(new DateTime(2026, 11, 10, 9, 30, 0), Next(new DateTime(2026, 11, 9, 17, 30, 0), settings), "Minute window next-day start");
+        Equal(new DateTime(2026, 11, 9, 9, 30, 0), Next(new DateTime(2026, 11, 9, 8, 0, 0), settings), "Minute window same-day start");
+        Equal(false, IsAllowed(new DateTime(2026, 11, 9, 17, 45, 0), settings), "End minute is exclusive");
+        Equal(true, IsAllowed(new DateTime(2026, 11, 9, 9, 30, 0), settings), "Start minute is inclusive");
+        Validate(settings, KnownThemes());
+        InvalidSettings("Validate_RejectsEndBeforeStartByMinute", delegate(ReminderSettings x) { x.StartHour = 10; x.StartMinute = 30; x.EndHour = 10; x.EndMinute = 15; });
+        InvalidSettings("Validate_RejectsMinute60", delegate(ReminderSettings x) { x.StartMinute = 60; });
+        InvalidSettings("Validate_Rejects2430", delegate(ReminderSettings x) { x.EndHour = 24; x.EndMinute = 30; });
     }
 
     private static void Next_FridayEndSkipsToMonday()

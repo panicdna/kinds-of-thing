@@ -1,6 +1,14 @@
 GAME CONTENT — SOURCE AND VERIFICATION RECORD
 Verified: 2026-11-09T15:07:37+09:00
 
+SCOPE NOTE — EXPANDED LIBRARY
+This record describes the three LEGACY/FALLBACK poems in games-content.js and
+the official dance links. The active app now prefers poetry-data.js: 149 works
+with pinned sources, exact original text units, copyright/editorial attribution,
+revision history and integrity hashes in poetry-sources.json.
+poetry-reading.js lists nine official external-only contemporary reading links;
+these are NOT counted as playable poems and include no copyrighted verse/lyrics.
+
 COUNTS AND CONTRACT
 3 poems; 32 nonempty complete lines; 3 official choreography videos.
 games-content.js assigns window.GAME_CONTENT = { poems, dances }; no external libraries, imports, requests, players, or autoplay.

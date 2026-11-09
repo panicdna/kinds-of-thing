@@ -34,4 +34,18 @@ See games-sources.txt for the original editions, public-domain rationale, first-
 
 The original poem text is public-domain material. Any modern transcription/editorial contributions retain their applicable source terms. Copyrighted choreography videos are only linked/embedded on user request: they are not downloaded, copied, or redistributed here.
 
-This notice does not assign a new license to Microsoft software, external websites, poetry transcriptions, or videos. The repository's own code has no separately selected project-wide license yet.
+## Expanded offline poetry library
+
+`poetry-data.js` contains 149 public-domain underlying works: 126 poems by Kim Sowol, 10 by Han Yong-un, 10 of Rabindranath Tagore's own English prose poems, and three historical English song texts by Jane Taylor, John Newton, and John Howard Payne. No contemporary copyrighted translations, music recordings, or musical arrangements are included.
+
+Source and contributor attribution: Wikisource contributors. `poetry-sources.json` preserves each work's source title, pinned revision URL, contributor history URL, transcluded page revisions where applicable, exact retrieved text fragment, integrity hashes, and the source's editorial license notice. Keep that file with redistributed poetry data.
+
+Public-domain underlying texts and modern editorial/transcription contributions are distinct. Where copyrightable editorial contributions apply, the transcription data is provided under Creative Commons Attribution-ShareAlike 4.0 International:
+https://creativecommons.org/licenses/by-sa/4.0/
+https://creativecommons.org/licenses/by-sa/4.0/legalcode.en
+
+Changes made to the source presentation: removed HTML, navigation, headings and page-number markup; normalized whitespace within original source units; retained stanza gaps. Tagore's prose poems keep the original paragraph units, explicitly identified in the UI; no invented poetic line breaks or third-party translations are added. Some Wikisource transcriptions use modernized spelling; those are labelled as transcription spelling rather than guaranteed original-edition orthography.
+
+`poetry-reading.js` contains only work-level bibliographic metadata, original descriptions, and official author/publisher links for nine contemporary reading recommendations. No copyrighted poem, song lyric, excerpt, or quiz answer from those external works is bundled. Listing a public page is not a license to reproduce its contents. The fixed list was checked on 2026-11-09; it is not a live search feed.
+
+This notice does not assign a new license to Microsoft software, external websites, or videos, nor does it change the license of public-domain underlying works. The transcription-data conditions above do not assign a project-wide license to the app's code; no separate project-wide code license has been selected.

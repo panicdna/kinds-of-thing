@@ -10,7 +10,7 @@
   const poemFilters = { category: 'all', language: 'all', query: '' };
   const poemCategories = { lyric: '서정시', song: '노랫말', nobel: '노벨 문학상' };
   let state, breathTimer = null, breathStart = 0, quiz = null, selectedPoemId = '';
-  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, EndHour: 18, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6 };
+  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6 };
   const symbols = { stretch: '↟', meditation: '◌', yoga: '♧', pilates: '↥', core: '◎', breathing: '≈', voice: '♪', 'back-seated': '↕', 'back-standing': '↗', dance: '♫', poem: '文' };
   const symbolFor = t => symbols[t.id] || (t.community ? '✿' : '◌');
   const tones = ['#e3e9ce', '#e4deec', '#eddcca', '#d9e6e7'];
@@ -133,8 +133,8 @@
       <div class="side-bottom">내 PC 안에서만 동작합니다.<br>마이크·카메라·계정이 필요 없어요.<button id="hide-window" class="quiet">설정 창 닫기 / 트레이에 두기 ↗</button><button id="exit-app" class="quiet">알림기 완전히 종료</button></div></aside>
       <main class="main"><div class="heading"><div><div class="eyebrow">YOUR PERSONAL BREAK RITUAL</div><h1>잠깐, 나를 돌보는 시간.</h1><p>알림 간격과 하고 싶은 주제를 골라 주세요. 여러 개를 고르면 순서대로 만나요.</p></div><div class="stamp">◌</div></div>
       ${!host ? '<div class="native-warning">HTML 미리보기입니다. 창을 닫은 뒤에도 정해진 간격으로 전체 화면을 띄우려면 같은 폴더의 DeskHooker.exe를 실행하세요.</div>' : ''}
-      <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분마다</span></div><p class="small-help">1~240 사이의 분을 직접 입력하세요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p></section>
-      <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>아래 시간대에만 알림 받기</label><div class="schedule-line"><input id="start-hour" type="number" min="0" max="23" value="${s.StartHour}" aria-label="시작 시각">시부터 <input id="end-hour" type="number" min="1" max="24" value="${s.EndHour}" aria-label="종료 시각">시 전까지</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
+      <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="start-time" type="time" value="${hm(s.StartHour, s.StartMinute)}" aria-label="시작 시각 (시:분)"><span>부터</span><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분마다</span></div><p class="small-help">시작 시각(시:분)과 1~240 사이의 간격(분)을 직접 입력하세요.<br>아래 ‘시간대에만 알림 받기’를 켜면 이 시각부터 받아요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p></section>
+      <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>시작·종료 시각 사이에만 알림 받기</label><div class="schedule-line">종료 <input id="end-time" type="time" value="${hm(s.EndHour, s.EndMinute)}" aria-label="종료 시각 (시:분)"> 전까지 (00:00은 자정)</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
       <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
@@ -152,16 +152,20 @@
     $('#exit-app').addEventListener('click', () => send('exit'));
     updateStatus(state);
   }
+  function hm(h, m) { return String(h).padStart(2, '0') + ':' + String(m || 0).padStart(2, '0'); }
+  function parseTime(v) { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? [Number(m[1]), Number(m[2])] : null; }
   function save(enabled) {
+    const st = parseTime($('#start-time').value), et = parseTime($('#end-time').value);
+    if (!st || !et) { toast('시작·종료 시각을 시:분으로 입력하세요.'); return; }
     const settings = {
       IntervalMinutes: Number($('#interval').value), WeekdaysOnly: $('#weekdays').checked, LimitHours: $('#limit-hours').checked,
-      StartHour: Number($('#start-hour').value), EndHour: Number($('#end-hour').value), StartAtLogin: $('#login-start').checked,
+      StartHour: st[0], StartMinute: st[1], EndHour: et[0] === 0 && et[1] === 0 ? 24 : et[0], EndMinute: et[0] === 0 && et[1] === 0 ? 0 : et[1], StartAtLogin: $('#login-start').checked,
       ThemeIds: Array.from(document.querySelectorAll('input[name=theme]:checked'), x => x.value), Enabled: enabled,
       InhaleSeconds: Number($('#inhale').value), HoldSeconds: Number($('#hold').value), ExhaleSeconds: Number($('#exhale').value)
     };
     if (!Number.isInteger(settings.IntervalMinutes) || settings.IntervalMinutes < 1 || settings.IntervalMinutes > 240) { toast('간격은 1~240분 사이의 정수로 고르세요.'); return; }
     if (!settings.ThemeIds.length) { toast('주제를 하나 이상 골라 주세요.'); return; }
-    if (!Number.isInteger(settings.StartHour) || !Number.isInteger(settings.EndHour) || settings.StartHour < 0 || settings.StartHour > 23 || settings.EndHour < 1 || settings.EndHour > 24 || settings.StartHour >= settings.EndHour) { toast('시작은 0~23시, 종료는 그 이후의 1~24시로 골라 주세요.'); return; }
+    if (!Number.isInteger(settings.StartHour) || !Number.isInteger(settings.EndHour) || settings.StartHour < 0 || settings.StartHour > 23 || settings.EndHour < 1 || settings.EndHour > 24 || settings.StartHour * 60 + settings.StartMinute >= settings.EndHour * 60 + settings.EndMinute) { toast('종료 시각은 시작 시각보다 늦어야 해요. (자정까지는 00:00)'); return; }
     if (![settings.InhaleSeconds, settings.HoldSeconds, settings.ExhaleSeconds].every(Number.isInteger)) { toast('호흡 시간은 정수로 입력하세요.'); return; }
     try { core.breathPhase(0, settings); } catch (error) { toast(error.message); return; }
     if (settings.HoldSeconds && !$('#hold-consent').checked) { toast('숨참기 주의사항을 확인하거나 멈춤을 0초로 바꾸세요.'); return; }
