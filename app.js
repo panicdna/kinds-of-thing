@@ -166,7 +166,6 @@
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
       <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
       ${sharePanel()}
-      <details class="advanced"><summary>호흡·발성 가이드 시간 직접 고르기</summary><div class="breath-settings"><label>들숨 <input id="inhale" type="number" min="1" max="10" value="${s.InhaleSeconds}">초</label><label>멈춤 <input id="hold" type="number" min="0" max="30" value="${s.HoldSeconds}">초</label><label>날숨 <input id="exhale" type="number" min="1" max="30" value="${s.ExhaleSeconds}">초</label></div><p class="caution">기본은 숨참기 없이 들숨 4초·날숨 6초입니다. 숫자를 끝까지 채우려 하지 말고 편안한 만큼만 하세요. 멈춤은 선택 사항이며 최대 30초입니다. 몸 상태에 따른 제한이 있으면 의료진에게 먼저 확인하세요. 과호흡 후 숨참기, 힘주어 버티기는 하지 마세요.</p><label><input id="hold-consent" type="checkbox" ${s.HoldSeconds > 0 ? 'checked' : ''}>멈춤은 필수가 아니며 불편하면 즉시 편안한 호흡으로 돌아가야 함을 확인했습니다.</label></details>
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>
       <p class="small-help">일반적인 휴식·움직임 안내이며 치료·재활 처방이 아닙니다. 통증이 늘거나 저림·어지럼이 생기면 중단하세요. 허리 통증과 함께 새로 생긴 다리 힘 빠짐, 회음부 감각 저하, 대소변 조절 변화가 있으면 운동보다 즉시 진료가 우선입니다.</p>
       </main></div>`;
@@ -189,16 +188,12 @@
       IntervalMinutes: Number($('#interval').value), WeekdaysOnly: $('#weekdays').checked, LimitHours: $('#limit-hours').checked,
       StartHour: st[0], StartMinute: st[1], EndHour: et[0] === 0 && et[1] === 0 ? 24 : et[0], EndMinute: et[0] === 0 && et[1] === 0 ? 0 : et[1], StartAtLogin: $('#login-start').checked,
       ThemeIds: Array.from(document.querySelectorAll('input[name=theme]:checked'), x => x.value), Enabled: enabled,
-      InhaleSeconds: Number($('#inhale').value), HoldSeconds: Number($('#hold').value), ExhaleSeconds: Number($('#exhale').value),
       ThemeMode: (document.querySelector('input[name=theme-mode]:checked') || {}).value || 'ordered-one'
     };
     if (!Number.isInteger(settings.IntervalMinutes) || settings.IntervalMinutes < 1 || settings.IntervalMinutes > 240) { toast('간격은 1~240분 사이의 정수로 고르세요.'); return; }
     if (!settings.ThemeIds.length) { toast('주제를 하나 이상 골라 주세요.'); return; }
     if (!Number.isInteger(settings.StartHour) || !Number.isInteger(settings.EndHour) || settings.StartHour < 0 || settings.StartHour > 23 || settings.EndHour < 1 || settings.EndHour > 24 || settings.StartHour * 60 + settings.StartMinute >= settings.EndHour * 60 + settings.EndMinute) { toast('종료 시각은 시작 시각보다 늦어야 해요. (자정까지는 00:00)'); return; }
-    if (![settings.InhaleSeconds, settings.HoldSeconds, settings.ExhaleSeconds].every(Number.isInteger)) { toast('호흡 시간은 정수로 입력하세요.'); return; }
-    try { core.breathPhase(0, settings); } catch (error) { toast(error.message); return; }
-    if (settings.HoldSeconds && !$('#hold-consent').checked) { toast('숨참기 주의사항을 확인하거나 멈춤을 0초로 바꾸세요.'); return; }
-    send('save', { settings, holdConsent: $('#hold-consent').checked });
+    send('save', { settings });
   }
   function popupFrame(theme) {
     return `<main class="popup"><header class="popup-bar"><div class="popup-brand">틈<span>A LITTLE RESET · ${escape(theme.name)}</span></div>${state.remaining > 0 ? `<button class="popup-next" type="button">다음 쉼 ›<span style="font-size:10px;opacity:.6"> ${state.remaining}개 남음</span></button>` : ''}<button class="popup-close" type="button">닫기 × <span style="font-size:10px;opacity:.6">Esc</span></button></header><div class="popup-content"><div class="popup-heading"><div class="eyebrow">잠깐 쉬어가도 괜찮아요</div><h1>${escape(theme.name)}</h1><p>${escape(theme.summary)}</p></div><div id="popup-stage"></div></div><footer class="popup-footer"><span>창을 닫으면 다음 알림까지 대기해요. 자동으로 닫거나 입력을 강요하지 않아요.</span><span>움직임은 편한 범위에서 · 통증·저림·어지럼이 생기면 중단</span></footer></main>`;
@@ -220,11 +215,19 @@
     if ($('#breath-start')) {
       $('#breath-start').addEventListener('click', beginBreath);
       $('#breath-stop').addEventListener('click', stopBreath);
+      ['#inhale', '#hold', '#exhale', '#hold-consent'].forEach(id => $(id).addEventListener('change', saveBreath));
     }
   }
   function breathingControls() {
     const s = state.settings;
-    return `<section class="timer-box"><div class="eyebrow">선택형 호흡 가이드 · 소리 없음</div><div class="timer-display"><div id="breath-orb" class="breath-orb">—</div><div><div id="breath-phase" class="phase-label">편안한 호흡으로</div><div class="timer-caption">들숨 ${s.InhaleSeconds}초 / 멈춤 ${s.HoldSeconds}초 / 날숨 ${s.ExhaleSeconds}초</div></div></div><div class="timer-buttons"><button id="breath-start" class="primary">가이드 시작</button><button id="breath-stop" class="secondary">즉시 중단</button></div><p class="timer-caption">시간은 목표가 아닙니다. 숨이 차거나 어지러우면 즉시 중단하고 자연스럽게 호흡하세요. 발성은 편한 높이·작은 소리로, 숨을 억지로 오래 밀어내지 마세요.</p></section>`;
+    return `<section class="timer-box"><div class="eyebrow">선택형 호흡 가이드 · 소리 없음</div><div class="timer-display"><div id="breath-orb" class="breath-orb">—</div><div><div id="breath-phase" class="phase-label">편안한 호흡으로</div><div id="breath-caption" class="timer-caption">들숨 ${s.InhaleSeconds}초 / 멈춤 ${s.HoldSeconds}초 / 날숨 ${s.ExhaleSeconds}초</div></div></div><div class="timer-buttons"><button id="breath-start" class="primary">가이드 시작</button><button id="breath-stop" class="secondary">즉시 중단</button></div><details class="advanced breath-adjust"><summary>호흡 시간 직접 고르기 · 바로 저장돼요</summary><div class="breath-settings"><label>들숨 <input id="inhale" type="number" min="1" max="10" value="${s.InhaleSeconds}">초</label><label>멈춤 <input id="hold" type="number" min="0" max="30" value="${s.HoldSeconds}">초</label><label>날숨 <input id="exhale" type="number" min="1" max="30" value="${s.ExhaleSeconds}">초</label></div><p class="caution">기본은 숨참기 없이 들숨 4초·날숨 6초입니다. 숫자를 끝까지 채우려 하지 말고 편안한 만큼만 하세요. 멈춤은 선택 사항이며 최대 30초입니다. 몸 상태에 따른 제한이 있으면 의료진에게 먼저 확인하세요. 과호흡 후 숨참기, 힘주어 버티기는 하지 마세요.</p><label><input id="hold-consent" type="checkbox" ${s.HoldSeconds > 0 ? 'checked' : ''}>멈춤은 필수가 아니며 불편하면 즉시 편안한 호흡으로 돌아가야 함을 확인했습니다.</label></details><p class="timer-caption">시간은 목표가 아닙니다. 숨이 차거나 어지러우면 즉시 중단하고 자연스럽게 호흡하세요. 발성은 편한 높이·작은 소리로, 숨을 억지로 오래 밀어내지 마세요.</p></section>`;
+  }
+  function saveBreath() {
+    const timing = { InhaleSeconds: Number($('#inhale').value), HoldSeconds: Number($('#hold').value), ExhaleSeconds: Number($('#exhale').value) };
+    if (!Object.values(timing).every(Number.isInteger)) { toast('호흡 시간은 정수로 입력하세요.'); return; }
+    try { core.breathPhase(0, { ...state.settings, ...timing }); } catch (error) { toast(error.message); return; }
+    if (timing.HoldSeconds && !$('#hold-consent').checked) { toast('숨참기 주의사항을 확인하거나 멈춤을 0초로 바꾸세요.'); return; }
+    stopBreath(); send('save-breath', { ...timing, holdConsent: $('#hold-consent').checked });
   }
   function beginBreath() {
     stopBreath(); breathStart = performance.now();
@@ -389,6 +392,13 @@
       refreshThemeGrid();
       if (message.notice && message.notice !== state.notice) { state.notice = message.notice; toast(message.notice); }
       return;
+    }
+    if (message.type === 'breath') {
+      if (!state) return;
+      state.settings = { ...state.settings, InhaleSeconds: message.InhaleSeconds, HoldSeconds: message.HoldSeconds, ExhaleSeconds: message.ExhaleSeconds };
+      const caption = $('#breath-caption');
+      if (caption) caption.textContent = `들숨 ${message.InhaleSeconds}초 / 멈춤 ${message.HoldSeconds}초 / 날숨 ${message.ExhaleSeconds}초`;
+      toast('호흡 시간을 저장했어요.'); return;
     }
     if (message.type !== 'state') return;
     state = message;

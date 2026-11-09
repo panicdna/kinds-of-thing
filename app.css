@@ -25,3 +25,4 @@
 dialog.share-panel{width:min(960px,92vw);max-height:88vh;overflow:auto;padding:22px 26px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
 dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
 .share-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.share-head h2{margin:0;font-size:20px}
+.breath-adjust{margin:14px 0}

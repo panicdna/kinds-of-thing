@@ -350,15 +350,26 @@ namespace DeskHooker
                 {
                     if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 변경할 수 있습니다.");
                     var settings=Json.Deserialize<ReminderSettings>(Json.Serialize(msg["settings"]));
+                    // Breathing timings are edited only from the breathing popup (save-breath); keep the stored ones.
+                    settings.InhaleSeconds=Settings.InhaleSeconds; settings.HoldSeconds=Settings.HoldSeconds; settings.ExhaleSeconds=Settings.ExhaleSeconds;
                     ReminderSchedule.Validate(settings,Themes.Select(t => t.id));
-                    bool consent=msg.ContainsKey("holdConsent") && Convert.ToBoolean(msg["holdConsent"]);
-                    if (settings.HoldSeconds>0 && !consent) throw new ArgumentException("숨참기는 선택 사항입니다. 주의사항을 확인하거나 멈춤을 0초로 바꾸세요.");
                     bool previousStartup=Settings.StartAtLogin;
                     Settings=settings;
                     if (Settings.StartAtLogin!=previousStartup) Startup(Settings.StartAtLogin);
                     Persist(); cursor=0; pendingRound.Clear(); NextDue=ReminderSchedule.Next(DateTime.Now,Settings);
                     notice=Settings.Enabled?"알림이 시작됐습니다. 창을 닫아도 트레이에서 계속 동작합니다.":"설정이 저장됐습니다. 알림은 일시정지 상태입니다.";
                     SendState(source); return;
+                }
+                if (action=="save-breath")
+                {
+                    if (!source.IsPopup) throw new InvalidOperationException("호흡 시간은 호흡 가이드 팝업에서 바꿉니다.");
+                    var updated=Json.Deserialize<ReminderSettings>(Json.Serialize(Settings));
+                    updated.InhaleSeconds=Convert.ToInt32(msg["InhaleSeconds"]); updated.HoldSeconds=Convert.ToInt32(msg["HoldSeconds"]); updated.ExhaleSeconds=Convert.ToInt32(msg["ExhaleSeconds"]);
+                    ReminderSchedule.Validate(updated,Themes.Select(t => t.id));
+                    bool breathConsent=msg.ContainsKey("holdConsent") && Convert.ToBoolean(msg["holdConsent"]);
+                    if (updated.HoldSeconds>0 && !breathConsent) throw new ArgumentException("숨참기는 선택 사항입니다. 주의사항을 확인하거나 멈춤을 0초로 바꾸세요.");
+                    Settings=updated; Persist();
+                    source.Send(new { type="breath", InhaleSeconds=Settings.InhaleSeconds, HoldSeconds=Settings.HoldSeconds, ExhaleSeconds=Settings.ExhaleSeconds }); return;
                 }
                 if (action=="sync") { if (!source.IsPopup) StartSync(true); return; }
                 if (action=="run-now") { if (source.IsPopup) return; if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) throw new InvalidOperationException("저장된 주제가 없습니다."); StartRound(); return; }
@@ -442,6 +453,48 @@ namespace DeskHooker
                 }
                 if (!runOrder.SequenceEqual(new string[]{"meditation","poem"})) throw new Exception("Immediate run did not follow saved theme order: " + String.Join(",",runOrder));
                 result["immediateRunButton"]=true;
+                // Run-mode menu lives in the left sidebar (and only there), with all four choices.
+                string sideMenu=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('.sidebar input[name=theme-mode]').length+'|'+document.querySelectorAll('.main input[name=theme-mode]').length");
+                if (sideMenu!="\"4|0\"") throw new Exception("Run-mode menu is not exactly in the sidebar: " + sideMenu);
+                result["sidebarRunMode"]=true;
+                // "Next rest" button: shown only while rests remain in a run-all round; Next continues, Close ends the round.
+                string savedMode=Settings.ThemeMode; string[] savedThemes=Settings.ThemeIds;
+                Settings.ThemeMode=ThemeRotation.SequentialAll; Settings.ThemeIds=new string[]{"meditation","poem"};
+                try
+                {
+                    StartRound(); await Task.Delay(600);
+                    if (Popup==null || Popup.ThemeId!="meditation") throw new Exception("Run-all round did not start with the first theme.");
+                    await Popup.Ready.Task;
+                    if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.popup-next'))")!="true") throw new Exception("Next-rest button is missing while rests remain.");
+                    if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('.popup-next').nextElementSibling===document.querySelector('.popup-close')")!="true") throw new Exception("Next-rest button is not directly left of Close.");
+                    await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('.popup-next').click()");
+                    await Task.Delay(700);
+                    if (Popup==null || Popup.ThemeId!="poem") throw new Exception("Next-rest button did not open the next theme.");
+                    await Popup.Ready.Task;
+                    if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.popup-next'))")!="false") throw new Exception("Next-rest button should be hidden on the last rest.");
+                    Popup.Close(); await Task.Delay(300);
+                    if (Popup!=null) throw new Exception("Round did not end after the last rest.");
+                    StartRound(); await Task.Delay(600);
+                    await Popup.Ready.Task;
+                    await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('.popup-close').click()");
+                    await Task.Delay(700);
+                    if (Popup!=null) throw new Exception("Close should end the whole round, but another rest opened.");
+                    result["nextRestButton"]=true;
+                }
+                finally { Settings.ThemeMode=savedMode; Settings.ThemeIds=savedThemes; pendingRound.Clear(); }
+                // Breathing timings are no longer in the settings window; they are edited and saved from the breathing popup.
+                if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#inhale'))")!="false") throw new Exception("Breathing timings should not be in the settings window.");
+                int oldInhale=Settings.InhaleSeconds, oldHold=Settings.HoldSeconds, oldExhale=Settings.ExhaleSeconds;
+                ShowPopup("breathing"); await Popup.Ready.Task; await Task.Delay(350);
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var s=function(i,v){var e=document.querySelector(i);e.value=v;e.dispatchEvent(new Event('change'));};s('#inhale',5);s('#exhale',7);");
+                await Task.Delay(500);
+                if (Settings.InhaleSeconds!=5 || Settings.ExhaleSeconds!=7 || Settings.HoldSeconds!=0) throw new Exception("Breathing popup did not save the timings.");
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var h=document.querySelector('#hold');h.value=3;h.dispatchEvent(new Event('change'));");
+                await Task.Delay(400);
+                if (Settings.HoldSeconds!=0) throw new Exception("Hold was saved without the consent check.");
+                Popup.Close(); await Task.Delay(300);
+                Settings.InhaleSeconds=oldInhale; Settings.HoldSeconds=oldHold; Settings.ExhaleSeconds=oldExhale; Persist();
+                result["breathSavedFromPopup"]=true;
                 ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(700);
                 if (Popup.Bounds!=Screen.PrimaryScreen.Bounds) throw new Exception("Popup is not fullscreen.");
                 var active=Popup;
