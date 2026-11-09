@@ -27,6 +27,12 @@ window.THEME_VARIANTS = {
     { id: 'yt-356wdTdVaTs', type: 'video', title: '모니터 오래 본 날, 눈 쉬기 1분', author: '하루힐링명상', youtubeId: '356wdTdVaTs', url: 'https://www.youtube.com/shorts/356wdTdVaTs' },
     { id: 'yt-2oojWWfappA', type: 'video', title: '눈이 피곤하고 무거울 때 따라 하기', author: '오상신경외과의원', youtubeId: '2oojWWfappA', url: 'https://www.youtube.com/shorts/2oojWWfappA' }
   ],
+  // 릴렉스 음향: sound-only relaxation, shown as a video.
+  relax: [
+    { id: 'yt-5yApImDt_Fk', type: 'video', title: '릴렉스 음향 · 양측 음향 릴렉스 뮤직', author: 'octowave: Sleep, Focus & Bible', youtubeId: '5yApImDt_Fk', url: 'https://www.youtube.com/shorts/5yApImDt_Fk' },
+    { id: 'yt-srz5h0UQ6tc', type: 'video', title: '10분 명상 음악', author: '힐링위드사운드', youtubeId: 'srz5h0UQ6tc', url: 'https://www.youtube.com/shorts/srz5h0UQ6tc' },
+    { id: 'yt-Yma-nUogjao', type: 'video', title: '4-2-6 호흡법', author: '가치요가 Gachi Yoga', youtubeId: 'Yma-nUogjao', url: 'https://www.youtube.com/shorts/Yma-nUogjao' }
+  ],
   // Voice: the original picture/timer is replaced by this video.
   voice: [
     { id: 'yt-88TBCVp-Tlc', type: 'video', title: '숨쉴 때 편안한 호흡 발성 연습', author: '윤하의 Joyful Voice', youtubeId: '88TBCVp-Tlc', url: 'https://www.youtube.com/shorts/88TBCVp-Tlc' },

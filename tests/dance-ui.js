@@ -14,10 +14,11 @@
     check(dances.length >= 8, 'Fewer than 8 dance videos');
     check(new Set(dances.map(d => d.youtubeId)).size === dances.length, 'Duplicate dance video IDs');
     check(dances.every(d => /^[A-Za-z0-9_-]{11}$/.test(d.youtubeId) && d.url === 'https://www.youtube.com/watch?v=' + d.youtubeId), 'A dance entry has a malformed ID or URL');
-    check(document.querySelectorAll('[data-dance]').length === dances.length, 'Not every dance has a play button');
-    check(!$('iframe'), 'A player was created before the user chose a video');
+    check(document.querySelectorAll('[data-variant]').length === dances.length, 'Not every dance is in the picker');
+    check($('#variant-mode'), 'Order selector is missing');
+    check($('#dance-frame'), 'No video started by itself when the card opened');
 
-    $('[data-dance="0"]').click();
+    $('[data-variant="0"]').click();
     const frame = $('#dance-frame');
     check(frame && frame.src.startsWith(ORIGIN + '/embed/' + dances[0].youtubeId) && frame.src.includes('enablejsapi=1') && frame.src.includes('autoplay=1'), 'Player URL is not the no-cookie embed with the JS API and autoplay on');
     check($('#practice-rate') && $('#loop-back') && $('#loop-a') && $('#loop-b') && $('#loop-off'), 'Practice controls are missing');
@@ -55,11 +56,12 @@
     check($('#practice-loop').textContent.includes('A 0:50') && !$('#practice-loop').textContent.includes('~'), 'B right after A was accepted');
 
     tick(60); $('#loop-back').click();
-    $('#video-back').click();
-    check(!$('iframe') && document.querySelectorAll('[data-dance]').length === dances.length, 'Back did not return to the video list');
+    $('[data-variant="1"]').click();
+    check($('#dance-frame') && $('#dance-frame').src.startsWith(ORIGIN + '/embed/' + dances[1].youtubeId) && $('#dance-frame').src.includes('autoplay=1'), 'Picking another item did not start that video');
+    check($('#practice-loop').textContent === '반복 꺼짐', 'Loop state leaked into the next video');
     window.danceCommandLog.length = 0;
     tick(90, ORIGIN, window);
-    check(window.danceCommandLog.length === 0, 'Message listener leaked after leaving the player');
-    return { passed: true, videos: dances.length, speedButtons: true, lastFiveSecondLoop: true, manualAbLoop: true, rejectsForeignMessages: true, cleansUpOnBack: true };
+    check(window.danceCommandLog.length === 0, 'Message listener leaked after switching videos');
+    return { passed: true, videos: dances.length, speedButtons: true, lastFiveSecondLoop: true, manualAbLoop: true, rejectsForeignMessages: true, cleansUpOnBack: true, autoStarts: true };
   } catch (error) { return { passed: false, error: error.message }; }
 })();

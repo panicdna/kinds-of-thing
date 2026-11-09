@@ -11,7 +11,7 @@
   const poemCategories = { lyric: '서정시', song: '노랫말', nobel: '노벨 문학상' };
   let state, breathTimer = null, breathStart = 0, quiz = null, selectedPoemId = '';
   const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'ordered-one' };
-  const symbols = { stretch: '↟', meditation: '◌', voice: '♪', 'back-standing': '↗', dance: '♫', poem: '文' };
+  const symbols = { stretch: '↟', meditation: '◌', voice: '♪', 'back-standing': '↗', dance: '♫', relax: '☾' };
   const themeModes = [
     { id: 'sequential-all', label: '모두 순서대로', help: '알림이 오면 고른 쉼을 목록 순서대로 전부, 하나가 끝나면 이어서' },
     { id: 'random-all', label: '모두 무작위 순서로', help: '알림이 오면 고른 쉼을 전부, 순서를 섞어서 이어서' },
@@ -58,7 +58,7 @@
   function extraThemes() {
     return [
       { id: 'dance', name: '댄스 안무', summary: '공식 안무 영상으로 원본 동작 따라 보기', instructions: ['공식 연습영상을 고르세요.', '서서 하는 움직임이므로 충분한 공간을 확보하세요.'], safety: '앉아서 하는 운동이 아닙니다. 통증이 있으면 어려운 동작을 건너뛰세요.', file: '' },
-      { id: 'poem', name: '시 한 줄 채우기', summary: '다양한 시·노랫말·노벨 문학상 작품에서 무작위 한 줄', instructions: [], safety: '공개 원문 판본 기준으로 비교합니다. 최신 저작물은 공식 감상 링크로 구분합니다.', file: '' }
+      { id: 'relax', name: '릴렉스 음향', summary: '편안한 소리를 들으며 잠깐 쉬기', instructions: [], safety: '소리는 작게 시작하고, 불편하면 바로 끄세요. 운전·보행 중에는 듣지 마세요. 치료가 아닌 짧은 휴식용 안내입니다.', file: '' }
     ];
   }
   function themeCards(checked) {
@@ -205,8 +205,7 @@
     $('.popup-close').addEventListener('click', () => { stopBreath(); send('close'); });
     const nextBtn = $('.popup-next');
     if (nextBtn) nextBtn.addEventListener('click', () => { stopBreath(); send('next'); });
-    if (theme.id === 'poem') renderPoem();
-    else if (theme.id === 'dance') renderDances();
+    if (theme.id === 'dance') renderDances();
     else renderWellness(theme);
   }
   // Some themes have a list of sub-items (theme-variants.js): shown in order or at random, or picked directly.
@@ -434,18 +433,21 @@
     $('#seek-fwd').addEventListener('click', () => command('seekTo', [state.time + 3, true]));
     return () => { clearInterval(timer); window.removeEventListener('message', onMessage); };
   }
-  function renderDances() {
-    const dances = content.dances || [];
-    $('#popup-stage').innerHTML = `<div class="dance-note">서서 하는 원본 안무입니다. 책상·의자와 거리를 두고 공간을 확보하세요. 점프나 깊은 굽힘이 부담되면 보기만 하거나 다른 주제로 바꾸세요. 허리 통증이 있으면 저강도 자세 전환을 먼저 고르세요.<br>공식 영상을 직접 눌렀을 때만 인터넷에 연결합니다. 자동 재생·자동 소리 재생은 하지 않아요.</div><div class="dance-grid">${dances.map((dance, index) => `<article class="dance-card"><div class="dance-art">${['♫', '♪', '♬'][index % 3]}</div><div class="eyebrow" style="margin-top:18px">${escape(dance.artist)}</div><h2>${escape(dance.title)}</h2><p>${escape(dance.note || '공식 채널의 안무 영상을 보고 원본 동작을 확인하세요.')}</p><button class="primary" data-dance="${index}">이 창에서 공식 영상 보기 ▶</button><button class="quiet" data-video-link="${index}">브라우저에서 열기 ↗</button></article>`).join('')}</div>${!dances.length ? '<div class="error-panel">공식 안무 영상의 출처를 검증하지 못해 임의 링크를 넣지 않았습니다.</div>' : ''}`;
-    document.querySelectorAll('[data-dance]').forEach(button => button.addEventListener('click', () => {
-      const dance = dances[Number(button.dataset.dance)];
-      if (!/^[a-zA-Z0-9_-]{11}$/.test(dance.youtubeId)) { toast('검증된 영상 ID가 없습니다. 공식 링크로 열어 주세요.'); return; }
-      $('#popup-stage').innerHTML = `<button id="video-back" class="secondary video-back">← 다른 공식 영상 고르기</button><iframe id="dance-frame" class="video-player" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>${practiceControls()}<p class="small-help">영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다. 속도·구간 반복은 영상 재생기를 원격 조작하는 것이며, 반응이 없으면 영상 안의 ⚙ 메뉴에서 직접 바꿀 수 있습니다.</p><button id="video-external" class="secondary">공식 영상 브라우저에서 열기 ↗</button>`;
-      const stopPractice = bindPractice();
-      $('#video-back').addEventListener('click', () => { stopPractice(); renderDances(); });
-      $('#video-external').addEventListener('click', () => send('open-link', { url: dance.url }));
-    }));
-    document.querySelectorAll('[data-video-link]').forEach(button => button.addEventListener('click', () => send('open-link', { url: dances[Number(button.dataset.videoLink)].url })));
+  // 댄스 안무: one video is picked (in order or at random, same setting as the other cards) and starts right away.
+  let stopDance = null;
+  function renderDances(forcedIdx) {
+    if (stopDance) { stopDance(); stopDance = null; }
+    const dances = (content.dances || []).filter(d => /^[a-zA-Z0-9_-]{11}$/.test(d.youtubeId || ''));
+    if (!dances.length) { $('#popup-stage').innerHTML = '<p class="small-help">재생할 수 있는 검증된 안무 영상이 없습니다.</p>'; return; }
+    const current = Number.isInteger(forcedIdx) ? forcedIdx : pickVariant('dance', dances.length);
+    if (Number.isInteger(forcedIdx)) store.set('teum.variantIdx.dance', String(current));
+    const dance = dances[current];
+    const picker = variantPicker('dance', dances.map(d => ({ title: `${d.artist} · ${d.title}` })), current);
+    $('#popup-stage').innerHTML = `${picker}<div class="dance-note">서서 하는 원본 안무입니다. 책상·의자와 거리를 두고 공간을 확보하세요. 점프나 깊은 굽힘이 부담되면 보기만 하거나 다른 주제로 바꾸세요. 허리 통증이 있으면 저강도 자세 전환을 먼저 고르세요.</div><iframe id="dance-frame" class="video-player" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>${practiceControls()}<p class="small-help">${escape(dance.artist)} · ${escape(dance.title)} (공식 채널). 영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다. 속도·구간 반복은 영상 재생기를 원격 조작하는 것이며, 반응이 없으면 영상 안의 ⚙ 메뉴에서 직접 바꿀 수 있습니다.</p><button id="video-external" class="secondary" type="button">공식 영상 브라우저에서 열기 ↗</button>`;
+    stopDance = bindPractice();
+    $('#video-external').addEventListener('click', () => send('open-link', { url: dance.url }));
+    document.querySelectorAll('[data-variant]').forEach(button => button.addEventListener('click', () => renderDances(Number(button.dataset.variant))));
+    if ($('#variant-mode')) $('#variant-mode').addEventListener('change', event => store.set('teum.variantMode.dance', event.target.value === 'random' ? 'random' : 'sequential'));
   }
   function receive(message) {
     if (message.type === 'tick') { updateStatus(message); return; }
