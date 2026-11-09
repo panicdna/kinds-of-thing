@@ -1,0 +1,16 @@
+name: community-check
+# A shared item may carry YouTube videos. Before it can be merged, every video must still be public and embeddable.
+on:
+  pull_request:
+    paths:
+      - 'community/*.json'
+      - '!community/index.json'
+      - 'community/verify_videos.py'
+permissions:
+  contents: read
+jobs:
+  videos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 community/verify_videos.py

@@ -17,9 +17,10 @@ namespace DeskHooker
 {
     public sealed class Theme
     {
-        public string id, name, summary, safety, file, author;
+        public string id, name, summary, safety, file, author, icon;
         public bool community;
         public string[] instructions;
+        public CommunityVideo[] videos;
     }
 
     internal static class Program
@@ -177,7 +178,7 @@ namespace DeskHooker
                     CommunityItem item = CommunityContent.Parse(raw);
                     if (!seen.Add(item.Id)) { rejected++; continue; }
                     themes.Add(new Theme { id = "c-" + item.Id, name = item.Name, summary = item.Summary, instructions = item.Instructions,
-                        safety = item.Safety + " " + CommunityNotice, file = "", author = item.Author, community = true });
+                        safety = item.Safety + " " + CommunityNotice, file = "", author = item.Author, community = true, videos = item.Videos, icon = item.Icon });
                 }
                 catch (ArgumentException) { rejected++; }
             }
@@ -398,7 +399,9 @@ namespace DeskHooker
                     return true;
             }
             // GitHub: only this project's "new file" page for the community folder and its documents on main.
-            return uri.Host=="github.com" && (uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/new/main/community", StringComparison.Ordinal) || uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/blob/main/", StringComparison.Ordinal));
+            return uri.Host=="github.com" && (uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/new/main/community", StringComparison.Ordinal) || uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/blob/main/", StringComparison.Ordinal) ||
+                // The "delete this file" page of exactly one shared item's file; GitHub asks for login and review before anything changes.
+                (System.Text.RegularExpressions.Regex.IsMatch(uri.AbsolutePath, "^/panicdna/kinds-of-thing/delete/main/community/[a-z0-9][a-z0-9-]{2,39}\\.json$") && !uri.AbsolutePath.EndsWith("/community/index.json", StringComparison.Ordinal)));
         }
 
         public void Quit()
@@ -417,8 +420,9 @@ namespace DeskHooker
             string folder=Path.Combine(Root,"tests","ui"); Directory.CreateDirectory(folder);
             try
             {
-                foreach (string blocked in new string[] { "http://www.youtube.com/watch?v=Test", "https://www.youtube.com.evil.invalid/watch?v=Test", "https://user@www.youtube.com/watch?v=Test", "https://www.youtube.com:8443/watch?v=Test", "https://ko.wikisource.org/wiki/Test", "https://github.com/evil/kinds-of-thing/blob/main/README.md", "file:///C:/Windows/notepad.exe" })
+                foreach (string blocked in new string[] { "http://www.youtube.com/watch?v=Test", "https://www.youtube.com.evil.invalid/watch?v=Test", "https://user@www.youtube.com/watch?v=Test", "https://www.youtube.com:8443/watch?v=Test", "https://ko.wikisource.org/wiki/Test", "https://github.com/evil/kinds-of-thing/blob/main/README.md", "https://github.com/evil/kinds-of-thing/delete/main/community/u-abc.json", "https://github.com/panicdna/kinds-of-thing/delete/main/README.md", "https://github.com/panicdna/kinds-of-thing/delete/main/community/index.json", "https://github.com/panicdna/kinds-of-thing/delete/main/community/sub/u-abc.json", "file:///C:/Windows/notepad.exe" })
                     if (AllowedLink(new Uri(blocked))) throw new Exception("Unsafe external URL was accepted: " + blocked);
+                if (!AllowedLink(new Uri("https://github.com/panicdna/kinds-of-thing/delete/main/community/u-test-video.json"))) throw new Exception("The delete page of a shared item must be openable.");
                 if (!AllowedLink(new Uri("https://github.com/panicdna/kinds-of-thing/blob/main/%EC%89%BC-%EC%B6%94%EA%B0%80-%EA%B0%80%EC%9D%B4%EB%93%9C.md"))) throw new Exception("The guide link must be openable.");
                 await Task.Delay(700);
                 string count=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#theme-grid .theme-card').length");
@@ -615,13 +619,18 @@ namespace DeskHooker
                 if (await script.ExecuteScriptAsync("document.querySelector('#share-panel').open") != "true") throw new Exception("Share button did not open the dialog.");
                 await Capture(SettingsWindow, Path.Combine(folder, "settings-community.png"));
                 // In-app guide inside the share dialog: visible, and the example button fills the form.
-                if (await script.ExecuteScriptAsync("Boolean(document.querySelector('.share-guide')) && Boolean(document.querySelector('#share-guide-open'))") != "true") throw new Exception("The share guide is not shown in the dialog.");
+                if (await script.ExecuteScriptAsync("Boolean(document.querySelector('.share-guide')) && Boolean(document.querySelector('#share-guide-open')) && Boolean(document.querySelector('#share-videos'))") != "true") throw new Exception("The share guide is not shown in the dialog.");
                 await script.ExecuteScriptAsync("document.querySelector('#share-example').click()");
                 await Task.Delay(200);
                 if (await script.ExecuteScriptAsync("document.querySelector('#share-name').value") != "\"목 풀기 한 번\"") throw new Exception("The example button did not fill the form.");
                 await script.ExecuteScriptAsync("document.querySelector('#share-name').value=''; document.querySelector('#share-name').dispatchEvent(new Event('input')); document.querySelector('#share-copy').click();");
                 await Task.Delay(200);
                 if (await script.ExecuteScriptAsync("document.querySelector('#share-note').textContent.length>0") != "true") throw new Exception("A form error is not shown inside the dialog.");
+                if (await script.ExecuteScriptAsync("document.querySelectorAll('input[name=share-icon]').length") != "16") throw new Exception("The icon picker should offer 16 symbols.");
+                await script.ExecuteScriptAsync("document.querySelector('input[name=share-icon][value=\"♫\"]').click()");
+                await Task.Delay(200);
+                if (await script.ExecuteScriptAsync("document.querySelector('#share-preview .theme-symbol').textContent") != "\"♫\"") throw new Exception("The chosen icon is not shown in the preview tile.");
+                result["shareIcon"]=true;
                 result["shareGuide"]=true;
                 await script.ExecuteScriptAsync("document.querySelector('#share-close').click()");
                 ShowPopup("c-u-eye-20-20-20"); await Popup.Ready.Task; await Task.Delay(350);
@@ -635,6 +644,28 @@ namespace DeskHooker
                 }
                 Popup.Close();
                 result["communitySyncAndShare"] = true;
+                // A shared item with videos: its own steps are item #1, each video one more item (reachability is checked by the sync itself).
+                var withVideo = new SyncResult(); withVideo.Etag = "test2";
+                withVideo.Entries.Add(sample.Entries[0]);
+                withVideo.Entries.Add(new SyncEntry { Name = "u-test-video.json", Sha = "test2", Text = "{\"schema\":1,\"id\":\"u-test-video\",\"name\":\"영상 쉼\",\"summary\":\"영상이 있는 쉼\",\"safety\":\"아프면 멈추세요.\",\"icon\":\"♪\",\"instructions\":[\"편히 앉아요.\"],\"videos\":[{\"id\":\"x6y6SPzCQXQ\",\"title\":\"테스트 영상\"}]}" });
+                ApplySync(withVideo); await Task.Delay(400);
+                // Shared tiles (and only those) offer "삭제하기", which opens GitHub's delete page; built-in tiles and the share preview do not.
+                if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-delete]').length")!="2") throw new Exception("Each of the two shared tiles should offer a delete button.");
+                if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('input[value=stretch]').closest('.theme-card').querySelector('[data-delete]')===null && document.querySelector('#share-preview [data-delete]')===null")!="true") throw new Exception("Built-in tiles and the share preview must not offer deletion.");
+                // The chosen icon is the tile's symbol (shared items default to ✿).
+                if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('input[value=\"c-u-test-video\"]').closest('.theme-card').querySelector('.theme-symbol').textContent")!="\"♪\"") throw new Exception("The shared item's icon is not shown on its tile.");
+                if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('input[value=\"c-u-eye-20-20-20\"]').closest('.theme-card').querySelector('.theme-symbol').textContent")!="\"✿\"") throw new Exception("A shared item without an icon should keep the default symbol.");
+                ShowPopup("c-u-test-video"); await Popup.Ready.Task; await Task.Delay(500);
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="2") throw new Exception("A shared item with one video should list its steps plus the video.");
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\"1\"]').click()");
+                await Task.Delay(300);
+                if (!(await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''")).Contains("youtube-nocookie.com/embed/x6y6SPzCQXQ")) throw new Exception("The shared video did not embed.");
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\"0\"]').click()");
+                await Task.Delay(300);
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.instruction-panel'))")!="true") throw new Exception("The shared steps did not show as item #1.");
+                Popup.Close(); await Task.Delay(300);
+                ApplySync(sample); await Task.Delay(300);
+                result["communityVideos"]=true;
                 ShowPopup("dance"); await Popup.Ready.Task; await Task.Delay(350);
                 string danceReport=await Popup.Browser.CoreWebView2.ExecuteScriptAsync(File.ReadAllText(Path.Combine(Root,"tests","dance-ui.js")));
                 var danceCheck=Json.Deserialize<Dictionary<string,object>>(danceReport);
@@ -727,6 +758,8 @@ namespace DeskHooker
                 {
                     CommunityItem item = CommunityContent.Parse(text);
                     if (item.Id + ".json" != name) throw new ArgumentException("File name must match id.");
+                    // Shared videos are checked once, when the item is first downloaded: they must still be reachable and embeddable.
+                    foreach (CommunityVideo video in item.Videos) VerifyVideo(video.id);
                     result.Entries.Add(new SyncEntry { Name = name, Sha = file.Value, Text = text });
                 }
                 catch (ArgumentException) { result.Rejected++; }
@@ -757,6 +790,17 @@ namespace DeskHooker
             Buffer.BlockCopy(header, 0, all, 0, header.Length); Buffer.BlockCopy(content, 0, all, header.Length, content.Length);
             using (var sha1 = System.Security.Cryptography.SHA1.Create())
                 return BitConverter.ToString(sha1.ComputeHash(all)).Replace("-", "").ToLowerInvariant();
+        }
+
+        // YouTube's oEmbed answers 200 only for a public video that allows embedding (401/403/404 otherwise).
+        // A definite refusal rejects the shared item; an unreachable network stops this sync so it is retried later.
+        private static void VerifyVideo(string videoId)
+        {
+            string body, tag;
+            int status = TryGet("https://www.youtube.com/oembed?format=json&url=" + Uri.EscapeDataString("https://www.youtube.com/watch?v=" + videoId), null, 20000, out body, out tag);
+            if (status == 200) return;
+            if (status == 401 || status == 403 || status == 404 || status == 400) throw new ArgumentException("Video " + videoId + " cannot be played here.");
+            throw new Exception("영상 접속을 확인하지 못했어요. 다음 동기화에서 다시 시도합니다.");
         }
 
         // Returns the HTTP status (200/304/404/...), or -1 when the server could not be reached.

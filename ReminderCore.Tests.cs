@@ -122,6 +122,11 @@ internal static class ReminderCoreTests
         Run("Community_RejectsMarkupLinksAndBadIds", Community_RejectsMarkupLinksAndBadIds);
         Run("Community_EnforcesLimits", Community_EnforcesLimits);
         Run("Community_RejectsUnknownSchemaAndNonObjects", Community_RejectsUnknownSchemaAndNonObjects);
+        Run("Community_AcceptsYouTubeVideoIds", Community_AcceptsYouTubeVideoIds);
+        Run("Community_RejectsBadVideos", Community_RejectsBadVideos);
+        Run("Community_VideoOnlyItemMayOmitInstructions", Community_VideoOnlyItemMayOmitInstructions);
+        Run("Community_IconMustBeOneOfTheOfferedSymbols", Community_IconMustBeOneOfTheOfferedSymbols);
+        Run("Community_IdIndexIsReservedForTheListFile", Community_IdIndexIsReservedForTheListFile);
         Console.WriteLine("RESULT: {0} passed, {1} failed", passed, failed);
         return failed == 0 ? 0 : 1;
     }
@@ -533,6 +538,65 @@ internal static class ReminderCoreTests
         JavaScriptSerializer serializer = new JavaScriptSerializer();
         ReminderSettings back = serializer.Deserialize<ReminderSettings>(serializer.Serialize(settings));
         Equal("sequential", back.VariantModes["stretch"], "Saved choice survives the settings file");
+    }
+
+    private const string VideoItem = "{\"schema\":1,\"id\":\"u-vid\",\"name\":\"N\",\"summary\":\"S\",\"safety\":\"Stop if it hurts.\",\"instructions\":[\"a\"],\"videos\":[{\"id\":\"dQw4w9WgXcQ\",\"title\":\"T\",\"author\":\"A\"},{\"id\":\"-yOiTWEgU_Y\",\"title\":\"U\"}]}";
+
+    private static void Community_AcceptsYouTubeVideoIds()
+    {
+        CommunityItem item = CommunityContent.Parse(VideoItem);
+        Equal(2, item.Videos.Length, "Two videos");
+        Equal("dQw4w9WgXcQ", item.Videos[0].id, "First id");
+        Equal("-yOiTWEgU_Y", item.Videos[1].id, "An id may start with a dash");
+        Equal("", item.Videos[1].author, "Author is optional");
+        Equal(0, CommunityContent.Parse(Good).Videos.Length, "Items without videos still parse");
+    }
+
+    private static void Community_RejectsBadVideos()
+    {
+        string[] bad = new string[] {
+            VideoItem.Replace("dQw4w9WgXcQ", "short"),
+            VideoItem.Replace("dQw4w9WgXcQ", "https://youtu.be/x"),
+            VideoItem.Replace("\"id\":\"-yOiTWEgU_Y\"", "\"id\":\"dQw4w9WgXcQ\""),
+            VideoItem.Replace("\"title\":\"T\"", "\"title\":\"see http://x.example\""),
+            VideoItem.Replace("\"title\":\"T\"", "\"title\":\"\""),
+            VideoItem.Replace("\"videos\":[", "\"videos\":{\"x\":["),
+            VideoItem.Replace("[{\"id\":\"dQw4w9WgXcQ\",\"title\":\"T\",\"author\":\"A\"},", "[\"dQw4w9WgXcQ\","),
+            "{\"schema\":1,\"id\":\"u-vid\",\"name\":\"N\",\"summary\":\"S\",\"safety\":\"x\",\"instructions\":[\"a\"],\"videos\":[" + String.Join(",", new string[] { "AAAAAAAAAAA", "BBBBBBBBBBB", "CCCCCCCCCCC", "DDDDDDDDDDD", "EEEEEEEEEEE", "FFFFFFFFFFF" }.Select(x => "{\"id\":\"" + x + "\",\"title\":\"t\"}").ToArray()) + "]}"
+        };
+        foreach (string json in bad)
+        {
+            string text = json;
+            ThrowsArgument(delegate { CommunityContent.Parse(text); }, "Bad video accepted: " + text);
+        }
+    }
+
+    private static void Community_IdIndexIsReservedForTheListFile()
+    {
+        ThrowsArgument(delegate { CommunityContent.Parse(Good.Replace("\"id\":\"u-abc\"", "\"id\":\"index\"")); }, "An item may not take the id of community/index.json");
+        CommunityContent.Parse(Good.Replace("\"id\":\"u-abc\"", "\"id\":\"index-card\""));
+    }
+
+    private static void Community_IconMustBeOneOfTheOfferedSymbols()
+    {
+        Equal("", CommunityContent.Parse(Good).Icon, "No icon means the default tile symbol");
+        foreach (string icon in CommunityContent.Icons)
+            Equal(icon, CommunityContent.Parse(Good.Replace("\"schema\":1,", "\"schema\":1,\"icon\":\"" + icon + "\",")).Icon, "Offered icon " + icon);
+        foreach (string bad in new string[] { "", "x", "<b>", "\ud83d\ude00", "✿✿", "https://x.example" })
+        {
+            string text = bad;
+            ThrowsArgument(delegate { CommunityContent.Parse(Good.Replace("\"schema\":1,", "\"schema\":1,\"icon\":\"" + text + "\",")); }, "Icon '" + bad + "'");
+        }
+    }
+
+    private static void Community_VideoOnlyItemMayOmitInstructions()
+    {
+        string videoOnly = "{\"schema\":1,\"id\":\"u-vid\",\"name\":\"N\",\"summary\":\"S\",\"safety\":\"Stop if it hurts.\",\"videos\":[{\"id\":\"dQw4w9WgXcQ\",\"title\":\"T\"}]}";
+        CommunityItem item = CommunityContent.Parse(videoOnly);
+        Equal(0, item.Instructions.Length, "No instructions");
+        Equal(1, item.Videos.Length, "One video");
+        ThrowsArgument(delegate { CommunityContent.Parse("{\"schema\":1,\"id\":\"u-vid\",\"name\":\"N\",\"summary\":\"S\",\"safety\":\"x\"}"); }, "Neither instructions nor videos");
+        ThrowsArgument(delegate { CommunityContent.Parse(videoOnly.Replace("\"videos\"", "\"instructions\":\"oops\",\"videos\"")); }, "Instructions present but not an array");
     }
 
     private static void ThemeMode_DefaultsToOrderedOne()

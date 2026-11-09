@@ -196,16 +196,28 @@ namespace DeskHooker
 
     // A validated, plain-text wellness item shared by other people through the
     // repository's community/ folder. Limits MUST match validateShare() in app-core.js.
+    // A YouTube video shared with a community item. Only the 11-character id is stored, never a link.
+    public sealed class CommunityVideo
+    {
+        public string id, title, author;
+    }
+
     public sealed class CommunityItem
     {
-        public string Id, Name, Summary, Safety, Author;
+        public string Id, Name, Summary, Safety, Author, Icon;
         public string[] Instructions;
+        public CommunityVideo[] Videos;
     }
 
     public static class CommunityContent
     {
         public const int MaxFileBytes = 6000;
         public const int MaxName = 30, MaxSummary = 60, MaxStep = 60, MaxSteps = 6, MaxSafety = 150, MaxAuthor = 20;
+        public const int MaxVideos = 5, MaxVideoTitle = 60, MaxVideoAuthor = 30;
+        // The tile symbols a shared item may choose from (the first is the default). MUST match ICONS in app-core.js.
+        public static readonly string[] Icons = new string[] { "✿","❀","☾","☀","★","♥","♪","♫","◎","◌","↟","↗","≈","♧","☕","✦" };
+        private static readonly System.Text.RegularExpressions.Regex VideoIdPattern =
+            new System.Text.RegularExpressions.Regex("^[A-Za-z0-9_-]{11}$");
         private static readonly System.Text.RegularExpressions.Regex IdPattern =
             new System.Text.RegularExpressions.Regex("^[a-z0-9][a-z0-9-]{2,39}$");
 
@@ -230,23 +242,72 @@ namespace DeskHooker
             item.Id = Text(map, "id", 40, true);
             if (!IdPattern.IsMatch(item.Id))
                 throw new ArgumentException("id must be 3-40 chars of a-z, 0-9 and '-'.");
+            if (item.Id == "index")
+                throw new ArgumentException("id 'index' is reserved for community/index.json.");
             item.Name = Text(map, "name", MaxName, true);
             item.Summary = Text(map, "summary", MaxSummary, true);
             item.Safety = Text(map, "safety", MaxSafety, true);
             item.Author = Text(map, "author", MaxAuthor, false);
+            object rawIcon;
+            item.Icon = "";
+            if (map.TryGetValue("icon", out rawIcon) && rawIcon != null)
+            {
+                string icon = rawIcon as string;
+                if (icon == null || Array.IndexOf(Icons, icon) < 0)
+                    throw new ArgumentException("icon must be one of the offered symbols.");
+                item.Icon = icon;
+            }
+
+            // Optional YouTube videos (ids only). Each one is also checked for reachability before it is accepted (see CommunitySync).
+            List<CommunityVideo> videos = new List<CommunityVideo>();
+            object rawVideos;
+            if (map.TryGetValue("videos", out rawVideos) && rawVideos != null)
+            {
+                System.Collections.IEnumerable entries = rawVideos as System.Collections.IEnumerable;
+                if (entries == null || rawVideos is string || rawVideos is Dictionary<string, object>)
+                    throw new ArgumentException("videos must be an array.");
+                HashSet<string> seenVideos = new HashSet<string>(StringComparer.Ordinal);
+                foreach (object entry in entries)
+                {
+                    if (videos.Count >= MaxVideos)
+                        throw new ArgumentException("Too many videos.");
+                    Dictionary<string, object> video = entry as Dictionary<string, object>;
+                    if (video == null)
+                        throw new ArgumentException("Each video must be an object.");
+                    object rawId;
+                    string id = video.TryGetValue("id", out rawId) ? rawId as string : null;
+                    if (id == null || !VideoIdPattern.IsMatch(id))
+                        throw new ArgumentException("video id must be an 11-character YouTube id.");
+                    if (!seenVideos.Add(id))
+                        throw new ArgumentException("Duplicate video id.");
+                    CommunityVideo clean = new CommunityVideo();
+                    clean.id = id;
+                    clean.title = Text(video, "title", MaxVideoTitle, true);
+                    clean.author = Text(video, "author", MaxVideoAuthor, false);
+                    videos.Add(clean);
+                }
+            }
+            item.Videos = videos.ToArray();
 
             object rawSteps;
             System.Collections.IEnumerable steps = map.TryGetValue("instructions", out rawSteps) ? rawSteps as System.Collections.IEnumerable : null;
-            if (steps == null || rawSteps is string)
-                throw new ArgumentException("instructions must be an array.");
             List<string> list = new List<string>();
-            foreach (object step in steps)
+            if (steps == null || rawSteps is string)
             {
-                if (list.Count >= MaxSteps)
-                    throw new ArgumentException("Too many instructions.");
-                list.Add(Clean(step as string, MaxStep, true, "instruction"));
+                // A video-only item may leave the instructions out entirely.
+                if (videos.Count == 0 || map.ContainsKey("instructions"))
+                    throw new ArgumentException("instructions must be an array.");
             }
-            if (list.Count == 0)
+            else
+            {
+                foreach (object step in steps)
+                {
+                    if (list.Count >= MaxSteps)
+                        throw new ArgumentException("Too many instructions.");
+                    list.Add(Clean(step as string, MaxStep, true, "instruction"));
+                }
+            }
+            if (list.Count == 0 && videos.Count == 0)
                 throw new ArgumentException("At least one instruction is required.");
             item.Instructions = list.ToArray();
             return item;

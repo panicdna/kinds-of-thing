@@ -34,4 +34,9 @@ dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
 .video-credit{margin:0;font-size:13px;color:var(--muted);text-align:center}.video-safety{margin:0;max-width:900px;font-size:12px;color:var(--muted);text-align:center}
 .share-guide{margin:0 0 14px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#f7f8f0}.share-guide summary{cursor:pointer;font-weight:700;font-size:14px}.share-guide ol{margin:8px 0;padding-left:20px;font-size:13px;line-height:1.7}.share-guide p{margin:6px 0}
 .share-note{min-height:20px;margin:0 0 8px;font-size:13px;color:var(--deep);font-weight:700}
-.share-launch .small-help{margin-left:8px}
+.share-icons{border:0;padding:0;margin:0}.share-icons legend{padding:0;font-size:13px;font-weight:700}.share-icons legend small{font-weight:400;color:var(--muted)}
+.icon-options{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.icon-option{position:relative;cursor:pointer}.icon-option input{position:absolute;opacity:0;inset:0;cursor:pointer}
+.icon-option span{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:20px}
+.icon-option input:checked+span{background:var(--lime);border-color:var(--green)}.icon-option input:focus-visible+span{outline:2px solid var(--green)}
+.card-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-delete{border:0;background:transparent;color:var(--danger);font-size:12px;text-decoration:underline;cursor:pointer;padding:4px 2px}.card-delete:hover{font-weight:700}

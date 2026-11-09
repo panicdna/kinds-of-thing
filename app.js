@@ -13,7 +13,7 @@
     { id: 'random-one', label: '하나만 무작위로', help: '알림마다 하나만, 고른 것 중에서 무작위로' }
   ];
   const modeOf = id => themeModes.find(m => m.id === id) || themeModes[0];
-  const symbolFor = t => symbols[t.id] || (t.community ? '✿' : '◌');
+  const symbolFor = t => t.icon || symbols[t.id] || (t.community ? '✿' : '◌');
   const tones = ['#e3e9ce', '#e4deec', '#eddcca', '#d9e6e7'];
   const $ = selector => document.querySelector(selector);
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -58,7 +58,7 @@
     ];
   }
   function themeCards(checked) {
-    return state.themes.map((t, i) => `<article class="theme-card" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbolFor(t)}</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${checked.has(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p></label><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button></article>`).join('');
+    return state.themes.map((t, i) => `<article class="theme-card" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbolFor(t)}</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${checked.has(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p></label><div class="card-actions"><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button>${t.community && t.id !== 'preview' ? `<button class="card-delete" data-delete="${escape(t.id)}" type="button" title="공유 저장소(GitHub)에서 이 쉼을 지우는 화면을 엽니다">삭제하기</button>` : ''}</div></article>`).join('');
   }
   function syncText() {
     const sync = state.sync || {};
@@ -75,6 +75,13 @@
   }
   function bindThemeGrid() {
     document.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', () => send('preview', { themeId: button.dataset.preview })));
+    // Deleting a shared item = proposing to delete its file in the shared repository (GitHub asks for login and review).
+    document.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => {
+      const url = core.buildDeleteUrl(button.dataset.delete);
+      if (!url) { toast('이 쉼은 삭제 요청을 만들 수 없어요.'); return; }
+      send('open-link', { url });
+      toast('GitHub의 삭제 화면이 열립니다. 로그인 후 "Commit changes"로 삭제를 제안하세요. 병합되면 모든 앱에서 사라져요.');
+    }));
     const count = () => {
       const n = document.querySelectorAll('input[name=theme]:checked').length;
       const mode = modeOf((document.querySelector('input[name=theme-mode]:checked') || {}).value);
@@ -94,20 +101,22 @@
   }
   function sharePanel() {
     const L = core.LIMITS;
-    return `<div class="share-launch"><button id="share-open" class="secondary" type="button">내 쉼 공유하기 · GitHub에 올려 다른 사람 앱에도 나타나게 ↗</button><span class="small-help"> 처음이라면 눌러서 '사용 방법과 예제'를 확인하세요.</span></div>
+    return `<div class="share-launch"><button id="share-open" class="secondary" type="button">내 쉼 공유하기 · GitHub에 올려 다른 사람 앱에도 나타나게 ↗</button></div>
       <dialog class="share-panel" id="share-panel"><div class="share-head"><h2>내 쉼 공유하기</h2><button id="share-close" class="quiet" type="button">닫기 ×</button></div>
       <details class="share-guide" open><summary>사용 방법과 예제</summary>
         <ol><li>아래 칸을 채우면 오른쪽 <b>미리 보기</b>에 다른 사람 화면이 그대로 나와요.</li>
         <li><b>GitHub에 올리기</b>를 누르면 새 파일 화면이 채워진 채 열려요. GitHub에 로그인해 <b>Propose new file</b>로 제안(Pull Request)을 보내세요. 앱은 계정·토큰을 다루지 않아요.</li>
         <li>저장소 관리자가 병합하면 모든 사용자의 앱이 약 10분 안에 받아 보여 줘요.</li></ol>
         <p class="small-help"><b>예제</b> — 이름 "목 풀기 한 번", 설명 "고개를 천천히 기울여 목 옆을 부드럽게 푸는 쉼", 동작 안내 4줄, 주의사항 1줄. <button id="share-example" class="quiet" type="button">예제 채우기</button></p>
-        <p class="small-help"><b>유튜브 영상은 이 양식으로 올릴 수 없어요.</b> 안전을 위해 링크는 거부돼요. 영상은 관리자가 앱의 영상 목록에 넣어요. 사례와 방법은 설명서에 있어요. <button id="share-guide-open" class="quiet" type="button">전체 설명서 열기 ↗</button></p>
+        <p class="small-help"><b>유튜브 영상도 넣을 수 있어요.</b> 위 '유튜브 영상' 칸에 주소를 한 줄에 하나씩(최대 5개) 적으세요. <b>유튜브 주소만</b> 되고, 파일에는 주소 대신 영상 ID만 저장돼요. 앱은 받을 때마다 영상이 지금도 재생되는지 접속해 확인하고, 재생할 수 없는 영상이 있으면 그 쉼을 받지 않아요. 자세한 방법은 설명서에 있어요. <button id="share-guide-open" class="quiet" type="button">전체 설명서 열기 ↗</button></p>
       </details>
       <p id="share-note" class="share-note" role="status" aria-live="polite"></p>
       <div class="share-grid"><form id="share-form" class="share-form" autocomplete="off">
         <label>이름 <small>${L.name}자</small><input id="share-name" maxlength="${L.name}" placeholder="예: 목 풀기 한 번"></label>
         <label>한 줄 설명 <small>${L.summary}자</small><input id="share-summary" maxlength="${L.summary}" placeholder="타일에 보이는 짧은 설명"></label>
         <label>동작 안내 <small>한 줄에 하나 · ${L.steps}줄까지 · 줄당 ${L.step}자</small><textarea id="share-steps" rows="5" placeholder="고개를 천천히 숙여요&#10;반대쪽으로 천천히 기울여요"></textarea></label>
+        <label>유튜브 영상 <small>선택 · 한 줄에 하나 · ${L.videos}개까지 · 주소 | 제목</small><textarea id="share-videos" rows="3" placeholder="https://www.youtube.com/shorts/영상ID | 영상 제목(선택)"></textarea></label>
+        <fieldset class="share-icons"><legend>아이콘 <small>타일에 보이는 모양</small></legend><div class="icon-options">${core.ICONS.map((icon, i) => `<label class="icon-option"><input type="radio" name="share-icon" value="${icon}" ${i === 0 ? 'checked' : ''}><span>${icon}</span></label>`).join('')}</div></fieldset>
         <label>주의사항 <small>${L.safety}자 · 필수</small><textarea id="share-safety" rows="2" maxlength="${L.safety}" placeholder="통증·어지럼이 생기면 바로 중단하세요."></textarea></label>
         <label>표시할 이름 <small>선택 · ${L.author}자 · 공개됩니다</small><input id="share-author" maxlength="${L.author}" placeholder="비워 두면 익명"></label>
         <div class="share-buttons"><button id="share-github" class="primary" type="submit">GitHub에 올리기 ↗</button><button id="share-copy" class="secondary" type="button">JSON 복사</button></div>
@@ -115,12 +124,12 @@
       <aside><div class="eyebrow">미리 보기 · 다른 사람 화면</div><div id="share-preview" class="themes one"></div><p class="small-help">링크·HTML 기호(&lt; &gt;)는 쓸 수 없어요. 올린 내용은 공개되며 치료·진단 주장은 받지 않아요. 개인정보는 넣지 마세요.</p></aside></div></dialog>`;
   }
   function readShareForm() {
-    return { name: $('#share-name').value, summary: $('#share-summary').value, steps: $('#share-steps').value, safety: $('#share-safety').value, author: $('#share-author').value };
+    return { name: $('#share-name').value, summary: $('#share-summary').value, steps: $('#share-steps').value, videos: $('#share-videos').value, icon: (document.querySelector('input[name=share-icon]:checked') || {}).value, safety: $('#share-safety').value, author: $('#share-author').value };
   }
   function renderSharePreview() {
     const result = core.validateShare(readShareForm());
     const item = result.item;
-    const theme = { id: 'preview', community: true, name: item.name || '(이름)', summary: item.summary || '(한 줄 설명)', author: item.author };
+    const theme = { id: 'preview', community: true, icon: item.icon, name: item.name || '(이름)', summary: item.summary || '(한 줄 설명)', author: item.author };
     const old = state.themes; state.themes = [theme];
     $('#share-preview').innerHTML = themeCards(new Set()).replace(/<button class="preview".*?<\/button>/, '');
     state.themes = old;
@@ -136,7 +145,8 @@
       toast('예제를 채웠어요. 미리 보기를 확인하고 내용에 맞게 고쳐 쓰세요.');
     });
     dlg.addEventListener('click', event => { if (event.target === dlg) dlg.close(); });
-    ['name', 'summary', 'steps', 'safety', 'author'].forEach(key => $(`#share-${key}`).addEventListener('input', renderSharePreview));
+    ['name', 'summary', 'steps', 'videos', 'safety', 'author'].forEach(key => $(`#share-${key}`).addEventListener('input', renderSharePreview));
+    document.querySelectorAll('input[name=share-icon]').forEach(radio => radio.addEventListener('change', renderSharePreview));
     renderSharePreview();
     const validated = () => {
       const result = core.validateShare(readShareForm());
@@ -225,7 +235,14 @@
     else renderWellness(theme);
   }
   // Some themes have a list of sub-items (theme-variants.js): shown in order or at random, or picked directly.
-  const variantList = id => ((window.THEME_VARIANTS || {})[id] || []).filter(v => v.type === 'gif' || /^[A-Za-z0-9_-]{11}$/.test(v.youtubeId || ''));
+  const validVariant = v => v.type === 'gif' || v.type === 'text' || /^[A-Za-z0-9_-]{11}$/.test(v.youtubeId || '');
+  function variantList(theme) {
+    const fixed = (window.THEME_VARIANTS || {})[theme.id] || [];
+    // Videos shared with a community item (ids only, checked when the item was downloaded). Its own steps stay as item #1.
+    const shared = (theme.videos || []).map(v => ({ id: 'yt-' + v.id, type: 'video', title: v.title, author: v.author || '', youtubeId: v.id, url: 'https://www.youtube.com/watch?v=' + v.id }));
+    if (shared.length && (theme.instructions || []).length && !fixed.length) shared.unshift({ id: 'text', type: 'text', title: '기본 · 동작 안내', author: '' });
+    return fixed.concat(shared).filter(validVariant);
+  }
   const store = {
     get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } },
     set(key, value) { try { localStorage.setItem(key, value); } catch (_) {} }
@@ -254,7 +271,7 @@
     return `<div class="stretch-picker"><div class="stretch-pick-top"><b>${current + 1} / ${list.length}</b><label>보여 주는 순서 <select id="variant-mode"><option value="random" ${variantMode(id) === 'random' ? 'selected' : ''}>무작위</option><option value="sequential" ${variantMode(id) === 'sequential' ? 'selected' : ''}>순서대로</option></select></label><span class="small-help">바꾸면 이 카드에 기억돼요(다음 알림부터 적용). 아래에서 바로 골라도 돼요.</span></div><div class="stretch-pick-list">${list.map((v, i) => `<button type="button" class="${i === current ? 'primary' : 'secondary'}" data-variant="${i}" aria-pressed="${i === current}">#${i + 1} ${escape(v.title)}</button>`).join('')}</div></div>`;
   }
   function renderWellness(theme, forcedIdx) {
-    const list = variantList(theme.id);
+    const list = variantList(theme);
     let current = 0, video = null;
     if (list.length >= 1) {
       current = Number.isInteger(forcedIdx) ? forcedIdx : pickVariant(theme.id, list.length);

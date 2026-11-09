@@ -51,3 +51,40 @@ for (const item of index.items) {
   assert.equal(item.sha, sha, `${item.name}: index sha differs from the file; run python community/build_index.py`);
 }
 console.log('PASS: community/index.json matches the shared files and their git shas');
+
+// ---- YouTube videos in a shared item ----
+for (const [input, id] of [
+  ['https://www.youtube.com/watch?v=Md24PbVP72U', 'Md24PbVP72U'],
+  ['https://www.youtube.com/shorts/-yOiTWEgU_Y', '-yOiTWEgU_Y'],
+  ['https://youtu.be/x6y6SPzCQXQ?t=3', 'x6y6SPzCQXQ'],
+  ['https://m.youtube.com/watch?v=x6y6SPzCQXQ&list=abc', 'x6y6SPzCQXQ'],
+  ['x6y6SPzCQXQ', 'x6y6SPzCQXQ']
+]) assert.equal(core.extractVideoId(input), id, input);
+for (const bad of ['http://www.youtube.com/watch?v=x6y6SPzCQXQ', 'https://www.youtube.com.evil.invalid/watch?v=x6y6SPzCQXQ',
+  'https://user@www.youtube.com/watch?v=x6y6SPzCQXQ', 'https://www.youtube.com:8443/watch?v=x6y6SPzCQXQ', 'https://vimeo.com/12345678901',
+  'https://www.youtube.com/watch?v=short', 'https://www.youtube.com/', '', 'javascript:alert(1)']) assert.equal(core.extractVideoId(bad), null, bad);
+const withVideos = core.validateShare({ ...form, videos: 'https://www.youtube.com/shorts/-yOiTWEgU_Y | 눈 쉬기 영상\nhttps://youtu.be/x6y6SPzCQXQ' }, () => 0, () => 0);
+assert.equal(withVideos.ok, true, withVideos.errors.join(','));
+assert.deepEqual(withVideos.item.videos, [{ id: '-yOiTWEgU_Y', title: '눈 쉬기 영상' }, { id: 'x6y6SPzCQXQ', title: '영상 2' }]);
+assert.ok(!/:\/\//.test(JSON.stringify(withVideos.item)), 'the shared file stores ids, never links');
+const videoOnly = core.validateShare({ ...form, steps: '', videos: 'x6y6SPzCQXQ' }, () => 0, () => 0);
+assert.equal(videoOnly.ok, true, videoOnly.errors.join(','));
+assert.deepEqual(videoOnly.item.instructions, []);
+for (const bad of [
+  { ...form, videos: 'https://vimeo.com/12345678901' }, { ...form, videos: 'x6y6SPzCQXQ\nx6y6SPzCQXQ' },
+  { ...form, videos: 'x6y6SPzCQXQ | 보세요 http://x.example' }, { ...form, steps: '', videos: '' },
+  { ...form, videos: ['AAAAAAAAAAA', 'BBBBBBBBBBB', 'CCCCCCCCCCC', 'DDDDDDDDDDD', 'EEEEEEEEEEE', 'FFFFFFFFFFF'].join('\n') }
+]) assert.equal(core.validateShare(bad).ok, false, JSON.stringify(bad.videos));
+console.log('PASS: shared items may carry YouTube video ids (and only YouTube), stored without links');
+
+// ---- Tile icon of a shared item ----
+assert.equal(core.ICONS[0], '✿', 'the first icon is the default');
+assert.equal(core.validateShare({ ...form, icon: '✿' }).item.icon, undefined, 'the default icon is not written');
+assert.equal(core.validateShare({ ...form, icon: '♪' }).item.icon, '♪');
+for (const bad of ['😀', 'x', '✿✿', '<b>']) assert.equal(core.validateShare({ ...form, icon: bad }).ok, false, bad);
+console.log('PASS: a shared item may choose its tile icon from the offered symbols');
+
+// ---- Deleting a shared item = GitHub's delete page for its file ----
+assert.equal(core.buildDeleteUrl('c-u-test-video'), 'https://github.com/panicdna/kinds-of-thing/delete/main/community/u-test-video.json');
+for (const bad of ['c-index', 'stretch', 'c-', 'c-ab', 'c-../README', 'c-U-Upper', 'c-a/b-cd', '', null, undefined, 'c-' + 'a'.repeat(41)]) assert.equal(core.buildDeleteUrl(bad), null, String(bad));
+console.log('PASS: a shared item maps to exactly its own community file on the GitHub delete page');
