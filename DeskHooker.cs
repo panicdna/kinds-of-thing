@@ -83,7 +83,7 @@ namespace DeskHooker
             Directory.CreateDirectory(dataFolder);
             var themes = Json.Deserialize<Theme[]>(File.ReadAllText(Path.Combine(Root, "themes.json")));
             var list = new List<Theme>(themes);
-            list.Add(new Theme { id="dance", name="걸그룹 안무", summary="공식 안무 영상으로 원본 동작 따라 보기", file="", safety="서서 하는 안무입니다. 충분한 공간을 확보하고 어려운 점프·비틀기는 건너뛰세요. 허리 통증이 있으면 이 주제 대신 저강도 자세 전환을 고르세요.", instructions=new string[] { "공식 채널의 연습 영상을 선택하세요.", "처음에는 느리게 보고, 편한 범위에서만 따라 하세요." } });
+            list.Add(new Theme { id="dance", name="댄스 안무", summary="공식 안무 영상으로 원본 동작 따라 보기", file="", safety="서서 하는 안무입니다. 충분한 공간을 확보하고 어려운 점프·비틀기는 건너뛰세요. 허리 통증이 있으면 이 주제 대신 저강도 자세 전환을 고르세요.", instructions=new string[] { "공식 채널의 연습 영상을 선택하세요.", "처음에는 느리게 보고, 편한 범위에서만 따라 하세요." } });
             list.Add(new Theme { id="poem", name="시 한 줄 채우기", summary="다양한 시·노랫말·노벨 문학상 작품에서 무작위 한 줄", file="", safety="정답은 선택한 공개 원문 판본 기준입니다. 최신 저작물은 공식 감상 링크로 구분합니다.", instructions=new string[] { "작품과 빈칸 줄을 무작위로 뽑거나 직접 고르세요.", "제출하면 내 답과 원문을 나란히 비교할 수 있어요." } });
             baseThemes = list.ToArray();
             int cachedRejected;
@@ -482,27 +482,19 @@ namespace DeskHooker
                     result["nextRestButton"]=true;
                 }
                 finally { Settings.ThemeMode=savedMode; Settings.ThemeIds=savedThemes; pendingRound.Clear(); }
-                // Breathing timings are no longer in the settings window; they are edited and saved from the breathing popup.
-                if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#inhale'))")!="false") throw new Exception("Breathing timings should not be in the settings window.");
-                int oldInhale=Settings.InhaleSeconds, oldHold=Settings.HoldSeconds, oldExhale=Settings.ExhaleSeconds;
-                ShowPopup("breathing"); await Popup.Ready.Task; await Task.Delay(350);
-                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var s=function(i,v){var e=document.querySelector(i);e.value=v;e.dispatchEvent(new Event('change'));};s('#inhale',5);s('#exhale',7);");
-                await Task.Delay(500);
-                if (Settings.InhaleSeconds!=5 || Settings.ExhaleSeconds!=7 || Settings.HoldSeconds!=0) throw new Exception("Breathing popup did not save the timings.");
-                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var h=document.querySelector('#hold');h.value=3;h.dispatchEvent(new Event('change'));");
-                await Task.Delay(400);
-                if (Settings.HoldSeconds!=0) throw new Exception("Hold was saved without the consent check.");
-                Popup.Close(); await Task.Delay(300);
-                Settings.InhaleSeconds=oldInhale; Settings.HoldSeconds=oldHold; Settings.ExhaleSeconds=oldExhale; Persist();
-                result["breathSavedFromPopup"]=true;
-                // Optional spoken guidance: present in both timer themes, off by default, silent when no Korean voice exists.
-                foreach (string voiceTheme in new string[]{"voice","breathing"})
+                // Voice theme: only videos (two), no picture, no timer, no steps.
+                ShowPopup("voice"); await Popup.Ready.Task; await Task.Delay(400);
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="5") throw new Exception("Voice sub-item list should have 5 items.");
+                string[] voiceIds={"88TBCVp-Tlc","x6y6SPzCQXQ","YdBUnWJBYAo","YLfFw6IuVqc","43MKF1bL_mM"};
+                for (int v=0; v<5; v++)
                 {
-                    ShowPopup(voiceTheme); await Popup.Ready.Task; await Task.Delay(350);
-                    if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#voice-guide')) && !document.querySelector('#voice-guide').checked")!="true") throw new Exception("Voice-guide toggle missing or on by default in " + voiceTheme);
-                    Popup.Close(); await Task.Delay(300);
+                    await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
+                    await Task.Delay(300);
+                    if (!(await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''")).Contains("youtube-nocookie.com/embed/"+voiceIds[v])) throw new Exception("Voice item #"+(v+1)+" did not embed its video.");
+                    if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image, .instruction-panel, .timer-box'))")!="false") throw new Exception("Voice should show only the video.");
                 }
-                result["voiceGuideToggle"]=true;
+                Popup.Close(); await Task.Delay(300);
+                result["voiceVideoOnly"]=true;
                 ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(700);
                 // Sub-item list: 4 items, direct picking switches between the original GIF and the embedded videos.
                 var stretchCdp=Popup.Browser.CoreWebView2;
@@ -608,7 +600,14 @@ namespace DeskHooker
                 await Capture(SettingsWindow, Path.Combine(folder, "settings-community.png"));
                 await script.ExecuteScriptAsync("document.querySelector('#share-close').click()");
                 ShowPopup("c-u-eye-20-20-20"); await Popup.Ready.Task; await Task.Delay(350);
-                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.text-stage')) && !document.querySelector('.motion-image') && document.querySelectorAll('.instruction-panel li').length===3") != "true") throw new Exception("Community popup did not render.");
+                string[] eyeIds={"356wdTdVaTs","2oojWWfappA"};
+                for (int v=0; v<2; v++)
+                {
+                    await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
+                    await Task.Delay(300);
+                    string eyeSrc=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
+                    if (!eyeSrc.Contains("youtube-nocookie.com/embed/"+eyeIds[v]) || await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.text-stage, .instruction-panel, .motion-image'))")!="false") throw new Exception("Community popup should show only its videos: "+eyeSrc);
+                }
                 Popup.Close();
                 result["communitySyncAndShare"] = true;
                 ShowPopup("dance"); await Popup.Ready.Task; await Task.Delay(350);
@@ -619,16 +618,6 @@ namespace DeskHooker
                 await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-dance=\"2\"]').click()");
                 await Task.Delay(300);
                 await Capture(Popup,Path.Combine(folder,"dance-player.png"));
-                Popup.Close();
-                ShowPopup("breathing"); await Popup.Ready.Task; await Task.Delay(350);
-                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#breath-start').click()");
-                await Task.Delay(150);
-                string started=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#breath-phase').textContent.includes('들이')");
-                if (started!="true") throw new Exception("Breathing timer did not start.");
-                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#breath-stop').click()");
-                string stopped=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#breath-phase').textContent");
-                if (!stopped.Contains("편안한")) throw new Exception("Breathing timer did not stop.");
-                result["stoppableBreathingTimer"]=true;
                 Popup.Close();
                 result["passed"]=true;
             }

@@ -22,6 +22,19 @@ window.THEME_VARIANTS = {
   { id: 'yt-u5GPq0CC7U8', type: 'video', wide: true, title: '무릎 통증 없이 앉아서 하는 초보자 하체운동 루틴', author: '관절사용설명서', youtubeId: 'u5GPq0CC7U8', url: 'https://www.youtube.com/watch?v=u5GPq0CC7U8' },
   { id: 'yt-HCjvbjbCSsk', type: 'video', title: '의자에서 끝내는 좌골·골반·허리 루틴 3가지 (3 Chair Stretches)', author: '바디땅콩Tv', youtubeId: 'HCjvbjbCSsk', url: 'https://www.youtube.com/shorts/HCjvbjbCSsk' }
 ],
+  // Community card "눈 쉬기 20-20-20": its own text steps are replaced by this video (the card itself stays).
+  'c-u-eye-20-20-20': [
+    { id: 'yt-356wdTdVaTs', type: 'video', title: '모니터 오래 본 날, 눈 쉬기 1분', author: '하루힐링명상', youtubeId: '356wdTdVaTs', url: 'https://www.youtube.com/shorts/356wdTdVaTs' },
+    { id: 'yt-2oojWWfappA', type: 'video', title: '눈이 피곤하고 무거울 때 따라 하기', author: '오상신경외과의원', youtubeId: '2oojWWfappA', url: 'https://www.youtube.com/shorts/2oojWWfappA' }
+  ],
+  // Voice: the original picture/timer is replaced by this video.
+  voice: [
+    { id: 'yt-88TBCVp-Tlc', type: 'video', title: '숨쉴 때 편안한 호흡 발성 연습', author: '윤하의 Joyful Voice', youtubeId: '88TBCVp-Tlc', url: 'https://www.youtube.com/shorts/88TBCVp-Tlc' },
+    { id: 'yt-x6y6SPzCQXQ', type: 'video', wide: true, title: '호흡 연습법 STEP 1', author: 'VOCAL LOGIC', youtubeId: 'x6y6SPzCQXQ', url: 'https://www.youtube.com/watch?v=x6y6SPzCQXQ' },
+    { id: 'yt-YdBUnWJBYAo', type: 'video', wide: true, title: '호흡 연습법 STEP 2', author: 'VOCAL LOGIC', youtubeId: 'YdBUnWJBYAo', url: 'https://www.youtube.com/watch?v=YdBUnWJBYAo' },
+    { id: 'yt-YLfFw6IuVqc', type: 'video', wide: true, title: '흉복식호흡 연습법', author: 'VOCAL LOGIC', youtubeId: 'YLfFw6IuVqc', url: 'https://www.youtube.com/watch?v=YLfFw6IuVqc' },
+    { id: 'yt-43MKF1bL_mM', type: 'video', wide: true, title: '복식호흡 연습 · 3회 내쉬고 들이쉬기', author: 'VOCAL LOGIC', youtubeId: '43MKF1bL_mM', url: 'https://www.youtube.com/watch?v=43MKF1bL_mM' }
+  ],
   meditation: [
     { id: 'yt-6Qu5E3MrVH8', type: 'video', wide: true, title: '5분 명상 · 호흡명상 가이드', author: '에일린 mind yoga', youtubeId: '6Qu5E3MrVH8', url: 'https://www.youtube.com/watch?v=6Qu5E3MrVH8' },
     { id: 'yt-LaM3-_ntnjU', type: 'video', wide: true, title: '복잡한 생각, 5분 만에 정리하는 빼기명상 가이드', author: '마음수련 명상', youtubeId: 'LaM3-_ntnjU', url: 'https://www.youtube.com/watch?v=LaM3-_ntnjU' },

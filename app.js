@@ -11,7 +11,7 @@
   const poemCategories = { lyric: '서정시', song: '노랫말', nobel: '노벨 문학상' };
   let state, breathTimer = null, breathStart = 0, quiz = null, selectedPoemId = '';
   const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'ordered-one' };
-  const symbols = { stretch: '↟', meditation: '◌', pilates: '↥', core: '◎', breathing: '≈', voice: '♪', 'back-seated': '↕', 'back-standing': '↗', dance: '♫', poem: '文' };
+  const symbols = { stretch: '↟', meditation: '◌', voice: '♪', 'back-standing': '↗', dance: '♫', poem: '文' };
   const themeModes = [
     { id: 'sequential-all', label: '모두 순서대로', help: '알림이 오면 고른 쉼을 목록 순서대로 전부, 하나가 끝나면 이어서' },
     { id: 'random-all', label: '모두 무작위 순서로', help: '알림이 오면 고른 쉼을 전부, 순서를 섞어서 이어서' },
@@ -57,7 +57,7 @@
   }
   function extraThemes() {
     return [
-      { id: 'dance', name: '걸그룹 안무', summary: '공식 안무 영상으로 원본 동작 따라 보기', instructions: ['공식 연습영상을 고르세요.', '서서 하는 움직임이므로 충분한 공간을 확보하세요.'], safety: '앉아서 하는 운동이 아닙니다. 통증이 있으면 어려운 동작을 건너뛰세요.', file: '' },
+      { id: 'dance', name: '댄스 안무', summary: '공식 안무 영상으로 원본 동작 따라 보기', instructions: ['공식 연습영상을 고르세요.', '서서 하는 움직임이므로 충분한 공간을 확보하세요.'], safety: '앉아서 하는 운동이 아닙니다. 통증이 있으면 어려운 동작을 건너뛰세요.', file: '' },
       { id: 'poem', name: '시 한 줄 채우기', summary: '다양한 시·노랫말·노벨 문학상 작품에서 무작위 한 줄', instructions: [], safety: '공개 원문 판본 기준으로 비교합니다. 최신 저작물은 공식 감상 링크로 구분합니다.', file: '' }
     ];
   }

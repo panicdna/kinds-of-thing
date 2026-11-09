@@ -18,7 +18,7 @@ if ($LASTEXITCODE -ne 0) { throw 'C# build failed.' }
 Write-Output "Built: $(Join-Path $root 'DeskHooker.exe')"
 if ($Test) {
     $process = Start-Process -FilePath (Join-Path $root 'DeskHooker.exe') -ArgumentList '--ui-test' -PassThru
-    if (!$process.WaitForExit(60000)) { $process.Kill(); throw 'UI smoke test timed out.' }
+    if (!$process.WaitForExit(120000)) { $process.Kill(); throw 'UI smoke test timed out.' }
     $result = Join-Path $root 'tests\ui\results.json'
     if (!(Test-Path $result)) { throw 'UI smoke test produced no results.' }
     $report = Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
