@@ -44,7 +44,7 @@
     ];
   }
   function themeCards(checked) {
-    return state.themes.map((t, i) => `<article class="theme-card${t.community ? ' shared' : ''}" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbolFor(t)}</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${checked.has(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p>${t.community ? `<span class="shared-badge">함께 만든 쉼${t.author ? ' · ' + escape(t.author) : ''}</span>` : ''}</label><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button></article>`).join('');
+    return state.themes.map((t, i) => `<article class="theme-card" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbolFor(t)}</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${checked.has(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p></label><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button></article>`).join('');
   }
   function syncText() {
     const sync = state.sync || {};
@@ -177,7 +177,7 @@
     else renderWellness(theme);
   }
   function renderWellness(theme) {
-    const visual = theme.file ? `<img class="motion-image" src="${escape(theme.file)}" alt="${escape(theme.name)} 따라 하기 움직이는 그림">` : `<div class="text-stage"><div class="text-symbol" aria-hidden="true">${symbolFor(theme)}</div><div class="shared-badge">함께 만든 쉼${theme.author ? ' · ' + escape(theme.author) : ''}</div></div>`;
+    const visual = theme.file ? `<img class="motion-image" src="${escape(theme.file)}" alt="${escape(theme.name)} 따라 하기 움직이는 그림">` : `<div class="text-stage"><div class="text-symbol" aria-hidden="true">${symbolFor(theme)}</div></div>`;
     $('#popup-stage').innerHTML = `<div class="wellness-layout"><div class="motion-stage">${visual}</div><aside class="instruction-panel"><div class="eyebrow">천천히 따라 해 보세요</div><ol>${(theme.instructions || []).map(line => `<li>${escape(line)}</li>`).join('')}</ol>${['breathing', 'voice'].includes(theme.id) ? breathingControls() : ''}<div class="safety">${escape(theme.safety)}</div></aside></div>`;
     if ($('#breath-start')) {
       $('#breath-start').addEventListener('click', beginBreath);

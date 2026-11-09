@@ -407,7 +407,7 @@ namespace DeskHooker
                 if (await script.ExecuteScriptAsync("Boolean(document.querySelector('input[value=\"c-u-eye-20-20-20\"]')) && document.querySelector('input[value=stretch]').checked") != "true") throw new Exception("Sync lost the user's unsaved selection.");
                 await script.ExecuteScriptAsync("var f=function(i,v){var e=document.querySelector(i);e.value=v;e.dispatchEvent(new Event('input'));};f('#share-name','공유 확인');f('#share-summary','요약');f('#share-steps','하나\\n둘');f('#share-safety','아프면 중단');");
                 if (await script.ExecuteScriptAsync("document.querySelector('#share-preview h3').textContent") != "\"공유 확인\"") throw new Exception("Share preview did not render the tile.");
-                await script.ExecuteScriptAsync("var d=document.querySelector('#share-panel'); d.open=true; document.querySelector('.shared-badge').scrollIntoView({block:'start'});");
+                await script.ExecuteScriptAsync("var d=document.querySelector('#share-panel'); d.open=true; d.scrollIntoView({block:'start'});");
                 await Task.Delay(300);
                 await Capture(SettingsWindow, Path.Combine(folder, "settings-community.png"));
                 ShowPopup("c-u-eye-20-20-20"); await Popup.Ready.Task; await Task.Delay(350);
