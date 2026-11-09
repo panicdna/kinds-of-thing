@@ -196,13 +196,15 @@
     send('save', { settings, holdConsent: $('#hold-consent').checked });
   }
   function popupFrame(theme) {
-    return `<main class="popup"><header class="popup-bar"><div class="popup-brand">틈<span>A LITTLE RESET · ${escape(theme.name)}</span></div><button class="popup-close" type="button">닫기 × <span style="font-size:10px;opacity:.6">Esc</span></button></header><div class="popup-content"><div class="popup-heading"><div class="eyebrow">잠깐 쉬어가도 괜찮아요</div><h1>${escape(theme.name)}</h1><p>${escape(theme.summary)}</p></div><div id="popup-stage"></div></div><footer class="popup-footer"><span>창을 닫으면 다음 알림까지 대기해요. 자동으로 닫거나 입력을 강요하지 않아요.</span><span>움직임은 편한 범위에서 · 통증·저림·어지럼이 생기면 중단</span></footer></main>`;
+    return `<main class="popup"><header class="popup-bar"><div class="popup-brand">틈<span>A LITTLE RESET · ${escape(theme.name)}</span></div>${state.remaining > 0 ? `<button class="popup-next" type="button">다음 쉼 ›<span style="font-size:10px;opacity:.6"> ${state.remaining}개 남음</span></button>` : ''}<button class="popup-close" type="button">닫기 × <span style="font-size:10px;opacity:.6">Esc</span></button></header><div class="popup-content"><div class="popup-heading"><div class="eyebrow">잠깐 쉬어가도 괜찮아요</div><h1>${escape(theme.name)}</h1><p>${escape(theme.summary)}</p></div><div id="popup-stage"></div></div><footer class="popup-footer"><span>창을 닫으면 다음 알림까지 대기해요. 자동으로 닫거나 입력을 강요하지 않아요.</span><span>움직임은 편한 범위에서 · 통증·저림·어지럼이 생기면 중단</span></footer></main>`;
   }
   function renderPopup() {
     stopBreath();
     const theme = state.themes.find(t => t.id === state.themeId) || state.themes[0];
     root.innerHTML = popupFrame(theme);
     $('.popup-close').addEventListener('click', () => { stopBreath(); send('close'); });
+    const nextBtn = $('.popup-next');
+    if (nextBtn) nextBtn.addEventListener('click', () => { stopBreath(); send('next'); });
     if (theme.id === 'poem') renderPoem();
     else if (theme.id === 'dance') renderDances();
     else renderWellness(theme);

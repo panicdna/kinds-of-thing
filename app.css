@@ -15,3 +15,5 @@
 .interval-display input[type=time]{width:auto;font-size:34px}.schedule-line input[type=time]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:#fafbf4}
 
 .practice-panel{margin:12px 0;padding:14px 18px;border-radius:14px;background:#e8efdc;display:grid;gap:8px}.practice-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.practice-row b{min-width:64px;font-size:13px}.practice-row button{font-size:12px;padding:8px 13px}.practice-state{font-size:12px;color:var(--muted);margin-left:6px}
+.popup-next{border:1px solid var(--ink);background:var(--ink);color:#fff;padding:13px 23px;font-size:14px;z-index:20;margin-right:10px;cursor:pointer}
+.popup-bar{gap:0}

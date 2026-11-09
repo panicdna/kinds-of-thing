@@ -334,7 +334,7 @@ namespace DeskHooker
         {
             if (target==null || target.IsDisposed) return;
             target.Send(new { type="state", mode=target.IsPopup?"popup":"settings", themeId=target.ThemeId,
-                settings=Settings, themes=Themes, sync=SyncInfo(), next=NextDue.ToString("o"), now=DateTime.Now.ToString("o"), notice=notice, testing=Testing });
+                settings=Settings, themes=Themes, sync=SyncInfo(), next=NextDue.ToString("o"), now=DateTime.Now.ToString("o"), notice=notice, testing=Testing, remaining=pendingRound.Count });
         }
 
         public void Handle(WebWindow source, string message)
@@ -344,7 +344,8 @@ namespace DeskHooker
                 var msg=Json.Deserialize<Dictionary<string,object>>(message);
                 string action=Convert.ToString(msg["action"]);
                 if (action=="ready") { SendState(source); if (Testing && !source.IsPopup && !smokeStarted) { smokeStarted=true; RunSmoke(); } return; }
-                if (action=="close") { if (source.IsPopup) source.Close(); else source.Hide(); return; }
+                if (action=="close") { if (source.IsPopup) { pendingRound.Clear(); source.Close(); } else source.Hide(); return; }
+                if (action=="next") { if (source.IsPopup) source.Close(); return; }
                 if (action=="save")
                 {
                     if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 변경할 수 있습니다.");
