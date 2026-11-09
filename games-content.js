@@ -64,6 +64,58 @@ window.GAME_CONTENT = {
       "youtubeId": "8S9rHj7gTsA",
       "url": "https://www.youtube.com/watch?v=8S9rHj7gTsA",
       "note": "서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요. 고정 카메라 버전이라 동작을 따라 보기 좋습니다."
+    },
+    {
+      "id": "dance-EJqu6C_HFp0",
+      "title": "CORTIS ‘REDRED’ 릴레이댄스 하이라이트",
+      "artist": "M2",
+      "youtubeId": "EJqu6C_HFp0",
+      "url": "https://www.youtube.com/watch?v=EJqu6C_HFp0",
+      "note": "서서 추는 안무 하이라이트(세로 영상)입니다. 주변에 공간을 확보한 뒤 무리 없이 따라 하세요.",
+      "vertical": true
+    },
+    {
+      "id": "dance-tCe4Z0T9zJk",
+      "title": "누구나 할 수 있는 힙합 동작 4가지",
+      "artist": "PIVOT410",
+      "youtubeId": "tCe4Z0T9zJk",
+      "url": "https://www.youtube.com/watch?v=tCe4Z0T9zJk",
+      "note": "서서 하는 기본 동작 튜토리얼(세로 영상)입니다. 무리하지 말고 편한 범위에서 따라 하세요.",
+      "vertical": true
+    },
+    {
+      "id": "dance-S2exZeD50O0",
+      "title": "참 좋은 밤이에요 댄스",
+      "artist": "리코쌤댄스",
+      "youtubeId": "S2exZeD50O0",
+      "url": "https://www.youtube.com/watch?v=S2exZeD50O0",
+      "note": "서서 하는 가벼운 몸풀기 댄스입니다. 주변에 공간을 확보한 뒤 무리 없이 따라 하세요."
+    },
+    {
+      "id": "dance-Hrpy_5i11CY",
+      "title": "첫인상 뉴잭스윙 ver. · 김건모",
+      "artist": "썸머린 SummerLyn",
+      "youtubeId": "Hrpy_5i11CY",
+      "url": "https://www.youtube.com/watch?v=Hrpy_5i11CY",
+      "note": "서서 하는 댄스 영상입니다. 주변에 공간을 확보한 뒤 무리 없이 따라 하세요."
+    },
+    {
+      "id": "dance-5I9N7UTJq84",
+      "title": "댄스 쇼츠",
+      "artist": "Lena Carver",
+      "youtubeId": "5I9N7UTJq84",
+      "url": "https://www.youtube.com/watch?v=5I9N7UTJq84",
+      "note": "서서 하는 댄스 영상(세로)입니다. 주변에 공간을 확보한 뒤 무리 없이 따라 하세요.",
+      "vertical": true
+    },
+    {
+      "id": "dance-uF_T88p7I3w",
+      "title": "쉬운 댄스 피트니스",
+      "artist": "Dance Fitness with An Le",
+      "youtubeId": "uF_T88p7I3w",
+      "url": "https://www.youtube.com/watch?v=uF_T88p7I3w",
+      "note": "서서 하는 쉬운 댄스 영상(세로)입니다. 주변에 공간을 확보한 뒤 무리 없이 따라 하세요.",
+      "vertical": true
     }
   ]
 };

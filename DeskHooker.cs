@@ -478,13 +478,13 @@ namespace DeskHooker
                 {
                     StartRound(); await Task.Delay(600);
                     if (Popup==null || Popup.ThemeId!="meditation") throw new Exception("Run-all round did not start with the first theme.");
-                    await Popup.Ready.Task;
+                    await Popup.Ready.Task; await Task.Delay(500); // the state message renders just after "ready"
                     if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.popup-next'))")!="true") throw new Exception("Next-rest button is missing while rests remain.");
                     if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('.popup-next').nextElementSibling===document.querySelector('.popup-close')")!="true") throw new Exception("Next-rest button is not directly left of Close.");
                     await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('.popup-next').click()");
                     await Task.Delay(700);
                     if (Popup==null || Popup.ThemeId!="voice") throw new Exception("Next-rest button did not open the next theme.");
-                    await Popup.Ready.Task;
+                    await Popup.Ready.Task; await Task.Delay(500);
                     if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.popup-next'))")!="false") throw new Exception("Next-rest button should be hidden on the last rest.");
                     Popup.Close(); await Task.Delay(300);
                     if (Popup!=null) throw new Exception("Round did not end after the last rest.");

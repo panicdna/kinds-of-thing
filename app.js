@@ -162,7 +162,7 @@
       <p class="side-note">몰입하는 시간 사이,<br>나를 돌보는 작은 틈.</p>
       <div class="side-badge"><i id="status-dot" class="dot"></i><span id="status-text"></span><br><span style="font-size:11px;color:#7d8c76">설정 창을 닫아도 트레이에 남아요.</span></div>
       <div class="next-label">다음 작은 쉼</div><div id="next-time" class="next-time"></div><div id="next-date" class="small-help"></div>
-      <fieldset class="mode-box"><legend>여러 개를 골랐을 때 실행 방식</legend>
+      <fieldset class="mode-box"><legend>쉼 여러 개를 골랐을 때 실행 방식</legend>
         <div class="mode-options">${themeModes.map(m => `<label><input type="radio" name="theme-mode" value="${m.id}" ${modeOf(s.ThemeMode).id === m.id ? 'checked' : ''}>${m.label}</label>`).join('')}</div>
         <p id="theme-mode-help" class="small-help"></p></fieldset>
       <div class="side-bottom">내 PC 안에서만 동작합니다.<br>마이크·카메라·계정이 필요 없어요.<button id="hide-window" class="quiet">설정 창 닫기 / 트레이에 두기 ↗</button><button id="exit-app" class="quiet">알림기 완전히 종료</button></div></aside>
@@ -320,7 +320,7 @@
     if (Number.isInteger(forcedIdx)) store.set('teum.variantIdx.dance', String(current));
     const dance = dances[current];
     const picker = variantPicker('dance', dances.map(d => ({ title: `${d.artist} · ${d.title}` })), current);
-    $('#popup-stage').innerHTML = `${picker}<div class="dance-note">서서 하는 원본 안무입니다. 책상·의자와 거리를 두고 공간을 확보하세요. 점프나 깊은 굽힘이 부담되면 보기만 하거나 다른 주제로 바꾸세요. 허리 통증이 있으면 저강도 자세 전환을 먼저 고르세요.</div><iframe id="dance-frame" class="video-player" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>${practiceControls()}<p class="small-help">${escape(dance.artist)} · ${escape(dance.title)} (공식 채널). 영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다. 속도·구간 반복은 영상 재생기를 원격 조작하는 것이며, 반응이 없으면 영상 안의 ⚙ 메뉴에서 직접 바꿀 수 있습니다.</p><button id="video-external" class="secondary" type="button">공식 영상 브라우저에서 열기 ↗</button>`;
+    $('#popup-stage').innerHTML = `${picker}<div class="dance-note">서서 하는 원본 안무입니다. 책상·의자와 거리를 두고 공간을 확보하세요. 점프나 깊은 굽힘이 부담되면 보기만 하거나 다른 주제로 바꾸세요. 허리 통증이 있으면 저강도 자세 전환을 먼저 고르세요.</div><iframe id="dance-frame" class="${dance.vertical ? 'short-player' : 'video-player'}" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>${practiceControls()}<p class="small-help">${escape(dance.artist)} · ${escape(dance.title)} (공식 채널). 영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다. 속도·구간 반복은 영상 재생기를 원격 조작하는 것이며, 반응이 없으면 영상 안의 ⚙ 메뉴에서 직접 바꿀 수 있습니다.</p><button id="video-external" class="secondary" type="button">공식 영상 브라우저에서 열기 ↗</button>`;
     stopDance = bindPractice();
     $('#video-external').addEventListener('click', () => send('open-link', { url: dance.url }));
     document.querySelectorAll('[data-variant]').forEach(button => button.addEventListener('click', () => renderDances(Number(button.dataset.variant))));
