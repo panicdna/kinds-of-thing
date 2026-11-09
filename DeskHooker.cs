@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Net;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -16,7 +17,8 @@ namespace DeskHooker
 {
     public sealed class Theme
     {
-        public string id, name, summary, safety, file;
+        public string id, name, summary, safety, file, author;
+        public bool community;
         public string[] instructions;
     }
 
@@ -49,7 +51,15 @@ namespace DeskHooker
         public readonly string Root = AppDomain.CurrentDomain.BaseDirectory;
         public readonly bool Testing;
         public readonly JavaScriptSerializer Json = new JavaScriptSerializer();
-        public readonly Theme[] Themes;
+        public Theme[] Themes;
+        private Theme[] baseThemes;
+        private const string CommunityNotice = "다른 사람이 공유한 내용으로 검증된 전문 안내가 아닙니다. 몸이 보내는 신호를 먼저 따르세요.";
+        private volatile SyncResult pendingSync;
+        private bool syncing;
+        private string syncEtag, syncError;
+        private DateTime? lastSync;
+        private int communityCount, communityRejected;
+        private System.Windows.Forms.Timer syncTimer;
         public ReminderSettings Settings;
         public DateTime NextDue;
         public bool Exiting;
@@ -71,7 +81,11 @@ namespace DeskHooker
             var list = new List<Theme>(themes);
             list.Add(new Theme { id="dance", name="걸그룹 안무", summary="공식 안무 영상으로 원본 동작 따라 보기", file="", safety="서서 하는 안무입니다. 충분한 공간을 확보하고 어려운 점프·비틀기는 건너뛰세요. 허리 통증이 있으면 이 주제 대신 저강도 자세 전환을 고르세요.", instructions=new string[] { "공식 채널의 연습 영상을 선택하세요.", "처음에는 느리게 보고, 편한 범위에서만 따라 하세요." } });
             list.Add(new Theme { id="poem", name="시 한 줄 채우기", summary="익숙한 서정시에서 사라진 한 줄을 기억해 보세요", file="", safety="정답은 선택한 공개 원문 판본 기준입니다. 띄어쓰기는 무시하지만 단어와 문장부호는 비교합니다.", instructions=new string[] { "빈 한 줄에 들어갈 문장을 입력하세요.", "제출하면 내 답과 원문을 나란히 비교할 수 있어요." } });
-            Themes = list.ToArray();
+            baseThemes = list.ToArray();
+            int cachedRejected;
+            var cached = ToThemes(LoadCommunityCache(), out cachedRejected);
+            communityCount = cached.Count; communityRejected = cachedRejected;
+            Themes = baseThemes.Concat(cached).ToArray();
             foreach (var theme in Themes.Where(t => !String.IsNullOrEmpty(t.file)))
             {
                 string full = Path.GetFullPath(Path.Combine(Root, theme.file));
@@ -89,6 +103,7 @@ namespace DeskHooker
             var menu = new ContextMenuStrip();
             menu.Items.Add("간격·주제 설정", null, delegate { ShowSettings(); });
             menu.Items.Add("지금 한 번 보기", null, delegate { ShowPopup(Settings.ThemeIds[0]); });
+            menu.Items.Add("공유된 쉼 지금 동기화", null, delegate { StartSync(true); });
             menu.Items.Add("알림 일시정지", null, delegate { Settings.Enabled=false; Persist(); SendState(SettingsWindow); UpdateStatus(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("알림기 완전히 종료", null, delegate { Quit(); });
@@ -102,6 +117,112 @@ namespace DeskHooker
             SettingsWindow = new WebWindow(this, false, null);
             if (background && Settings.Enabled) SettingsWindow.Shown += delegate { SettingsWindow.Hide(); };
             SettingsWindow.Show();
+            syncTimer = new System.Windows.Forms.Timer { Interval = 10 * 60 * 1000 };
+            syncTimer.Tick += delegate { StartSync(false); };
+            syncTimer.Start();
+            StartSync(false);
+        }
+
+        // ---- Community sharing: items live in the repository's community/ folder ----
+        private string CachePath { get { return Path.Combine(dataFolder, "community-cache.json"); } }
+
+        private List<string> LoadCommunityCache()
+        {
+            var raws = new List<string>();
+            try
+            {
+                if (Testing || !File.Exists(CachePath)) return raws;
+                var map = Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(CachePath));
+                syncEtag = map.ContainsKey("etag") ? map["etag"] as string : null;
+                var items = map.ContainsKey("items") ? map["items"] as System.Collections.IEnumerable : null;
+                if (items != null) foreach (object item in items) { var text = item as string; if (text != null) raws.Add(text); }
+            }
+            catch { syncEtag = null; raws.Clear(); }
+            return raws;
+        }
+
+        private void SaveCommunityCache(List<string> raws)
+        {
+            if (Testing) return;
+            try
+            {
+                string tmp = CachePath + ".new";
+                File.WriteAllText(tmp, Json.Serialize(new Dictionary<string, object> { { "etag", syncEtag }, { "items", raws } }));
+                if (File.Exists(CachePath)) File.Replace(tmp, CachePath, null); else File.Move(tmp, CachePath);
+            }
+            catch { /* The cache only speeds up the next start; syncing again rebuilds it. */ }
+        }
+
+        // Every item is re-validated here, even from our own cache; invalid or duplicate ones are skipped.
+        private List<Theme> ToThemes(IEnumerable<string> raws, out int rejected)
+        {
+            var themes = new List<Theme>(); var seen = new HashSet<string>(StringComparer.Ordinal); rejected = 0;
+            foreach (string raw in raws)
+            {
+                try
+                {
+                    CommunityItem item = CommunityContent.Parse(raw);
+                    if (!seen.Add(item.Id)) { rejected++; continue; }
+                    themes.Add(new Theme { id = "c-" + item.Id, name = item.Name, summary = item.Summary, instructions = item.Instructions,
+                        safety = item.Safety + " " + CommunityNotice, file = "", author = item.Author, community = true });
+                }
+                catch (ArgumentException) { rejected++; }
+            }
+            return themes;
+        }
+
+        private void StartSync(bool manual)
+        {
+            if (Testing || syncing || Exiting) return;
+            syncing = true; syncError = null; SendThemes();
+            string etag = syncEtag;
+            Task.Factory.StartNew(delegate
+            {
+                SyncResult result;
+                try { result = CommunitySync.Fetch(etag); }
+                catch (Exception error) { result = new SyncResult { Error = error.Message }; }
+                pendingSync = result; // applied on the UI thread by the 1-second Tick
+            });
+        }
+
+        private void ApplySync(SyncResult result)
+        {
+            syncing = false;
+            if (result.Error != null) { syncError = result.Error; SendThemes(); return; }
+            lastSync = DateTime.Now;
+            if (!result.NotModified)
+            {
+                int rejected;
+                var list = ToThemes(result.Raw, out rejected);
+                communityCount = list.Count; communityRejected = rejected + result.Rejected;
+                syncEtag = result.Etag;
+                Themes = baseThemes.Concat(list).ToArray();
+                SaveCommunityCache(result.Raw);
+                PruneRemovedSelections();
+            }
+            SendThemes();
+        }
+
+        // A shared item can be deleted upstream while it is still ticked; settings must never keep an unknown id.
+        private void PruneRemovedSelections()
+        {
+            var known = new HashSet<string>(Themes.Select(t => t.id));
+            string[] kept = Settings.ThemeIds.Where(id => known.Contains(id)).ToArray();
+            if (kept.Length == Settings.ThemeIds.Length) return;
+            Settings.ThemeIds = kept.Length > 0 ? kept : new string[] { "stretch" };
+            cursor = 0; Persist();
+            notice = "공유가 삭제된 주제를 선택 목록에서 뺐습니다.";
+        }
+
+        private object SyncInfo()
+        {
+            return new { syncing = syncing, last = lastSync.HasValue ? lastSync.Value.ToString("o") : null, count = communityCount, rejected = communityRejected, error = syncError, offline = Testing };
+        }
+
+        private void SendThemes()
+        {
+            if (SettingsWindow == null || SettingsWindow.IsDisposed) return;
+            SettingsWindow.Send(new { type = "themes", themes = Themes, settings = Settings, sync = SyncInfo(), notice = notice });
         }
 
         private void Persist()
@@ -160,6 +281,7 @@ namespace DeskHooker
             DateTime now=DateTime.Now;
             if ((now-lastTick).TotalSeconds>15 || now<lastTick) NextDue=ReminderSchedule.Next(now,Settings);
             lastTick=now;
+            var finished=pendingSync; if (finished!=null) { pendingSync=null; ApplySync(finished); }
             if (ReminderSchedule.IsDue(now,NextDue,Settings,Popup!=null,false,!locked && Environment.UserInteractive))
             {
                 ShowPopup(ReminderSchedule.NextTheme(Settings.ThemeIds,ref cursor));
@@ -175,7 +297,7 @@ namespace DeskHooker
         {
             if (target==null || target.IsDisposed) return;
             target.Send(new { type="state", mode=target.IsPopup?"popup":"settings", themeId=target.ThemeId,
-                settings=Settings, themes=Themes, next=NextDue.ToString("o"), now=DateTime.Now.ToString("o"), notice=notice, testing=Testing });
+                settings=Settings, themes=Themes, sync=SyncInfo(), next=NextDue.ToString("o"), now=DateTime.Now.ToString("o"), notice=notice, testing=Testing });
         }
 
         public void Handle(WebWindow source, string message)
@@ -200,12 +322,13 @@ namespace DeskHooker
                     notice=Settings.Enabled?"알림이 시작됐습니다. 창을 닫아도 트레이에서 계속 동작합니다.":"설정이 저장됐습니다. 알림은 일시정지 상태입니다.";
                     SendState(source); return;
                 }
+                if (action=="sync") { if (!source.IsPopup) StartSync(true); return; }
                 if (action=="preview") { ShowPopup(Convert.ToString(msg["themeId"])); return; }
                 if (action=="exit") { if (!source.IsPopup) Quit(); return; }
                 if (action=="open-link")
                 {
                     Uri uri;
-                    if (!Uri.TryCreate(Convert.ToString(msg["url"]),UriKind.Absolute,out uri) || uri.Scheme!="https" || !(uri.Host=="www.youtube.com" || uri.Host=="youtube.com" || uri.Host=="youtu.be" || uri.Host=="ko.wikisource.org")) throw new ArgumentException("허용된 공식 영상·원문 링크만 열 수 있습니다.");
+                    if (!Uri.TryCreate(Convert.ToString(msg["url"]),UriKind.Absolute,out uri) || !AllowedLink(uri)) throw new ArgumentException("허용된 공식 영상·원문·공유 링크만 열 수 있습니다.");
                     if (source.IsPopup) source.TopMost=false;
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute=true }); return;
                 }
@@ -213,9 +336,17 @@ namespace DeskHooker
             catch (Exception error) { source.Send(new { type="error", message=error.Message }); }
         }
 
+        private static bool AllowedLink(Uri uri)
+        {
+            if (uri.Scheme!="https") return false;
+            if (uri.Host=="www.youtube.com" || uri.Host=="youtube.com" || uri.Host=="youtu.be" || uri.Host=="ko.wikisource.org") return true;
+            // Sharing may only open GitHub's "new file" page for this project's community folder.
+            return uri.Host=="github.com" && uri.AbsolutePath.StartsWith("/panicdna/kinds-of-thing/new/main/community", StringComparison.Ordinal);
+        }
+
         public void Quit()
         {
-            Exiting=true; timer.Stop(); timer.Dispose();
+            Exiting=true; timer.Stop(); timer.Dispose(); if (syncTimer!=null) { syncTimer.Stop(); syncTimer.Dispose(); }
             SystemEvents.SessionSwitch-=SessionChanged; SystemEvents.PowerModeChanged-=PowerChanged;
             tray.Visible=false; tray.Dispose();
             if (Popup!=null) Popup.Close();
@@ -230,7 +361,7 @@ namespace DeskHooker
             try
             {
                 await Task.Delay(700);
-                string count=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('.theme-card').length");
+                string count=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#theme-grid .theme-card').length");
                 if (Int32.Parse(count)!=Themes.Length) throw new Exception("Theme cards are missing.");
                 result["themeCards"]=Themes.Length;
                 await Capture(SettingsWindow,Path.Combine(folder,"settings.png"));
@@ -256,6 +387,24 @@ namespace DeskHooker
                 await Capture(Popup,Path.Combine(folder,"poem-answer.png"));
                 Popup.Close();
                 result["poemInputComparison"]=true;
+                // Community sync: apply a fetched result without the network. Tiles must update and the user's unsaved tick must survive.
+                var script = SettingsWindow.Browser.CoreWebView2;
+                await script.ExecuteScriptAsync("document.querySelector('input[value=stretch]').checked=true");
+                var sample = new SyncResult(); sample.Etag = "test";
+                sample.Raw.Add(File.ReadAllText(Path.Combine(Root, "community", "u-eye-20-20-20.json")));
+                ApplySync(sample); await Task.Delay(400);
+                if (Themes.Length != baseThemes.Length + 1) throw new Exception("Community theme was not added.");
+                if (await script.ExecuteScriptAsync("document.querySelectorAll('#theme-grid .theme-card').length") != Themes.Length.ToString()) throw new Exception("Community tile did not appear.");
+                if (await script.ExecuteScriptAsync("Boolean(document.querySelector('input[value=\"c-u-eye-20-20-20\"]')) && document.querySelector('input[value=stretch]').checked") != "true") throw new Exception("Sync lost the user's unsaved selection.");
+                await script.ExecuteScriptAsync("var f=function(i,v){var e=document.querySelector(i);e.value=v;e.dispatchEvent(new Event('input'));};f('#share-name','공유 확인');f('#share-summary','요약');f('#share-steps','하나\\n둘');f('#share-safety','아프면 중단');");
+                if (await script.ExecuteScriptAsync("document.querySelector('#share-preview h3').textContent") != "\"공유 확인\"") throw new Exception("Share preview did not render the tile.");
+                await script.ExecuteScriptAsync("var d=document.querySelector('#share-panel'); d.open=true; document.querySelector('.shared-badge').scrollIntoView({block:'start'});");
+                await Task.Delay(300);
+                await Capture(SettingsWindow, Path.Combine(folder, "settings-community.png"));
+                ShowPopup("c-u-eye-20-20-20"); await Popup.Ready.Task; await Task.Delay(350);
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.text-stage')) && !document.querySelector('.motion-image') && document.querySelectorAll('.instruction-panel li').length===3") != "true") throw new Exception("Community popup did not render.");
+                Popup.Close();
+                result["communitySyncAndShare"] = true;
                 ShowPopup("breathing"); await Popup.Ready.Task; await Task.Delay(350);
                 await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#breath-start').click()");
                 await Task.Delay(150);
@@ -277,6 +426,85 @@ namespace DeskHooker
             using (var file=File.Create(path)) await window.Browser.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,file);
         }
         public string ProfilePath { get { return Path.Combine(dataFolder,"WebView2"); } }
+    }
+
+    internal sealed class SyncResult
+    {
+        public bool NotModified;
+        public string Error, Etag;
+        public int Rejected;
+        public List<string> Raw = new List<string>();
+    }
+
+    // Read-only GitHub client. Fetches only this project's community/ folder; the web page itself never touches the network.
+    internal static class CommunitySync
+    {
+        private const string ListUrl = "https://api.github.com/repos/panicdna/kinds-of-thing/contents/community?ref=main";
+        private const string RawPrefix = "https://raw.githubusercontent.com/panicdna/kinds-of-thing/main/community/";
+        private const int MaxItems = 60, MaxListingBytes = 400000;
+        private static readonly System.Text.RegularExpressions.Regex FileName = new System.Text.RegularExpressions.Regex("^[a-z0-9][a-z0-9-]{2,39}\\.json$");
+
+        public static SyncResult Fetch(string etag)
+        {
+            ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072; // TLS 1.2 on .NET Framework 4.x
+            var result = new SyncResult();
+            string listing, newEtag;
+            try { listing = Get(ListUrl, etag, MaxListingBytes, out newEtag); }
+            catch (WebException error)
+            {
+                var response = error.Response as HttpWebResponse;
+                if (response != null && response.StatusCode == HttpStatusCode.NotModified) { result.NotModified = true; return result; }
+                if (response != null && response.StatusCode == HttpStatusCode.NotFound) return result; // no community folder yet
+                if (response != null && ((int)response.StatusCode == 403 || (int)response.StatusCode == 429)) throw new Exception("GitHub 호출 한도에 도달했어요. 잠시 뒤 다시 시도합니다.");
+                throw new Exception("GitHub에 연결하지 못했어요. 인터넷 연결을 확인하세요.");
+            }
+            result.Etag = newEtag;
+            var entries = new JavaScriptSerializer().Deserialize<List<Dictionary<string, object>>>(listing);
+            var names = new List<string>();
+            foreach (var entry in entries)
+            {
+                object type, name;
+                if (!entry.TryGetValue("type", out type) || Convert.ToString(type) != "file" || !entry.TryGetValue("name", out name)) continue;
+                string text = Convert.ToString(name);
+                if (FileName.IsMatch(text)) names.Add(text);
+            }
+            names.Sort(StringComparer.Ordinal);
+            foreach (string name in names.Take(MaxItems))
+            {
+                string body, ignored;
+                try { body = Get(RawPrefix + name, null, CommunityContent.MaxFileBytes, out ignored); }
+                catch (WebException) { throw new Exception("공유 항목 '" + name + "'을 읽지 못했어요. 다음 동기화에서 다시 시도합니다."); }
+                catch (InvalidDataException) { result.Rejected++; continue; }
+                try
+                {
+                    CommunityItem item = CommunityContent.Parse(body);
+                    if (item.Id + ".json" != name) throw new ArgumentException("File name must match id.");
+                    result.Raw.Add(body);
+                }
+                catch (ArgumentException) { result.Rejected++; }
+            }
+            return result;
+        }
+
+        private static string Get(string url, string etag, int maxBytes, out string responseEtag)
+        {
+            var request = (HttpWebRequest)WebRequest.Create(url);
+            request.UserAgent = "DeskHooker-Teum"; request.Accept = "application/vnd.github+json"; request.Timeout = 15000; request.ReadWriteTimeout = 15000;
+            request.AllowAutoRedirect = false;
+            if (etag != null) request.Headers["If-None-Match"] = etag;
+            using (var response = (HttpWebResponse)request.GetResponse())
+            using (var stream = response.GetResponseStream())
+            {
+                responseEtag = response.Headers["ETag"];
+                var buffer = new MemoryStream(); var chunk = new byte[4096]; int read;
+                while ((read = stream.Read(chunk, 0, chunk.Length)) > 0)
+                {
+                    buffer.Write(chunk, 0, read);
+                    if (buffer.Length > maxBytes) throw new InvalidDataException("Response too large.");
+                }
+                return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+            }
+        }
     }
 
     internal sealed class WebWindow : Form

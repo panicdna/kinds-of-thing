@@ -28,3 +28,39 @@ assert.equal(core.breathPhase(4000, { ...timing, HoldSeconds: 30 }).phase, 'hold
 assert.equal(core.breathPhase(34000, { ...timing, HoldSeconds: 30 }).phase, 'exhale');
 assert.throws(() => core.breathPhase(0, { ...timing, HoldSeconds: 31 }), /30/);
 console.log('PASS: breath timer skips holds by default and supports an optional hold up to 30 seconds');
+
+// ---- Community sharing ----
+const form = { name: '목 풀기', summary: '목을 살짝 풀어요', steps: '고개를 천천히 숙여요\n\n반대쪽으로 기울여요  ', safety: '아프면 중단하세요.', author: '' };
+const ok = core.validateShare(form, () => 0, () => 0);
+assert.equal(ok.ok, true, ok.errors.join(','));
+assert.equal(ok.item.id, 'u-000');
+assert.deepEqual(ok.item.instructions, ['고개를 천천히 숙여요', '반대쪽으로 기울여요']);
+assert.equal('author' in ok.item, false, 'blank author is omitted');
+assert.match(core.validateShare(form).item.id, /^[a-z0-9][a-z0-9-]{2,39}$/, 'id satisfies the C# pattern');
+for (const [patch, text] of [
+  [{ name: '' }, '이름'], [{ summary: 'x'.repeat(61) }, '60자'], [{ safety: '' }, '주의사항'],
+  [{ name: '<b>x</b>' }, '< >'], [{ summary: '보세요 https://x.example' }, '링크'], [{ summary: 'www.x.example' }, '링크'],
+  [{ steps: '' }, '한 줄 이상'], [{ steps: '1\n2\n3\n4\n5\n6\n7' }, '6줄'], [{ author: 'y'.repeat(21) }, '20자']
+]) {
+  const bad = core.validateShare({ ...form, ...patch });
+  assert.equal(bad.ok, false, `should reject ${JSON.stringify(patch)}`);
+  assert.ok(bad.errors.join(' ').includes(text), `${text} not in ${bad.errors}`);
+}
+const url = new URL(core.buildShareUrl(ok.item));
+assert.equal(url.origin + url.pathname, 'https://github.com/panicdna/kinds-of-thing/new/main/community');
+assert.equal(url.searchParams.get('filename'), 'u-000.json');
+assert.deepEqual(JSON.parse(url.searchParams.get('value')), ok.item, 'GitHub prefill round-trips to the exact item');
+const longest = core.validateShare({ name: '가'.repeat(30), summary: '나'.repeat(60), steps: Array(6).fill('다'.repeat(60)).join('\n'), safety: '라'.repeat(150), author: '마'.repeat(20) });
+assert.equal(longest.ok, true);
+assert.doesNotThrow(() => core.buildShareUrl(longest.item), 'a maximum-size Korean item still fits in a GitHub URL');
+console.log('PASS: community share form validates like the C# parser and builds a GitHub new-file URL');
+
+// The seed item shipped in community/ must satisfy the same rules the app enforces.
+const sampleDir = path.join(__dirname, '..', 'community');
+for (const name of fs.readdirSync(sampleDir).filter(n => n.endsWith('.json'))) {
+  const item = JSON.parse(fs.readFileSync(path.join(sampleDir, name), 'utf8'));
+  assert.equal(item.schema, 1); assert.equal(name, item.id + '.json');
+  const check = core.validateShare({ name: item.name, summary: item.summary, steps: item.instructions.join('\n'), safety: item.safety, author: item.author });
+  assert.equal(check.ok, true, `${name}: ${check.errors}`);
+}
+console.log('PASS: every community/*.json file is valid');

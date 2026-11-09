@@ -105,6 +105,10 @@ internal static class ReminderCoreTests
         Run("Next_MinimumAndMaximumIntervalsAreMinutes", Next_MinimumAndMaximumIntervalsAreMinutes);
         Run("Next_CrossesYearBoundary", Next_CrossesYearBoundary);
         Run("Next_AlwaysChoosesEarliestAllowedCandidate", Next_AlwaysChoosesEarliestAllowedCandidate);
+        Run("Community_AcceptsValidItem", Community_AcceptsValidItem);
+        Run("Community_RejectsMarkupLinksAndBadIds", Community_RejectsMarkupLinksAndBadIds);
+        Run("Community_EnforcesLimits", Community_EnforcesLimits);
+        Run("Community_RejectsUnknownSchemaAndNonObjects", Community_RejectsUnknownSchemaAndNonObjects);
         Console.WriteLine("RESULT: {0} passed, {1} failed", passed, failed);
         return failed == 0 ? 0 : 1;
     }
@@ -122,6 +126,53 @@ internal static class ReminderCoreTests
             failed++;
             Console.WriteLine("FAIL " + name + ": " + error.Message);
         }
+    }
+
+    private const string Good = "{\"schema\":1,\"id\":\"u-abc\",\"name\":\"N\",\"summary\":\"S\",\"instructions\":[\"a\",\"b\"],\"safety\":\"stop if pain\",\"author\":\"me\"}";
+
+    private static void ExpectReject(string json, string label)
+    {
+        try { CommunityContent.Parse(json); }
+        catch (ArgumentException) { return; }
+        throw new Exception(label + " should have been rejected");
+    }
+
+    private static void Community_AcceptsValidItem()
+    {
+        CommunityItem item = CommunityContent.Parse(Good);
+        Equal("u-abc", item.Id, "id");
+        Equal(2, item.Instructions.Length, "steps");
+        Equal("me", item.Author, "author");
+        Equal("", CommunityContent.Parse(Good.Replace(",\"author\":\"me\"", "")).Author, "optional author");
+    }
+
+    private static void Community_RejectsMarkupLinksAndBadIds()
+    {
+        ExpectReject(Good.Replace("\"N\"", "\"<b>x</b>\""), "markup in name");
+        ExpectReject(Good.Replace("\"S\"", "\"see https://evil.example\""), "link in summary");
+        ExpectReject(Good.Replace("\"S\"", "\"see www.evil.example\""), "www link");
+        ExpectReject(Good.Replace("u-abc", "U_ABC"), "bad id characters");
+        ExpectReject(Good.Replace("u-abc", "ab"), "short id");
+        ExpectReject(Good.Replace("\"a\"", "\"line\\u0007bell\""), "control char");
+    }
+
+    private static void Community_EnforcesLimits()
+    {
+        ExpectReject(Good.Replace("\"N\"", "\"" + new string('x', CommunityContent.MaxName + 1) + "\""), "long name");
+        Equal(CommunityContent.MaxName, CommunityContent.Parse(Good.Replace("\"N\"", "\"" + new string('x', CommunityContent.MaxName) + "\"")).Name.Length, "name at limit");
+        ExpectReject(Good.Replace("[\"a\",\"b\"]", "[]"), "no steps");
+        ExpectReject(Good.Replace("[\"a\",\"b\"]", "[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\"]"), "too many steps");
+        ExpectReject(Good.Replace("\"stop if pain\"", "\"\""), "missing safety");
+        ExpectReject(Good + new string(' ', CommunityContent.MaxFileBytes), "oversized file");
+    }
+
+    private static void Community_RejectsUnknownSchemaAndNonObjects()
+    {
+        ExpectReject(Good.Replace("\"schema\":1", "\"schema\":2"), "schema 2");
+        ExpectReject(Good.Replace("\"schema\":1,", ""), "missing schema");
+        ExpectReject("[1,2]", "array root");
+        ExpectReject("not json", "garbage");
+        ExpectReject("", "empty");
     }
 
     private static void Equal<T>(T expected, T actual, string message)

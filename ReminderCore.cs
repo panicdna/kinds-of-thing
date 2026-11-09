@@ -116,4 +116,88 @@ namespace DeskHooker
             return candidate;
         }
     }
+    // A validated, plain-text wellness item shared by other people through the
+    // repository's community/ folder. Limits MUST match validateShare() in app-core.js.
+    public sealed class CommunityItem
+    {
+        public string Id, Name, Summary, Safety, Author;
+        public string[] Instructions;
+    }
+
+    public static class CommunityContent
+    {
+        public const int MaxFileBytes = 6000;
+        public const int MaxName = 30, MaxSummary = 60, MaxStep = 60, MaxSteps = 6, MaxSafety = 150, MaxAuthor = 20;
+        private static readonly System.Text.RegularExpressions.Regex IdPattern =
+            new System.Text.RegularExpressions.Regex("^[a-z0-9][a-z0-9-]{2,39}$");
+
+        // Throws ArgumentException describing the first rule broken. Never returns partial data.
+        public static CommunityItem Parse(string json)
+        {
+            if (String.IsNullOrWhiteSpace(json))
+                throw new ArgumentException("Empty community item.");
+            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxFileBytes)
+                throw new ArgumentException("Community item is too large.");
+            System.Web.Script.Serialization.JavaScriptSerializer serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+            Dictionary<string, object> map;
+            try { map = serializer.Deserialize<Dictionary<string, object>>(json); }
+            catch (Exception error) { throw new ArgumentException("Community item is not valid JSON: " + error.Message); }
+            if (map == null)
+                throw new ArgumentException("Community item must be a JSON object.");
+            object schema;
+            if (!map.TryGetValue("schema", out schema) || !(schema is int) || (int)schema != 1)
+                throw new ArgumentException("Unsupported schema version.");
+
+            CommunityItem item = new CommunityItem();
+            item.Id = Text(map, "id", 40, true);
+            if (!IdPattern.IsMatch(item.Id))
+                throw new ArgumentException("id must be 3-40 chars of a-z, 0-9 and '-'.");
+            item.Name = Text(map, "name", MaxName, true);
+            item.Summary = Text(map, "summary", MaxSummary, true);
+            item.Safety = Text(map, "safety", MaxSafety, true);
+            item.Author = Text(map, "author", MaxAuthor, false);
+
+            object rawSteps;
+            System.Collections.IEnumerable steps = map.TryGetValue("instructions", out rawSteps) ? rawSteps as System.Collections.IEnumerable : null;
+            if (steps == null || rawSteps is string)
+                throw new ArgumentException("instructions must be an array.");
+            List<string> list = new List<string>();
+            foreach (object step in steps)
+            {
+                if (list.Count >= MaxSteps)
+                    throw new ArgumentException("Too many instructions.");
+                list.Add(Clean(step as string, MaxStep, true, "instruction"));
+            }
+            if (list.Count == 0)
+                throw new ArgumentException("At least one instruction is required.");
+            item.Instructions = list.ToArray();
+            return item;
+        }
+
+        private static string Text(Dictionary<string, object> map, string key, int max, bool required)
+        {
+            object value;
+            map.TryGetValue(key, out value);
+            return Clean(value as string, max, required, key);
+        }
+
+        // Plain text only: no markup, no links, no control characters.
+        private static string Clean(string value, int max, bool required, string field)
+        {
+            value = value == null ? "" : value.Normalize(System.Text.NormalizationForm.FormC).Trim();
+            if (value.Length == 0)
+            {
+                if (required) throw new ArgumentException(field + " is required.");
+                return "";
+            }
+            if (value.Length > max)
+                throw new ArgumentException(field + " is longer than " + max + " characters.");
+            foreach (char c in value)
+                if (Char.IsControl(c) || c == '<' || c == '>')
+                    throw new ArgumentException(field + " contains markup or control characters.");
+            if (value.IndexOf("://", StringComparison.Ordinal) >= 0 || value.IndexOf("www.", StringComparison.OrdinalIgnoreCase) >= 0)
+                throw new ArgumentException(field + " must not contain links.");
+            return value;
+        }
+    }
 }

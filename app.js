@@ -8,6 +8,7 @@
   let state, breathTimer = null, breathStart = 0, quiz = null, poemCursor = 0;
   const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, EndHour: 18, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6 };
   const symbols = { stretch: '↟', meditation: '◌', yoga: '♧', pilates: '↥', core: '◎', breathing: '≈', voice: '♪', 'back-seated': '↕', 'back-standing': '↗', dance: '♫', poem: '文' };
+  const symbolFor = t => symbols[t.id] || (t.community ? '✿' : '◌');
   const tones = ['#e3e9ce', '#e4deec', '#eddcca', '#d9e6e7'];
   const $ = selector => document.querySelector(selector);
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -42,6 +43,81 @@
       { id: 'poem', name: '시 한 줄 채우기', summary: '서정시에서 사라진 한 줄을 기억해 보세요', instructions: [], safety: '공개 원문 판본 기준으로 비교합니다.', file: '' }
     ];
   }
+  function themeCards(checked) {
+    return state.themes.map((t, i) => `<article class="theme-card${t.community ? ' shared' : ''}" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbolFor(t)}</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${checked.has(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p>${t.community ? `<span class="shared-badge">함께 만든 쉼${t.author ? ' · ' + escape(t.author) : ''}</span>` : ''}</label><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button></article>`).join('');
+  }
+  function syncText() {
+    const sync = state.sync || {};
+    if (sync.offline) return '이 환경에서는 공유 동기화를 쓰지 않아요.';
+    if (sync.syncing) return '공유된 쉼을 불러오는 중…';
+    const when = sync.last ? new Date(sync.last).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+    const rejected = sync.rejected ? ` · 규칙에 맞지 않아 건너뜀 ${sync.rejected}개` : '';
+    if (sync.error) return `${sync.error} (저장해 둔 ${sync.count || 0}개는 그대로 써요)`;
+    return `${sync.count ? `공유된 쉼 ${sync.count}개` : '아직 공유된 쉼이 없어요'}${when ? ` · ${when}에 확인` : ''}${rejected} · 약 10분마다 자동 확인`;
+  }
+  function updateSync() {
+    if ($('#sync-text')) $('#sync-text').textContent = syncText();
+    if ($('#sync-now')) $('#sync-now').disabled = Boolean(state.sync && state.sync.syncing);
+  }
+  function bindThemeGrid() {
+    document.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', () => send('preview', { themeId: button.dataset.preview })));
+    const count = () => { $('#selected-count').textContent = `${document.querySelectorAll('input[name=theme]:checked').length}개 선택 · 목록 순서대로`; };
+    document.querySelectorAll('input[name=theme]').forEach(input => input.addEventListener('change', count)); count();
+  }
+  // Rebuilds only the tiles, so choices the user ticked but has not saved yet survive a background sync.
+  function refreshThemeGrid() {
+    const grid = $('#theme-grid'); if (!grid) return;
+    const checked = new Set(Array.from(document.querySelectorAll('input[name=theme]:checked'), x => x.value));
+    const known = new Set(state.themes.map(t => t.id));
+    const keep = new Set(Array.from(checked).filter(id => known.has(id)));
+    if (!keep.size) state.settings.ThemeIds.filter(id => known.has(id)).forEach(id => keep.add(id));
+    grid.innerHTML = themeCards(keep); bindThemeGrid(); updateSync();
+  }
+  function sharePanel() {
+    const L = core.LIMITS;
+    return `<details class="advanced share-panel" id="share-panel"><summary>내 쉼 공유하기 · GitHub에 올려 다른 사람 앱에도 나타나게</summary>
+      <p class="small-help">여기서 쓴 내용이 위의 타일과 같은 모양으로 나와요. 아래 버튼을 누르면 GitHub의 새 파일 화면이 채워진 채 열리고, GitHub에서 로그인해 제안(Pull Request)을 보내면 저장소 관리자가 확인한 뒤 모두에게 나타나요.</p>
+      <div class="share-grid"><form id="share-form" class="share-form" autocomplete="off">
+        <label>이름 <small>${L.name}자</small><input id="share-name" maxlength="${L.name}" placeholder="예: 목 풀기 한 번"></label>
+        <label>한 줄 설명 <small>${L.summary}자</small><input id="share-summary" maxlength="${L.summary}" placeholder="타일에 보이는 짧은 설명"></label>
+        <label>동작 안내 <small>한 줄에 하나 · ${L.steps}줄까지 · 줄당 ${L.step}자</small><textarea id="share-steps" rows="5" placeholder="고개를 천천히 숙여요&#10;반대쪽으로 천천히 기울여요"></textarea></label>
+        <label>주의사항 <small>${L.safety}자 · 필수</small><textarea id="share-safety" rows="2" maxlength="${L.safety}" placeholder="통증·어지럼이 생기면 바로 중단하세요."></textarea></label>
+        <label>표시할 이름 <small>선택 · ${L.author}자 · 공개됩니다</small><input id="share-author" maxlength="${L.author}" placeholder="비워 두면 익명"></label>
+        <div class="share-buttons"><button id="share-github" class="primary" type="submit">GitHub에 올리기 ↗</button><button id="share-copy" class="secondary" type="button">JSON 복사</button></div>
+      </form>
+      <aside><div class="eyebrow">미리 보기 · 다른 사람 화면</div><div id="share-preview" class="themes one"></div><p class="small-help">링크·HTML 기호(&lt; &gt;)는 쓸 수 없어요. 올린 내용은 공개되며 치료·진단 주장은 받지 않아요. 개인정보는 넣지 마세요.</p></aside></div></details>`;
+  }
+  function readShareForm() {
+    return { name: $('#share-name').value, summary: $('#share-summary').value, steps: $('#share-steps').value, safety: $('#share-safety').value, author: $('#share-author').value };
+  }
+  function renderSharePreview() {
+    const result = core.validateShare(readShareForm());
+    const item = result.item;
+    const theme = { id: 'preview', community: true, name: item.name || '(이름)', summary: item.summary || '(한 줄 설명)', author: item.author };
+    const old = state.themes; state.themes = [theme];
+    $('#share-preview').innerHTML = themeCards(new Set()).replace(/<button class="preview".*?<\/button>/, '');
+    state.themes = old;
+  }
+  function bindShare() {
+    ['name', 'summary', 'steps', 'safety', 'author'].forEach(key => $(`#share-${key}`).addEventListener('input', renderSharePreview));
+    renderSharePreview();
+    const validated = () => {
+      const result = core.validateShare(readShareForm());
+      if (!result.ok) { toast(result.errors[0]); return null; }
+      return result.item;
+    };
+    $('#share-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const item = validated(); if (!item) return;
+      try { send('open-link', { url: core.buildShareUrl(item) }); toast('GitHub 화면이 열립니다. 로그인 후 "Propose new file"로 제안을 보내 주세요.'); }
+      catch (error) { toast(error.message); }
+    });
+    $('#share-copy').addEventListener('click', async () => {
+      const item = validated(); if (!item) return;
+      try { await navigator.clipboard.writeText(core.shareJson(item)); toast(`복사했어요. community/${item.id}.json 파일로 올리면 돼요.`); }
+      catch (_) { toast('복사하지 못했어요. GitHub에 올리기를 이용해 주세요.'); }
+    });
+  }
   function renderSettings() {
     stopBreath();
     const s = state.settings;
@@ -56,15 +132,16 @@
       <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분에 한 번</span></div><div class="pills">${[15, 30, 45, 60, 90, 120].map(n => `<button type="button" data-minutes="${n}" class="${s.IntervalMinutes === n ? 'active' : ''}">${n}분</button>`).join('')}</div><p class="small-help">1~240분을 직접 입력할 수도 있어요.<br>팝업을 닫은 시점부터 다음 간격을 다시 셉니다.</p></section>
       <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>아래 시간대에만 알림 받기</label><div class="schedule-line"><input id="start-hour" type="number" min="0" max="23" value="${s.StartHour}" aria-label="시작 시각">시부터 <input id="end-hour" type="number" min="1" max="24" value="${s.EndHour}" aria-label="종료 시각">시 전까지</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
-      <div class="themes">${state.themes.map((t, i) => `<article class="theme-card" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbols[t.id] || '◌'}</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${s.ThemeIds.includes(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p></label><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button></article>`).join('')}</div>
+      <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
+      <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
+      ${sharePanel()}
       <details class="advanced"><summary>호흡·발성 가이드 시간 직접 고르기</summary><div class="breath-settings"><label>들숨 <input id="inhale" type="number" min="1" max="10" value="${s.InhaleSeconds}">초</label><label>멈춤 <input id="hold" type="number" min="0" max="30" value="${s.HoldSeconds}">초</label><label>날숨 <input id="exhale" type="number" min="1" max="30" value="${s.ExhaleSeconds}">초</label></div><p class="caution">기본은 숨참기 없이 들숨 4초·날숨 6초입니다. 숫자를 끝까지 채우려 하지 말고 편안한 만큼만 하세요. 멈춤은 선택 사항이며 최대 30초입니다. 몸 상태에 따른 제한이 있으면 의료진에게 먼저 확인하세요. 과호흡 후 숨참기, 힘주어 버티기는 하지 마세요.</p><label><input id="hold-consent" type="checkbox" ${s.HoldSeconds > 0 ? 'checked' : ''}>멈춤은 필수가 아니며 불편하면 즉시 편안한 호흡으로 돌아가야 함을 확인했습니다.</label></details>
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>
       <p class="small-help">일반적인 휴식·움직임 안내이며 치료·재활 처방이 아닙니다. 통증이 늘거나 저림·어지럼이 생기면 중단하세요. 허리 통증과 함께 새로 생긴 다리 힘 빠짐, 회음부 감각 저하, 대소변 조절 변화가 있으면 운동보다 즉시 진료가 우선입니다.</p>
       </main></div>`;
     document.querySelectorAll('[data-minutes]').forEach(button => button.addEventListener('click', () => { $('#interval').value = button.dataset.minutes; document.querySelectorAll('[data-minutes]').forEach(b => b.classList.toggle('active', b === button)); }));
-    document.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', () => send('preview', { themeId: button.dataset.preview })));
-    const count = () => { $('#selected-count').textContent = `${document.querySelectorAll('input[name=theme]:checked').length}개 선택 · 목록 순서대로`; };
-    document.querySelectorAll('input[name=theme]').forEach(input => input.addEventListener('change', count)); count();
+    bindThemeGrid(); bindShare(); updateSync();
+    $('#sync-now').addEventListener('click', () => { if (!host) { toast('공유 동기화는 DeskHooker.exe에서 동작해요. 공유하기는 지금도 쓸 수 있어요.'); return; } send('sync'); });
     $('#start-reminders').addEventListener('click', () => save(true));
     $('#save-settings').addEventListener('click', () => save(s.Enabled));
     $('#pause-reminders').addEventListener('click', () => save(false));
@@ -100,7 +177,8 @@
     else renderWellness(theme);
   }
   function renderWellness(theme) {
-    $('#popup-stage').innerHTML = `<div class="wellness-layout"><div class="motion-stage"><img class="motion-image" src="${escape(theme.file)}" alt="${escape(theme.name)} 따라 하기 움직이는 그림"></div><aside class="instruction-panel"><div class="eyebrow">천천히 따라 해 보세요</div><ol>${(theme.instructions || []).map(line => `<li>${escape(line)}</li>`).join('')}</ol>${['breathing', 'voice'].includes(theme.id) ? breathingControls() : ''}<div class="safety">${escape(theme.safety)}</div></aside></div>`;
+    const visual = theme.file ? `<img class="motion-image" src="${escape(theme.file)}" alt="${escape(theme.name)} 따라 하기 움직이는 그림">` : `<div class="text-stage"><div class="text-symbol" aria-hidden="true">${symbolFor(theme)}</div><div class="shared-badge">함께 만든 쉼${theme.author ? ' · ' + escape(theme.author) : ''}</div></div>`;
+    $('#popup-stage').innerHTML = `<div class="wellness-layout"><div class="motion-stage">${visual}</div><aside class="instruction-panel"><div class="eyebrow">천천히 따라 해 보세요</div><ol>${(theme.instructions || []).map(line => `<li>${escape(line)}</li>`).join('')}</ol>${['breathing', 'voice'].includes(theme.id) ? breathingControls() : ''}<div class="safety">${escape(theme.safety)}</div></aside></div>`;
     if ($('#breath-start')) {
       $('#breath-start').addEventListener('click', beginBreath);
       $('#breath-stop').addEventListener('click', stopBreath);
@@ -161,6 +239,13 @@
   function receive(message) {
     if (message.type === 'tick') { updateStatus(message); return; }
     if (message.type === 'error') { toast(message.message); return; }
+    if (message.type === 'themes') {
+      if (!state || state.mode === 'popup') return;
+      state.themes = message.themes; state.settings = { ...state.settings, ThemeIds: message.settings.ThemeIds }; state.sync = message.sync;
+      refreshThemeGrid();
+      if (message.notice && message.notice !== state.notice) { state.notice = message.notice; toast(message.notice); }
+      return;
+    }
     if (message.type !== 'state') return;
     state = message;
     if (state.mode === 'popup') renderPopup(); else renderSettings();
@@ -174,6 +259,6 @@
     let stored = {};
     try { stored = JSON.parse(localStorage.getItem('teum-preview-settings') || '{}'); } catch (_) { /* Keep safe defaults. */ }
     const popup = location.hash.startsWith('#popup');
-    receive({ type: 'state', mode: popup ? 'popup' : 'settings', themeId: decodeURIComponent(location.hash.split('=')[1] || 'stretch'), themes: [...(window.THEME_DATA || []), ...extraThemes()], settings: { ...defaults, ...stored }, next: '', notice: '' });
+    receive({ type: 'state', mode: popup ? 'popup' : 'settings', themeId: decodeURIComponent(location.hash.split('=')[1] || 'stretch'), themes: [...(window.THEME_DATA || []), ...extraThemes()], settings: { ...defaults, ...stored }, sync: { offline: true }, next: '', notice: '' });
   }
 })();
