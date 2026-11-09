@@ -67,7 +67,7 @@ DeskHooker.exe 재빌드해서 반영해
 UI 스모크 테스트 돌려봐
 ```
 
-### 14. DeskHooker.cs와 exe만 먼저 커밋·푸시
+### 10. DeskHooker.cs와 exe만 먼저 커밋·푸시
 
 ```text
 DeskHooker.cs와 exe만 먼저 커밋해서 푸시해
@@ -105,6 +105,12 @@ exe 다시 빌드하고 테스트 돌려줘
 
 ```text
 변경사항 커밋해줘
+```
+
+### 15. 푸시
+
+```text
+푸시해줘
 ```
 
 ## 제작에 사용한 요청 프롬프트 정리
