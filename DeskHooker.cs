@@ -543,7 +543,12 @@ namespace DeskHooker
         private static int TryGet(string url, string etag, int maxBytes, out string text, out string responseEtag)
         {
             text = null; responseEtag = null;
-            try { text = System.Text.Encoding.UTF8.GetString(GetBytes(url, etag, maxBytes, out responseEtag)); return 200; }
+            try
+            {
+                byte[] bytes = GetBytes(url, etag, maxBytes, out responseEtag);
+                if (bytes == null) return 304;
+                text = System.Text.Encoding.UTF8.GetString(bytes); return 200;
+            }
             catch (WebException error)
             {
                 var response = error.Response as HttpWebResponse;
@@ -558,16 +563,21 @@ namespace DeskHooker
             request.AllowAutoRedirect = false;
             if (etag != null) request.Headers["If-None-Match"] = etag;
             using (var response = (HttpWebResponse)request.GetResponse())
-            using (var stream = response.GetResponseStream())
             {
                 responseEtag = response.Headers["ETag"];
-                var buffer = new MemoryStream(); var chunk = new byte[4096]; int read;
-                while ((read = stream.Read(chunk, 0, chunk.Length)) > 0)
+                // With redirects off, .NET hands back 304 as a normal, body-less response instead of throwing.
+                if (response.StatusCode == HttpStatusCode.NotModified) return null;
+                if (response.StatusCode != HttpStatusCode.OK) throw new WebException("Unexpected HTTP status " + (int)response.StatusCode);
+                using (var stream = response.GetResponseStream())
                 {
-                    buffer.Write(chunk, 0, read);
-                    if (buffer.Length > maxBytes) throw new InvalidDataException("Response too large.");
+                    var buffer = new MemoryStream(); var chunk = new byte[4096]; int read;
+                    while ((read = stream.Read(chunk, 0, chunk.Length)) > 0)
+                    {
+                        buffer.Write(chunk, 0, read);
+                        if (buffer.Length > maxBytes) throw new InvalidDataException("Response too large.");
+                    }
+                    return buffer.ToArray();
                 }
-                return buffer.ToArray();
             }
         }
     }
