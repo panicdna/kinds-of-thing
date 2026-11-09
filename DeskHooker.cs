@@ -72,6 +72,7 @@ namespace DeskHooker
         private bool locked, smokeStarted;
         private int cursor;
         private readonly Random rng = new Random();
+        private readonly Queue<string> scheduledCards = new Queue<string>(); // cards whose fixed start time has come, waiting for the screen
         private readonly Queue<string> pendingRound = new Queue<string>(); // themes still to show in this reminder's round
         private string lastShown;
         private DateTime lastTick = DateTime.Now;
@@ -279,6 +280,7 @@ namespace DeskHooker
         private void StartRound()
         {
             if (Popup!=null) { Popup.Activate(); return; }
+            if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) return; // nothing in the interval rotation; cards may still start at fixed times
             pendingRound.Clear();
             foreach (var id in ThemeRotation.PlanRound(Settings.ThemeIds,Settings.ThemeMode,ref cursor,rng,lastShown)) pendingRound.Enqueue(id);
             ShowNextInRound();
@@ -294,13 +296,25 @@ namespace DeskHooker
             }
         }
 
+        // Cards that reached their fixed start time wait here while another popup is open, and open next in line.
+        private bool ShowNextScheduled()
+        {
+            while (scheduledCards.Count>0)
+            {
+                string id=scheduledCards.Dequeue();
+                if (!Themes.Any(t => t.id==id)) continue;
+                lastShown=id; ShowPopup(id); return true;
+            }
+            return false;
+        }
+
         public void PopupClosed(WebWindow window)
         {
             if (Popup==window) Popup=null;
             if (!Exiting)
             {
                 NextDue=ReminderSchedule.Next(DateTime.Now,Settings);
-                ShowNextInRound();
+                if (!ShowNextScheduled()) ShowNextInRound();
                 UpdateStatus();
             }
         }
@@ -321,12 +335,21 @@ namespace DeskHooker
         private void Tick()
         {
             DateTime now=DateTime.Now;
+            DateTime previousTick=lastTick;
             if ((now-lastTick).TotalSeconds>15 || now<lastTick) NextDue=ReminderSchedule.Next(now,Settings);
             lastTick=now;
+            // Cards with a fixed start time (HH:MM:SS): opened when their second is passed, never replayed after sleep or lock.
+            if (!locked && Environment.UserInteractive)
+            {
+                foreach (string id in CardTimes.DueCards(previousTick,now,Settings,Themes.Select(t => t.id)))
+                    if (!scheduledCards.Contains(id)) scheduledCards.Enqueue(id);
+                if (Popup==null && scheduledCards.Count>0) ShowNextScheduled();
+            }
             var finished=pendingSync; if (finished!=null) { pendingSync=null; ApplySync(finished); }
             if (ReminderSchedule.IsDue(now,NextDue,Settings,Popup!=null,false,!locked && Environment.UserInteractive))
             {
-                StartRound();
+                if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) NextDue=ReminderSchedule.Next(now,Settings);
+                else StartRound();
             }
             UpdateStatus();
         }
@@ -472,6 +495,38 @@ namespace DeskHooker
                 await Task.Delay(400);
                 if (Settings.BreakEnabled) throw new Exception("Switching the break off was not saved.");
                 result["breakTimes"]=true;
+                // Fixed start time per card: every tile has a second checkbox plus an HH:MM:SS input; they are saved with the settings.
+                var cardUi=SettingsWindow.Browser.CoreWebView2;
+                if (await cardUi.ExecuteScriptAsync("document.querySelectorAll('[data-ct-on]').length>0 && document.querySelectorAll('[data-ct-on]').length===document.querySelectorAll('#theme-grid .theme-card').length && document.querySelectorAll('[data-ct-time]').length===document.querySelectorAll('[data-ct-on]').length && document.querySelectorAll('#theme-grid .rotation-label').length===document.querySelectorAll('#theme-grid .theme-card').length")!="true") throw new Exception("Every tile should show the interval-rotation caption and the fixed-start-time checkbox with its time input.");
+                if (await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-time=\"relax\"]').disabled")!="true") throw new Exception("The time input should be disabled until its checkbox is on.");
+                await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-on=\"relax\"]').click(); var t=document.querySelector('[data-ct-time=\"relax\"]'); t.value='9:05'; t.dispatchEvent(new Event('blur')); document.querySelector('#save-settings').click();");
+                await Task.Delay(400);
+                if (!Settings.CardSchedules.ContainsKey("relax") || !Settings.CardSchedules["relax"].Enabled || Settings.CardSchedules["relax"].Time!="09:05:00") throw new Exception("The card start time (9:05 -> 09:05:00) was not saved.");
+                if (await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-on=\"relax\"]').checked && document.querySelector('[data-ct-time=\"relax\"]').value")!="\"09:05:00\"") throw new Exception("The saved start time is not shown again.");
+                await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-time=\"relax\"]').value='25:00:00'; document.querySelector('#save-settings').click();");
+                await Task.Delay(400);
+                if (Settings.CardSchedules["relax"].Time!="09:05:00") throw new Exception("An impossible start time (25:00:00) was accepted.");
+                // The interval rotation may be empty when a card starts at a fixed time.
+                await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-time=\"relax\"]').value='09:05:00'; document.querySelectorAll('input[name=theme]').forEach(x=>x.checked=false); document.querySelector('#save-settings').click();");
+                await Task.Delay(400);
+                if (Settings.ThemeIds.Length!=0) throw new Exception("An empty interval rotation should be accepted while a card has a fixed start time.");
+                await cardUi.ExecuteScriptAsync("document.querySelector('[data-ct-on=\"relax\"]').click(); document.querySelector('#save-settings').click();");
+                await Task.Delay(400);
+                if (!Settings.CardSchedules["relax"].Enabled) throw new Exception("Saving with no rotation and no fixed card should have been refused (the earlier fixed card must still be on).");
+                await cardUi.ExecuteScriptAsync("document.querySelectorAll('input[name=theme]').forEach(x=>x.checked=['meditation','voice'].includes(x.value)); document.querySelector('#save-settings').click();");
+                await Task.Delay(400);
+                if (!Settings.ThemeIds.SequenceEqual(new string[]{"meditation","voice"})) throw new Exception("Restoring the test rotation failed.");
+                // Real time: a card whose second arrives opens by itself, even though it is not in the rotation.
+                bool oldWeekdays=Settings.WeekdaysOnly, oldEnabled=Settings.Enabled;
+                Settings.WeekdaysOnly=false; Settings.Enabled=true;
+                Settings.CardSchedules["relax"]=new CardSchedule { Enabled=true, Time=DateTime.Now.AddSeconds(3).ToString("HH:mm:ss") };
+                if (Popup!=null) throw new Exception("A popup was open before the fixed-time check.");
+                await Task.Delay(6500);
+                if (Popup==null || Popup.ThemeId!="relax") throw new Exception("The card with a fixed start time did not open by itself.");
+                Popup.Close(); await Task.Delay(400);
+                if (Popup!=null) throw new Exception("The fixed-time popup did not close.");
+                Settings.CardSchedules.Remove("relax"); Settings.WeekdaysOnly=oldWeekdays; Settings.Enabled=oldEnabled;
+                result["cardFixedTimes"]=true;
                 // Immediate-run button: opens the next theme in saved order right away, regardless of schedule.
                 if (Popup!=null) throw new Exception("A popup was open before the immediate-run check.");
                 if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#run-now'))")!="true") throw new Exception("Immediate-run button is missing.");

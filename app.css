@@ -40,3 +40,9 @@ dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
 .icon-option input:checked+span{background:var(--lime);border-color:var(--green)}.icon-option input:focus-visible+span{outline:2px solid var(--green)}
 .card-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .card-delete{border:0;background:transparent;color:var(--danger);font-size:12px;text-decoration:underline;cursor:pointer;padding:4px 2px}.card-delete:hover{font-weight:700}
+.rotation-label{font-size:11px;color:var(--muted);margin-left:auto;margin-right:6px;align-self:center}
+.card-time{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px}
+.card-time-on{display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:700}
+.card-time .time24{width:92px;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:7px;background:#fafbf4}
+.card-time .time24:disabled{opacity:.45}
+.card-help{margin:6px 0 10px}

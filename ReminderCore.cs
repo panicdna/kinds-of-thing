@@ -5,6 +5,13 @@ namespace DeskHooker
 {
     // Plain get/set properties and constructor defaults support JavaScriptSerializer.
     // Constructing or validating settings never enables reminders or OS startup.
+    // A card (theme) may be started at an exact time of day, independently of the interval. Enabled switches it on.
+    public sealed class CardSchedule
+    {
+        public bool Enabled;
+        public string Time; // "HH:mm:ss", 24-hour
+    }
+
     public class ReminderSettings
     {
         public int IntervalMinutes { get; set; }
@@ -25,6 +32,8 @@ namespace DeskHooker
         // Per card (theme id): how that card's sub-items are picked, "random" (default when absent) or "sequential".
         public Dictionary<string, string> VariantModes { get; set; }
         // A quiet period inside the day (e.g. lunch): reminders that would fall in [BreakStart, BreakEnd) wait until it ends.
+        // Per card id: start it at an exact time of day (see ReminderSchedule.DueCards).
+        public Dictionary<string, CardSchedule> CardSchedules { get; set; }
         public bool BreakEnabled { get; set; }
         public int BreakStartHour { get; set; }
         public int BreakStartMinute { get; set; }
@@ -48,6 +57,7 @@ namespace DeskHooker
             ExhaleSeconds = 6;
             ThemeMode = ThemeRotation.OrderedOne;
             VariantModes = new Dictionary<string, string>();
+            CardSchedules = new Dictionary<string, CardSchedule>();
             BreakEnabled = false;
             BreakStartHour = 12; BreakStartMinute = 0;
             BreakEndHour = 13; BreakEndMinute = 0;
@@ -76,6 +86,19 @@ namespace DeskHooker
             if (settings.EndHour < 1 || settings.EndHour > 24 || (settings.EndHour == 24 && settings.EndMinute != 0) ||
                 WindowEnd(settings) <= WindowStart(settings))
                 throw new ArgumentException("End time must be later than start time and not after 24:00.", "settings");
+            if (settings.CardSchedules != null)
+            {
+                if (settings.CardSchedules.Count > 64)
+                    throw new ArgumentException("CardSchedules has too many entries.", "settings");
+                foreach (KeyValuePair<string, CardSchedule> entry in settings.CardSchedules)
+                {
+                    if (String.IsNullOrWhiteSpace(entry.Key) || entry.Key.Length > 64 || entry.Value == null)
+                        throw new ArgumentException("CardSchedules must map a card id to a schedule.", "settings");
+                    TimeSpan ignored;
+                    if ((entry.Value.Enabled || entry.Value.Time != null) && !CardTimes.TryParseClock(entry.Value.Time, out ignored))
+                        throw new ArgumentException("A card start time must look like 14:05:30 (00:00:00-23:59:59).", "settings");
+                }
+            }
             if (settings.BreakEnabled)
             {
                 if (settings.BreakStartHour < 0 || settings.BreakStartHour > 23 || settings.BreakStartMinute < 0 || settings.BreakStartMinute > 59 ||
@@ -106,7 +129,8 @@ namespace DeskHooker
                     if (String.IsNullOrWhiteSpace(entry.Key) || entry.Key.Length > 64 || !ReminderSettings.IsValidVariantMode(entry.Value))
                         throw new ArgumentException("VariantModes must map a theme id to random or sequential.", "settings");
             }
-            if (settings.ThemeIds == null || settings.ThemeIds.Length == 0)
+            // Cards for the interval rotation may be left empty when at least one card starts at a fixed time.
+            if (settings.ThemeIds == null || (settings.ThemeIds.Length == 0 && !CardTimes.HasScheduledCard(settings)))
                 throw new ArgumentException("At least one theme must be selected.", "settings");
             HashSet<string> known = new HashSet<string>(knownThemeIds, StringComparer.Ordinal);
             HashSet<string> selected = new HashSet<string>(StringComparer.Ordinal);
@@ -182,6 +206,70 @@ namespace DeskHooker
             return candidate;
         }
     }
+    // Cards that start at an exact time of day. Kept apart from ReminderSchedule so that class keeps its small public surface.
+    public static class CardTimes
+    {
+        private static readonly System.Text.RegularExpressions.Regex ClockPattern =
+            new System.Text.RegularExpressions.Regex("^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$");
+
+        // Strict 24-hour "HH:mm:ss".
+        public static bool TryParseClock(string text, out TimeSpan time)
+        {
+            time = TimeSpan.Zero;
+            if (text == null || !ClockPattern.IsMatch(text))
+                return false;
+            time = new TimeSpan(Int32.Parse(text.Substring(0, 2)), Int32.Parse(text.Substring(3, 2)), Int32.Parse(text.Substring(6, 2)));
+            return true;
+        }
+
+        public static bool HasScheduledCard(ReminderSettings settings)
+        {
+            if (settings == null || settings.CardSchedules == null)
+                return false;
+            foreach (CardSchedule schedule in settings.CardSchedules.Values)
+            {
+                TimeSpan ignored;
+                if (schedule != null && schedule.Enabled && TryParseClock(schedule.Time, out ignored))
+                    return true;
+            }
+            return false;
+        }
+
+        // Cards whose fixed start time was passed in the half-open span (previous, now], in time order.
+        // Like the interval timer, nothing is returned after a long gap (sleep, lock, clock change) so missed
+        // cards are not replayed in a burst. A fixed time is an explicit request, so the hours window and the
+        // quiet break do not hold it back; reminders being switched on and the weekday rule do.
+        public static string[] DueCards(DateTime previous, DateTime now, ReminderSettings settings, IEnumerable<string> knownThemeIds)
+        {
+            if (settings == null || knownThemeIds == null)
+                throw new ArgumentException("Settings and known theme IDs are required.");
+            List<string> due = new List<string>();
+            if (!settings.Enabled || settings.CardSchedules == null || now <= previous || (now - previous).TotalSeconds > 15)
+                return due.ToArray();
+            List<KeyValuePair<DateTime, string>> hits = new List<KeyValuePair<DateTime, string>>();
+            foreach (string id in knownThemeIds)
+            {
+                CardSchedule schedule;
+                TimeSpan time;
+                if (!settings.CardSchedules.TryGetValue(id, out schedule) || schedule == null || !schedule.Enabled || !TryParseClock(schedule.Time, out time))
+                    continue;
+                for (DateTime day = previous.Date; day <= now.Date; day = day.AddDays(1))
+                {
+                    if (settings.WeekdaysOnly && (day.DayOfWeek == DayOfWeek.Saturday || day.DayOfWeek == DayOfWeek.Sunday))
+                        continue;
+                    DateTime fire = day + time;
+                    if (fire > previous && fire <= now)
+                        hits.Add(new KeyValuePair<DateTime, string>(fire, id));
+                }
+            }
+            hits.Sort(delegate(KeyValuePair<DateTime, string> a, KeyValuePair<DateTime, string> b) { return a.Key.CompareTo(b.Key); });
+            foreach (KeyValuePair<DateTime, string> hit in hits)
+                if (!due.Contains(hit.Value))
+                    due.Add(hit.Value);
+            return due.ToArray();
+        }
+    }
+
     // Decides which of the selected themes one reminder shows, and in what order.
     // Kept apart from ReminderSchedule so that class keeps its small public surface.
     public static class ThemeRotation

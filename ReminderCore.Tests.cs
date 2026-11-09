@@ -122,6 +122,12 @@ internal static class ReminderCoreTests
         Run("Community_RejectsMarkupLinksAndBadIds", Community_RejectsMarkupLinksAndBadIds);
         Run("Community_EnforcesLimits", Community_EnforcesLimits);
         Run("Community_RejectsUnknownSchemaAndNonObjects", Community_RejectsUnknownSchemaAndNonObjects);
+        Run("CardTimes_ParseClockIsStrict24Hour", CardTimes_ParseClockIsStrict24Hour);
+        Run("CardTimes_FiresOnceWhenTheSecondIsPassed", CardTimes_FiresOnceWhenTheSecondIsPassed);
+        Run("CardTimes_OnlyEnabledKnownCardsOnAllowedDays", CardTimes_OnlyEnabledKnownCardsOnAllowedDays);
+        Run("CardTimes_IgnoreWindowAndBreakButNotPause", CardTimes_IgnoreWindowAndBreakButNotPause);
+        Run("CardTimes_NoBurstAfterALongGapAndOrderedAcrossMidnight", CardTimes_NoBurstAfterALongGapAndOrderedAcrossMidnight);
+        Run("CardTimes_ValidateAndEmptyRotation", CardTimes_ValidateAndEmptyRotation);
         Run("Break_IsOffByDefaultAndChangesNothing", Break_IsOffByDefaultAndChangesNothing);
         Run("Break_PostponesAReminderThatLandsInsideIt", Break_PostponesAReminderThatLandsInsideIt);
         Run("Break_StartIsInsideEndIsOutside", Break_StartIsInsideEndIsOutside);
@@ -755,7 +761,8 @@ internal static class ReminderCoreTests
             IntervalMinutes = 37, WeekdaysOnly = false, LimitHours = false,
             StartHour = 2, EndHour = 23, ThemeIds = new string[] { "eyes", "breathe" }, ThemeMode = "random-all",
             Enabled = true, StartAtLogin = true, InhaleSeconds = 5, HoldSeconds = 7, ExhaleSeconds = 9,
-            VariantModes = new Dictionary<string, string> { { "relax", "sequential" }, { "dance", "random" } }
+            VariantModes = new Dictionary<string, string> { { "relax", "sequential" }, { "dance", "random" } },
+            CardSchedules = new Dictionary<string, CardSchedule> { { "relax", new CardSchedule { Enabled = true, Time = "12:00:30" } }, { "stretch", new CardSchedule { Enabled = false, Time = "09:15:00" } } }
         };
         JavaScriptSerializer serializer = new JavaScriptSerializer();
         ReminderSettings restored = serializer.Deserialize<ReminderSettings>(serializer.Serialize(original));
@@ -763,6 +770,8 @@ internal static class ReminderCoreTests
         {
             if (property.Name == "ThemeIds")
                 Equal(String.Join(",", original.ThemeIds), String.Join(",", restored.ThemeIds), "ThemeIds round trip");
+            else if (property.Name == "CardSchedules")
+                Equal("relax=True@12:00:30,stretch=False@09:15:00", String.Join(",", new SortedDictionary<string, CardSchedule>(restored.CardSchedules).Select(e => e.Key + "=" + e.Value.Enabled + "@" + e.Value.Time).ToArray()), "CardSchedules round trip");
             else if (property.Name == "VariantModes")
                 Equal("dance=random,relax=sequential", String.Join(",", new SortedDictionary<string, string>(restored.VariantModes).Select(e => e.Key + "=" + e.Value).ToArray()), "VariantModes round trip");
             else
@@ -816,6 +825,107 @@ internal static class ReminderCoreTests
         DateTime from = new DateTime(2026, 11, 9, 9, 0, 0);
         Equal(new DateTime(2026, 11, 9, 9, 1, 0), Next(from, new ReminderSettings { IntervalMinutes = 1 }), "One minute");
         Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(from, new ReminderSettings { IntervalMinutes = 240 }), "240 minutes");
+    }
+
+    private static ReminderSettings Scheduled(params string[] idsAndTimes)
+    {
+        // idsAndTimes: "relax=12:00:30" enabled, "stretch=!09:00:00" present but switched off.
+        ReminderSettings s = new ReminderSettings { Enabled = true, WeekdaysOnly = false };
+        foreach (string entry in idsAndTimes)
+        {
+            string[] parts = entry.Split('=');
+            bool on = !parts[1].StartsWith("!");
+            s.CardSchedules[parts[0]] = new CardSchedule { Enabled = on, Time = parts[1].TrimStart('!') };
+        }
+        return s;
+    }
+
+    private static void CardTimes_ParseClockIsStrict24Hour()
+    {
+        TimeSpan time;
+        Equal(true, CardTimes.TryParseClock("00:00:00", out time), "Midnight");
+        Equal(true, CardTimes.TryParseClock("23:59:59", out time), "Last second");
+        Equal(true, CardTimes.TryParseClock("14:05:30", out time), "Ordinary time");
+        Equal(new TimeSpan(14, 5, 30), time, "Value");
+        foreach (string bad in new string[] { null, "", "24:00:00", "12:60:00", "12:00:60", "9:05:30", "12:00", "12:00:00 ", "ab:cd:ef", "12-00-00", "1200000" })
+            Equal(false, CardTimes.TryParseClock(bad, out time), "Rejects '" + bad + "'");
+    }
+
+    private static void CardTimes_FiresOnceWhenTheSecondIsPassed()
+    {
+        ReminderSettings s = Scheduled("relax=12:00:30");
+        string[] known = new string[] { "stretch", "relax" };
+        DateTime d = new DateTime(2026, 11, 10, 12, 0, 0);
+        Equal(0, CardTimes.DueCards(d.AddSeconds(28), d.AddSeconds(29), s, known).Length, "One second early");
+        Equal("relax", String.Join(",", CardTimes.DueCards(d.AddSeconds(29), d.AddSeconds(30), s, known)), "The tick that lands exactly on the second includes it");
+        Equal(0, CardTimes.DueCards(d.AddSeconds(30), d.AddSeconds(31), s, known).Length, "The previous tick already fired it: (previous, now]");
+        Equal("relax", String.Join(",", CardTimes.DueCards(d.AddSeconds(29), d.AddSeconds(33), s, known)), "A slightly late tick still catches it");
+    }
+
+    private static void CardTimes_OnlyEnabledKnownCardsOnAllowedDays()
+    {
+        string[] known = new string[] { "stretch", "relax" };
+        DateTime d = new DateTime(2026, 11, 10, 9, 0, 0); // Tuesday
+        ReminderSettings s = Scheduled("relax=!09:00:01", "stretch=09:00:01", "ghost=09:00:01");
+        Equal("stretch", String.Join(",", CardTimes.DueCards(d, d.AddSeconds(2), s, known)), "Switched-off and unknown cards stay quiet");
+        s.Enabled = false;
+        Equal(0, CardTimes.DueCards(d, d.AddSeconds(2), s, known).Length, "Reminders paused");
+        s.Enabled = true; s.WeekdaysOnly = true;
+        DateTime saturday = new DateTime(2026, 11, 14, 9, 0, 0);
+        Equal(0, CardTimes.DueCards(saturday, saturday.AddSeconds(2), s, known).Length, "Weekdays only skips Saturday");
+        s.WeekdaysOnly = false;
+        Equal("stretch", String.Join(",", CardTimes.DueCards(saturday, saturday.AddSeconds(2), s, known)), "Every day when weekdays-only is off");
+    }
+
+    private static void CardTimes_IgnoreWindowAndBreakButNotPause()
+    {
+        string[] known = new string[] { "relax" };
+        ReminderSettings s = Scheduled("relax=12:30:00");
+        s.BreakEnabled = true; s.BreakStartHour = 12; s.BreakEndHour = 13; // lunch
+        DateTime noon = new DateTime(2026, 11, 10, 12, 29, 59);
+        Equal("relax", String.Join(",", CardTimes.DueCards(noon, noon.AddSeconds(1), s, known)), "A card fixed inside the break still starts");
+        ReminderSettings late = Scheduled("relax=21:00:00");
+        DateTime evening = new DateTime(2026, 11, 10, 20, 59, 59);
+        Equal("relax", String.Join(",", CardTimes.DueCards(evening, evening.AddSeconds(1), late, known)), "A card fixed outside the 09-18 window still starts");
+    }
+
+    private static void CardTimes_NoBurstAfterALongGapAndOrderedAcrossMidnight()
+    {
+        string[] known = new string[] { "a", "b" };
+        ReminderSettings s = Scheduled("a=10:00:00", "b=10:00:01");
+        DateTime d = new DateTime(2026, 11, 10, 10, 0, 0);
+        Equal(0, CardTimes.DueCards(d.AddMinutes(-30), d.AddSeconds(5), s, known).Length, "Waking from sleep never replays missed cards");
+        Equal(0, CardTimes.DueCards(d.AddSeconds(5), d.AddSeconds(-5), s, known).Length, "Clock moved backwards");
+        Equal("a,b", String.Join(",", CardTimes.DueCards(d.AddSeconds(-1), d.AddSeconds(2), s, known)), "Two cards in one tick come out in time order");
+        ReminderSettings midnight = Scheduled("a=00:00:00");
+        DateTime before = new DateTime(2026, 11, 10, 23, 59, 59);
+        Equal("a", String.Join(",", CardTimes.DueCards(before, before.AddSeconds(1), midnight, known)), "Crossing midnight reaches the next day's 00:00:00");
+    }
+
+    private static void CardTimes_ValidateAndEmptyRotation()
+    {
+        Validate(Scheduled("relax=12:00:30"), KnownThemes());
+        foreach (string bad in new string[] { "relax=25:00:00", "relax=12:00", "relax=noon" })
+        {
+            string entry = bad;
+            ThrowsArgument(delegate { Validate(Scheduled(entry), KnownThemes()); }, "Bad time " + bad);
+        }
+        ReminderSettings noTime = new ReminderSettings();
+        noTime.CardSchedules["relax"] = new CardSchedule { Enabled = true, Time = null };
+        ThrowsArgument(delegate { Validate(noTime, KnownThemes()); }, "Enabled without a time");
+        ReminderSettings off = new ReminderSettings();
+        off.CardSchedules["relax"] = new CardSchedule { Enabled = false, Time = null };
+        Validate(off, KnownThemes());
+        // Nothing in the interval rotation is fine only when some card has a fixed start time.
+        ReminderSettings onlyFixed = Scheduled("relax=12:00:30");
+        onlyFixed.ThemeIds = new string[0];
+        Validate(onlyFixed, KnownThemes());
+        Equal(true, CardTimes.HasScheduledCard(onlyFixed), "Scheduled card");
+        ReminderSettings nothing = new ReminderSettings { ThemeIds = new string[0] };
+        ThrowsArgument(delegate { Validate(nothing, KnownThemes()); }, "No rotation and no fixed card");
+        ReminderSettings offOnly = Scheduled("relax=!12:00:30");
+        offOnly.ThemeIds = new string[0];
+        ThrowsArgument(delegate { Validate(offOnly, KnownThemes()); }, "A switched-off fixed card does not count");
     }
 
     private static ReminderSettings Lunch(int intervalMinutes)

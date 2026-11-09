@@ -58,8 +58,13 @@
       { id: 'recipe', name: '요리 레시피', summary: '짧은 요리 영상으로 잠깐 쉬어 가기', instructions: [], safety: '영상은 구경하며 쉬는 용도입니다. 실제로 따라 할 때는 불과 칼을 조심하고, 알레르기나 식이 제한이 있으면 재료를 직접 확인하세요.', file: '' }
     ];
   }
+  // Second checkbox of every card: start this card at an exact time of day (HH:MM:SS), on top of the interval rotation.
+  function cardTimeRow(t) {
+    const cs = cardSchedule(t.id);
+    return `<div class="card-time"><label class="card-time-on"><input type="checkbox" data-ct-on="${escape(t.id)}" ${cs.Enabled ? 'checked' : ''}>정해진 시각에 시작</label><input class="time24 time-sec" type="text" data-ct-time="${escape(t.id)}" inputmode="numeric" maxlength="8" placeholder="HH:MM:SS" value="${escape(cs.Time || '12:00:00')}" ${cs.Enabled ? '' : 'disabled'} aria-label="${escape(t.name)} 시작 시각 (24시간, 시:분:초)"></div>`;
+  }
   function themeCards(checked) {
-    return state.themes.map((t, i) => `<article class="theme-card" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbolFor(t)}</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${checked.has(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p></label><div class="card-actions"><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button>${t.community && t.id !== 'preview' ? `<button class="card-delete" data-delete="${escape(t.id)}" type="button" title="공유 저장소(GitHub)에서 이 쉼을 지우는 화면을 엽니다">삭제하기</button>` : ''}</div></article>`).join('');
+    return state.themes.map((t, i) => `<article class="theme-card" style="--tone:${tones[i % tones.length]}"><label><div class="theme-top"><span class="theme-symbol">${symbolFor(t)}</span><span class="rotation-label">주기 실행</span><input name="theme" type="checkbox" value="${escape(t.id)}" ${checked.has(t.id) ? 'checked' : ''} aria-label="${escape(t.name)} 주제 선택"></div><h3>${escape(t.name)}</h3><p>${escape(t.summary)}</p></label><div class="card-actions"><button class="preview" data-preview="${escape(t.id)}" type="button">미리 보기 ↗</button>${t.community && t.id !== 'preview' ? `<button class="card-delete" data-delete="${escape(t.id)}" type="button" title="공유 저장소(GitHub)에서 이 쉼을 지우는 화면을 엽니다">삭제하기</button>` : ''}</div>${t.id === 'preview' ? '' : cardTimeRow(t)}</article>`).join('');
   }
   function syncText() {
     const sync = state.sync || {};
@@ -83,10 +88,19 @@
       send('open-link', { url });
       toast('GitHub의 삭제 화면이 열립니다. 로그인 후 "Commit changes"로 삭제를 제안하세요. 병합되면 모든 앱에서 사라져요.');
     }));
+    document.querySelectorAll('[data-ct-on]').forEach(box => box.addEventListener('change', () => {
+      const input = document.querySelector(`[data-ct-time="${box.dataset.ctOn}"]`);
+      input.disabled = !box.checked;
+      setCardSchedule(box.dataset.ctOn, { Enabled: box.checked });
+    }));
+    document.querySelectorAll('[data-ct-time]').forEach(input => {
+      const settle = () => { const t = parseClock(input.value); if (t) { input.value = t; setCardSchedule(input.dataset.ctTime, { Time: t }); } };
+      input.addEventListener('blur', settle); input.addEventListener('change', settle);
+    });
     const count = () => {
       const n = document.querySelectorAll('input[name=theme]:checked').length;
       const mode = modeOf((document.querySelector('input[name=theme-mode]:checked') || {}).value);
-      $('#selected-count').textContent = `${n}개 선택 · ${mode.label}`;
+      $('#selected-count').textContent = `주기 실행 ${n}개 · ${mode.label}`;
       $('#theme-mode-help').textContent = n > 1 ? mode.help : '두 개 이상 고르면 아래 방식으로 실행돼요.';
     };
     document.querySelectorAll('input[name=theme], input[name=theme-mode]').forEach(input => input.addEventListener('change', count)); count();
@@ -183,6 +197,7 @@
       <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>시작·종료 시각 사이에만 알림 받기</label><div class="schedule-line">종료 <input id="end-time" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.EndHour, s.EndMinute)}" aria-label="종료 시각 (24시간, 시:분)"> 전까지 (24시간제 · 24:00 또는 00:00은 자정)</div><label class="schedule-line"><input id="break-on" type="checkbox" ${s.BreakEnabled ? 'checked' : ''}>중간에 쉬는 시간(예: 점심)에는 알림 끄기</label><div class="schedule-line break-times">쉬는 시간 <input id="break-start" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.BreakStartHour, s.BreakStartMinute)}" aria-label="쉬는 시간 시작 (24시간, 시:분)" ${s.BreakEnabled ? '' : 'disabled'}> 부터 <input id="break-end" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.BreakEndHour, s.BreakEndMinute)}" aria-label="쉬는 시간 끝 (24시간, 시:분)" ${s.BreakEnabled ? '' : 'disabled'}> 까지</div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><span id="selected-count"></span></div>
       <div class="sync-bar"><span id="sync-text"></span><button id="sync-now" class="quiet" type="button">지금 동기화 ↻</button></div>
+      <p class="small-help card-help"><b>주기 실행</b>: 체크한 쉼이 위에서 정한 간격마다 돌아가며 나와요. <b>정해진 시각에 시작</b>: 체크하고 시:분:초(24시간제)를 적으면 매일 그 시각에 그 쉼만 따로 떠요(간격·시간대·쉬는 시간과 무관, '월~금만'과 일시정지는 따릅니다).</p>
       <div id="theme-grid" class="themes">${themeCards(new Set(s.ThemeIds))}</div>
       ${sharePanel()}
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>
@@ -210,6 +225,23 @@
     const h = Number(m[1]), min = Number(m[2]);
     return h > 24 || min > 59 || (h === 24 && min !== 0) ? null : [h, min];
   }
+  // "HH:MM:SS" (also "9:05", "930", "093000"); hour 0-23, minute and second 0-59. Returns the normalised text or null.
+  function parseClock(v) {
+    let text = String(v || '').trim();
+    if (/^\d{4}$/.test(text)) text = text.slice(0, 2) + ':' + text.slice(2) + ':00';
+    else if (/^\d{6}$/.test(text)) text = text.slice(0, 2) + ':' + text.slice(2, 4) + ':' + text.slice(4);
+    const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+    if (!m) return null;
+    const h = Number(m[1]), min = Number(m[2]), sec = Number(m[3] || 0);
+    if (h > 23 || min > 59 || sec > 59) return null;
+    return [h, min, sec].map(x => String(x).padStart(2, '0')).join(':');
+  }
+  const cardSchedule = id => ((state.settings && state.settings.CardSchedules) || {})[id] || { Enabled: false, Time: '12:00:00' };
+  function setCardSchedule(id, patch) {
+    const all = { ...((state.settings && state.settings.CardSchedules) || {}) };
+    all[id] = { ...cardSchedule(id), ...patch };
+    state.settings = { ...state.settings, CardSchedules: all };
+  }
   function save(enabled) {
     const st = parseTime($('#start-time').value), et = parseTime($('#end-time').value);
     if (!st || !et || st[0] > 23) { toast('시작·종료 시각을 24시간제 시:분으로 입력하세요. (예: 09:00, 18:30)'); return; }
@@ -229,7 +261,16 @@
       ThemeMode: (document.querySelector('input[name=theme-mode]:checked') || {}).value || 'ordered-one'
     };
     if (!Number.isInteger(settings.IntervalMinutes) || settings.IntervalMinutes < 1 || settings.IntervalMinutes > 240) { toast('간격은 1~240분 사이의 정수로 고르세요.'); return; }
-    if (!settings.ThemeIds.length) { toast('주제를 하나 이상 골라 주세요.'); return; }
+    const schedules = {};
+    for (const box of document.querySelectorAll('[data-ct-on]')) {
+      const id = box.dataset.ctOn, field = document.querySelector(`[data-ct-time="${id}"]`);
+      const time = parseClock(field.value);
+      if (box.checked && !time) { toast('정해진 시각은 24시간제 시:분:초로 입력하세요. (예: 12:00:30)'); return; }
+      schedules[id] = { Enabled: box.checked, Time: time || '12:00:00' };
+    }
+    settings.CardSchedules = schedules;
+    const hasFixed = Object.values(schedules).some(x => x.Enabled);
+    if (!settings.ThemeIds.length && !hasFixed) { toast('주기 실행에 넣을 쉼을 하나 이상 고르거나, 정해진 시각에 시작할 쉼을 켜 주세요.'); return; }
     if (!Number.isInteger(settings.StartHour) || !Number.isInteger(settings.EndHour) || settings.StartHour < 0 || settings.StartHour > 23 || settings.EndHour < 1 || settings.EndHour > 24 || settings.StartHour * 60 + settings.StartMinute >= settings.EndHour * 60 + settings.EndMinute) { toast('종료 시각은 시작 시각보다 늦어야 해요. (자정까지는 00:00)'); return; }
     if (breakOn) {
       const minutes = (h, m) => h * 60 + m;
