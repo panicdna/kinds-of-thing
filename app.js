@@ -7,7 +7,7 @@
   const content = window.GAME_CONTENT || { dances: [] };
   let state;
   const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], BreakEnabled: false, BreakStartHour: 12, BreakStartMinute: 0, BreakEndHour: 13, BreakEndMinute: 0, Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'ordered-one' };
-  const symbols = { stretch: '↟', meditation: '◌', voice: '♪', 'back-standing': '↗', dance: '♫', relax: '☾' };
+  const symbols = { stretch: '↟', meditation: '◌', voice: '♪', 'back-standing': '↗', dance: '♫', relax: '☾', recipe: '✦' };
   const themeModes = [
     { id: 'ordered-one', label: '하나씩 순서대로', help: '알림마다 하나만, 목록 순서대로 돌아가며' },
     { id: 'random-one', label: '하나만 무작위로', help: '알림마다 하나만, 고른 것 중에서 무작위로' }
@@ -54,7 +54,8 @@
   function extraThemes() {
     return [
       { id: 'dance', name: '댄스 안무', summary: '공식 안무 영상으로 원본 동작 따라 보기', instructions: ['공식 연습영상을 고르세요.', '서서 하는 움직임이므로 충분한 공간을 확보하세요.'], safety: '앉아서 하는 운동이 아닙니다. 통증이 있으면 어려운 동작을 건너뛰세요.', file: '' },
-      { id: 'relax', name: '릴렉스 음향', summary: '편안한 소리를 들으며 잠깐 쉬기', instructions: [], safety: '소리는 작게 시작하고, 불편하면 바로 끄세요. 운전·보행 중에는 듣지 마세요. 치료가 아닌 짧은 휴식용 안내입니다.', file: '' }
+      { id: 'relax', name: '릴렉스 음향', summary: '편안한 소리를 들으며 잠깐 쉬기', instructions: [], safety: '소리는 작게 시작하고, 불편하면 바로 끄세요. 운전·보행 중에는 듣지 마세요. 치료가 아닌 짧은 휴식용 안내입니다.', file: '' },
+      { id: 'recipe', name: '요리 레시피', summary: '짧은 요리 영상으로 잠깐 쉬어 가기', instructions: [], safety: '영상은 구경하며 쉬는 용도입니다. 실제로 따라 할 때는 불과 칼을 조심하고, 알레르기나 식이 제한이 있으면 재료를 직접 확인하세요.', file: '' }
     ];
   }
   function themeCards(checked) {

@@ -86,6 +86,7 @@ namespace DeskHooker
             var list = new List<Theme>(themes);
             list.Add(new Theme { id="dance", name="댄스 안무", summary="공식 안무 영상으로 원본 동작 따라 보기", file="", safety="서서 하는 안무입니다. 충분한 공간을 확보하고 어려운 점프·비틀기는 건너뛰세요. 허리 통증이 있으면 이 주제 대신 저강도 자세 전환을 고르세요.", instructions=new string[] { "공식 채널의 연습 영상을 선택하세요.", "처음에는 느리게 보고, 편한 범위에서만 따라 하세요." } });
             list.Add(new Theme { id="relax", name="릴렉스 음향", summary="편안한 소리를 들으며 잠깐 쉬기", file="", safety="소리는 작게 시작하고, 불편하면 바로 끄세요. 운전·보행 중에는 듣지 마세요. 치료가 아닌 짧은 휴식용 안내입니다.", instructions=new string[0] });
+            list.Add(new Theme { id="recipe", name="요리 레시피", summary="짧은 요리 영상으로 잠깐 쉬어 가기", file="", safety="영상은 구경하며 쉬는 용도입니다. 실제로 따라 할 때는 불과 칼을 조심하고, 알레르기나 식이 제한이 있으면 재료를 직접 확인하세요.", instructions=new string[0] });
             baseThemes = list.ToArray();
             int cachedRejected;
             syncEntries = LoadCommunityCache();
@@ -618,6 +619,13 @@ namespace DeskHooker
                 }
                 Popup.Close(); await Task.Delay(300);
                 result["relaxVideoOnly"]=true;
+                // 요리 레시피: a single video, started by itself, nothing else on the page.
+                ShowPopup("recipe"); await Popup.Ready.Task; await Task.Delay(500);
+                string recipeSrc=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
+                if (!recipeSrc.Contains("youtube-nocookie.com/embed/s10KwYn064E") || !recipeSrc.Contains("autoplay=1")) throw new Exception("Recipe did not embed its autoplaying video: "+recipeSrc);
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image, .instruction-panel, .stretch-picker'))")!="false") throw new Exception("Recipe should show only the video.");
+                Popup.Close(); await Task.Delay(300);
+                result["recipeVideoOnly"]=true;
                 // Community sync: apply a fetched result without the network. Tiles must update and the user's unsaved tick must survive.
                 var script = SettingsWindow.Browser.CoreWebView2;
                 await script.ExecuteScriptAsync("document.querySelector('input[value=stretch]').checked=true");

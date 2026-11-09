@@ -33,6 +33,10 @@ window.THEME_VARIANTS = {
     { id: 'yt-srz5h0UQ6tc', type: 'video', title: '10분 명상 음악', author: '힐링위드사운드', youtubeId: 'srz5h0UQ6tc', url: 'https://www.youtube.com/shorts/srz5h0UQ6tc' },
     { id: 'yt-Yma-nUogjao', type: 'video', title: '4-2-6 호흡법', author: '가치요가 Gachi Yoga', youtubeId: 'Yma-nUogjao', url: 'https://www.youtube.com/shorts/Yma-nUogjao' }
   ],
+  // 요리 레시피: a short cooking video as a break.
+  recipe: [
+    { id: 'yt-s10KwYn064E', type: 'video', title: '양배추 오코노미야끼 (노밀가루)', author: '혹시PICK', youtubeId: 's10KwYn064E', url: 'https://www.youtube.com/shorts/s10KwYn064E' }
+  ],
   // Voice: the original picture/timer is replaced by this video.
   voice: [
     { id: 'yt-88TBCVp-Tlc', type: 'video', title: '숨쉴 때 편안한 호흡 발성 연습', author: '윤하의 Joyful Voice', youtubeId: '88TBCVp-Tlc', url: 'https://www.youtube.com/shorts/88TBCVp-Tlc' },
