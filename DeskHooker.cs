@@ -621,14 +621,16 @@ namespace DeskHooker
                 result["relaxVideoOnly"]=true;
                 // 요리 레시피: videos only (two), started by itself; no picture and no step list.
                 ShowPopup("recipe"); await Popup.Ready.Task; await Task.Delay(500);
-                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="3") throw new Exception("Recipe sub-item list should have 3 items.");
-                string[] recipeIds={"s10KwYn064E","Rjfzpzj3bug","kLT591PuXB4"};
-                for (int v=0; v<3; v++)
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="4") throw new Exception("Recipe sub-item list should have 4 items.");
+                string[] recipeIds={"s10KwYn064E","Rjfzpzj3bug","kLT591PuXB4","X8oI4ULOELE"};
+                for (int v=0; v<4; v++)
                 {
                     await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
                     await Task.Delay(300);
                     string recipeSrc=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
                     if (!recipeSrc.Contains("youtube-nocookie.com/embed/"+recipeIds[v]) || !recipeSrc.Contains("autoplay=1")) throw new Exception("Recipe item #"+(v+1)+" did not embed its autoplaying video: "+recipeSrc);
+                    // Vertical Shorts repeat by themselves (loop=1&playlist=<id>); wide videos play once.
+                    if (recipeSrc.Contains("loop=1&playlist="+recipeIds[v]) != (v!=2)) throw new Exception("Recipe item #"+(v+1)+" has the wrong repeat setting: "+recipeSrc);
                     if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image, .instruction-panel'))")!="false") throw new Exception("Recipe should show only the video.");
                 }
                 Popup.Close(); await Task.Delay(300);

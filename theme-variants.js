@@ -37,7 +37,8 @@ window.THEME_VARIANTS = {
   recipe: [
     { id: 'yt-s10KwYn064E', type: 'video', title: '양배추 오코노미야끼 (노밀가루)', author: '혹시PICK', youtubeId: 's10KwYn064E', url: 'https://www.youtube.com/shorts/s10KwYn064E' },
     { id: 'yt-Rjfzpzj3bug', type: 'video', title: '알배추 레시피', author: '1분다이어터 1mindiet', youtubeId: 'Rjfzpzj3bug', url: 'https://www.youtube.com/shorts/Rjfzpzj3bug' },
-    { id: 'yt-kLT591PuXB4', type: 'video', wide: true, title: '감자와 두부 후라이팬 레시피', author: '메리니즈부엌Meliniskitchen', youtubeId: 'kLT591PuXB4', url: 'https://www.youtube.com/watch?v=kLT591PuXB4' }
+    { id: 'yt-kLT591PuXB4', type: 'video', wide: true, title: '감자와 두부 후라이팬 레시피', author: '메리니즈부엌Meliniskitchen', youtubeId: 'kLT591PuXB4', url: 'https://www.youtube.com/watch?v=kLT591PuXB4' },
+    { id: 'yt-X8oI4ULOELE', type: 'video', title: '감자와 계란 요리', author: '정미야밥먹자 jungmi Kitchen', youtubeId: 'X8oI4ULOELE', url: 'https://www.youtube.com/shorts/X8oI4ULOELE' }
   ],
   // Voice: the original picture/timer is replaced by this video.
   voice: [
