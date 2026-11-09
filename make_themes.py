@@ -86,13 +86,12 @@ THEMES = [
          safety=COMMON+' 허리 통증 치료나 자세 교정이 아닙니다. 통증이 심해지거나 다리 저림·힘 빠짐이 생기면 중단하고 의료진에게 확인하세요. 양쪽 다리 증상·회음부 감각 저하·대소변 변화가 있으면 즉시 응급 진료를 받으세요.',
          file='themes/back-seated.gif'),
     dict(id='back-standing', name='허리 편한 휴식 · 일어나 움직이기',
-         summary='안정된 의자를 지지해 천천히 일어나 제자리에서 작게 몇 걸음 움직이는 휴식입니다.',
-         instructions=['주변을 비우고 바퀴 없는 의자가 미끄러지거나 넘어지지 않는지 확인해요.',
-                       '안정된 의자를 손으로 지지하며 편한 속도로 천천히 일어나요.',
-                       '지지를 유지하고 제자리에서 발을 낮게 들어 몇 걸음 편히 움직여요.',
-                       '균형이 불안하거나 일어나기 불편하면 앉은 휴식으로 바꿔요.'],
-         safety=COMMON.replace('등받이 있는 흔들리지 않는 의자에서 양발을 바닥에 두세요. ', '움직이지 않는 튼튼한 의자를 지지하고 주변 바닥을 비우세요. ')
-                +' 허리 통증 치료나 자세 교정이 아닙니다. 깊이 숙이거나 비틀지 마세요. 통증이 심해지거나 다리 저림·힘 빠짐이 생기면 즉시 중단하고 의료진에게 확인하세요. 양쪽 다리 증상·회음부 감각 저하·대소변 변화가 있으면 즉시 응급 진료를 받으세요.',
+         summary='스포츠 과학의 동적 스트레칭·가동성 드릴·PNF·플라이오 활성화를 짧게 맛보는 강도 높은 일어서기 휴식입니다.',
+         instructions=['주변 2m를 비우고 미끄럽지 않은 바닥에서 신발을 신은 채 가볍게 제자리 걷기로 몸을 데워요.',
+                       '동적 스트레칭: 월드 그레이티스트 스트레치(깊은 런지+몸통 회전+팔 뻗기)와 코사크 스쿼트(넓게 벌려 옆으로 깊이 앉기)를 좌우 번갈아 해요.',
+                       '가동성·PNF: 90/90 고관절 전환과 햄스트링 수축-이완(5초 힘줬다 풀고 더 뻗기)을 해요.',
+                       '플라이오 활성화: 하이니, 스케이터 점프, 점핑잭으로 빠르게 끌어올린 뒤 호흡을 이어가며 천천히 마무리해요.'],
+         safety='스포츠 과학식 스트레칭 맛보기로 일반 휴식 동작보다 강도가 높습니다. 주변 바닥을 비우고, 가볍게 몸을 데운 뒤 범위와 속도를 단계적으로 올리세요. 숨은 참지 말고 이어가세요. 통증·저림·어지럼·숨참이 생기면 즉시 중단하고 쉬세요. 점프·깊은 런지가 부담되면 제자리 걷기와 작은 범위로 낮추세요. 최근 부상·수술·심혈관 질환·임신이 있거나 치료 중이면 먼저 의료진에게 확인하세요. 치료·재활·운동 처방이 아닌 동작 미리보기이며 타이머가 아닙니다. 다리 저림·힘 빠짐이 생기면 즉시 중단하고 의료진에게 확인하세요. 양쪽 다리 증상·회음부 감각 저하·대소변 변화가 있으면 즉시 응급 진료를 받으세요.',
          file='themes/back-standing.gif'),
     dict(id='voice', name='발성 · 아주 가벼운 허밍',
          summary='편한 음높이와 작은 일상 목소리 크기로 짧게 허밍하고 쉬는 무음 미리보기입니다.',
@@ -113,7 +112,7 @@ LOOK = {
     'core': ('#e4f1eb', '자연스러운 날숨에 아주 약한 힘', '숨을 멈추지 말고 · 힘은 바로 풀어요', '감각 느끼기', '아주 약하게'),
     'breathing': ('#e8eef8', '편한 만큼 들이쉬고 · 여유 있게 내쉬기', '숨 참기 없이 · 자신의 속도로', '부드러운 들숨', '느긋한 날숨'),
     'back-seated': ('#e4f1eb', '엉덩이 위치를 편하게 · 어깨 힘 빼기', '정답 자세는 없어요 · 억지로 펴지 않기', '편한 자리', '조금 바꾸기'),
-    'back-standing': ('#f9ebdf', '의자 지지 · 천천히 일어나 몇 걸음', '깊이 숙이거나 비틀지 않기', '천천히 일어나기', '작게 몇 걸음'),
+    'back-standing': ('#f9ebdf', '동적 스트레칭 · 가동성 · PNF · 플라이오', '몸을 데운 뒤 · 범위와 속도는 단계적으로', '', ''),
     'voice': ('#f9ebdf', '편한 음높이로 짧게 음~ · 쉬기', '목에 힘주지 않기 · 이 GIF는 무음', '편히 숨쉬기', '가볍게 음~'),
 }
 
@@ -262,6 +261,49 @@ def draw_figure(d, theme, t):
     fit_text(d,(550,510),'양발은 바닥에',18,MUTED,False,'mm',205)
 
 
+# Sports-science stretching previews: (label, pose, category). Joint coordinates
+# on the 720x800 canvas; floor is y=588. Poses are interpolated between keys.
+def _pose(hip, sh, head, kl, fl, kr, fr, hl, hr):
+    return dict(hip=hip, sh=sh, head=head, kl=kl, fl=fl, kr=kr, fr=fr, hl=hl, hr=hr)
+
+_STAND = _pose((286,430),(286,320),(286,265),(272,510),(266,588),(302,510),(306,588),(252,400),(320,400))
+SPORT_KEYS = [
+    ('몸 데우기 · 제자리 걷기', _STAND, '워밍업'),
+    ('월드 그레이티스트 스트레치', _pose((262,492),(318,402),(342,350),(352,505),(354,588),(205,548),(148,586),(345,540),(350,262)), '동적 스트레칭'),
+    ('코사크 스쿼트 · 옆으로 깊이', _pose((230,500),(232,392),(232,336),(204,532),(188,588),(300,544),(372,588),(256,430),(262,430)), '가동성 드릴'),
+    ('햄스트링 PNF · 힘줬다 풀기', _pose((236,440),(204,345),(188,290),(330,510),(392,588),(215,520),(180,588),(296,470),(300,500)), 'PNF'),
+    ('하이니 · 빠른 무릎 올리기', _pose((286,430),(286,322),(286,267),(344,408),(330,470),(300,510),(306,588),(320,360),(250,390)), '플라이오 활성화'),
+    ('스케이터 점프 · 옆으로 뛰기', _pose((250,455),(290,352),(310,300),(280,520),(300,588),(215,525),(160,560),(205,410),(350,430)), '플라이오 활성화'),
+    ('점핑잭 · 팔 벌려 올리기', _pose((286,415),(286,306),(286,251),(240,500),(205,570),(332,500),(367,570),(210,190),(362,190)), '심박 올리기'),
+    ('천천히 숨 고르며 마무리', _STAND, '쿨다운'),
+]
+
+
+def draw_sport(d, t):
+    n = len(SPORT_KEYS)
+    idx = min(int(t * n), n - 1)
+    frac = t * n - idx
+    prev, cur = SPORT_KEYS[idx - 1][1], SPORT_KEYS[idx][1]
+    e = smooth(min(1, frac / 0.55))
+    p = {k: (prev[k][0] + (cur[k][0] - prev[k][0]) * e, prev[k][1] + (cur[k][1] - prev[k][1]) * e) for k in cur}
+    name = SPORT_KEYS[idx][0]
+    if name.startswith(('하이니', '점핑잭', '스케이터')) and frac > .55:
+        hop = abs(math.sin(frac * 4 * math.pi)) * 14
+        p = {k: (v[0], v[1] - hop) for k, v in p.items()}
+    line = lambda pts, c=INK, w=6: art.line(d, pts, c, w)
+    line([(126, 591), (454, 591)], '#bbcfc8', 2)
+    line([p['hip'], p['kl'], p['fl'], (p['fl'][0] + 20, p['fl'][1])], '#71858a', 5)
+    line([p['hip'], p['kr'], p['fr'], (p['fr'][0] + 20, p['fr'][1])], INK, 6)
+    line([p['hip'], p['sh'], (p['head'][0], p['head'][1] + 29)], INK, 6)
+    line([p['sh'], p['hl']], '#71858a', 5)
+    line([p['sh'], p['hr']], INK, 5)
+    hx, hy = p['head']
+    d.ellipse((hx - 29, hy - 29, hx + 29, hy + 29), fill='#fffdf7', outline=INK, width=4)
+    d.ellipse((hx + 8, hy - 5, hx + 11, hy - 2), fill=INK)
+    d.ellipse((p['hip'][0] - 4, p['hip'][1] - 4, p['hip'][0] + 4, p['hip'][1] + 4), fill=TEAL)
+    return name
+
+
 def draw_back(d, theme, t):
     """Comfort breaks, not alignment correction or a back-pain protocol."""
     wave = (1-math.cos(2*math.pi*t))/2
@@ -294,35 +336,7 @@ def draw_back(d, theme, t):
         line([(hip[0]-18,448),(hip[0]+18,448)],'#78ad93',2)
         label='편한 자리로 조금'
     else:
-        if t<.14: rise=0
-        elif t<.32: rise=smooth((t-.14)/.18)
-        elif t<.76: rise=1
-        elif t<.92: rise=1-smooth((t-.76)/.16)
-        else: rise=0
-        stepping=.32<=t<.76
-        phase=(t-.32)/.44*4*math.pi
-        lifts=[max(0,math.sin(phase))*11,max(0,-math.sin(phase))*11] if stepping else [0,0]
-        # Sturdy chair remains stationary; one hand stays on its back at all times.
-        line([(126,591),(454,591)],'#bbcfc8',2)
-        d.rounded_rectangle((203,379,216,487),radius=5,fill='#d1e1dc',outline='#8ea9a2',width=2)
-        d.rounded_rectangle((203,480,295,492),radius=5,fill='#b9cfc8')
-        for x in (210,287): line([(x,492),(x,589)],'#8ea9a2',5)
-        hip=(273+31*rise,479-65*rise)
-        shoulder=(hip[0]+4*(1-rise),hip[1]-111)
-        head=(shoulder[0],shoulder[1]-55)
-        for j,offset in enumerate((-12,5)):
-            knee=(329-14*rise+offset,503-lifts[j]*.5)
-            foot=(329+offset,587-lifts[j])
-            line([hip,knee,foot,(foot[0]+20,foot[1])],INK if j else '#71858a',6 if j else 5)
-        line([hip,shoulder,(head[0],head[1]+29)],INK,6)
-        line([shoulder,(244+13*rise,362-29*rise),(213,382)],INK,5)
-        dot((213,382),5)
-        line([shoulder,(shoulder[0]+35,shoulder[1]+49),(hip[0]+31,hip[1]-5)],INK,5)
-        d.ellipse((head[0]-29,head[1]-29,head[0]+29,head[1]+29),fill='#fffdf7',outline=INK,width=4)
-        dot((head[0]+10,head[1]-4),1.5,INK)
-        line([(head[0]+15,head[1]+9),(head[0]+22,head[1]+9)],INK,2)
-        dot(hip)
-        label='작게 몇 걸음' if stepping else ('편하게 앉기' if t>.76 else '지지하고 일어나기')
+        label=draw_sport(d,t)
     cx,cy=550,370
     d.ellipse((cx-79,cy-79,cx+79,cy+79),fill='#fffdf7',outline='#c2d7cf',width=2)
     if theme == 'back-seated':
@@ -332,11 +346,8 @@ def draw_back(d, theme, t):
         dot((cx,cy),5)
         side_note='발은 바닥에 그대로'
     else:
-        for j,sign in enumerate((-1,1)):
-            dy=-lifts[j]*1.5
-            d.ellipse((cx+sign*22-10,cy-26+dy,cx+sign*22+10,cy+27+dy),fill='#d8e8df',outline=TEAL,width=2)
-        side_note='안정된 의자 지지'
-    fit_text(d,(550,472),label,21,TEAL,True,'mm',212)
+        side_note=SPORT_KEYS[min(int(t*len(SPORT_KEYS)),len(SPORT_KEYS)-1)][2]
+    fit_text(d,(550,472),label,19 if theme=='back-standing' else 21,TEAL,True,'mm',212)
     fit_text(d,(550,510),side_note,18,MUTED,False,'mm',212)
 
 
@@ -358,7 +369,7 @@ def frame(meta, t):
     fit_text(d,(360,652),LOOK[ident][1],25,INK,True,'mm')
     fit_text(d,(360,692),LOOK[ident][2],23,MUTED,False,'mm')
     d.rounded_rectangle((38,734,682,779),radius=12,fill='#f3e0d8')
-    warning='통증 증가·다리 저림·힘 빠짐이 생기면 중단' if ident.startswith('back-') else '통증·저림·어지럼·숨참이 생기면 중단'
+    warning='고강도 · 몸을 데운 뒤 · 통증·저림·어지럼이면 중단' if ident=='back-standing' else '통증 증가·다리 저림·힘 빠짐이 생기면 중단' if ident.startswith('back-') else '통증·저림·어지럼·숨참이 생기면 중단'
     fit_text(d,(360,756),warning,20,'#873e30',False,'mm')
     return im
 
@@ -402,7 +413,7 @@ def main():
     sheet=Image.new('RGB',(1080,400*(len(THEMES)-1)),BG)
     for row,meta in enumerate(THEMES[1:]):
         with Image.open(ROOT/meta['file']) as gif:
-            fractions=(.08,.38,.50) if meta['id']=='back-standing' else (.08,.38,.72)
+            fractions=(.18,.30,.55) if meta['id']=='back-standing' else (.08,.38,.72)
             for col,fraction in enumerate(fractions):
                 elapsed=0
                 for idx in range(gif.n_frames):
@@ -450,8 +461,9 @@ awareness, breathing a soft expanding/contracting circle with a longer outward
 phase, voice a brief closed-lip hum followed by ordinary rest. The original
 stretch preview is not modified. No full yoga/Pilates course is represented.
 back-seated is a small, comfortable pelvic reposition and shoulder relaxation,
-not an ideal-spine correction. back-standing shows chair-supported slow rising,
-a few low steps in place and sitting down without deep bends or twists. Neither
+not an ideal-spine correction. back-standing shows a higher-intensity sports-science
+sequence: warm-up, world's-greatest stretch, Cossack squat, PNF hamstring,
+high knees, skater hops, jumping jacks and cool-down. Neither
 is a back-pain treatment. Stop for increased pain or leg numbness/weakness;
 recent injury/surgery requires clinician advice. Bilateral leg symptoms, loss
 of feeling around the genitals/anus, or bladder/bowel changes need urgent care.
