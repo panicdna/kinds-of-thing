@@ -425,6 +425,22 @@ namespace DeskHooker
                 if (shown!="\"08:15|17:45\"") throw new Exception("Saved hour:minute window is not shown in the inputs: " + shown);
                 result["timeOfDayInputs"]=true;
                 result["settingsRoundTrip"]=true;
+                // Immediate-run button: opens the next theme in saved order right away, regardless of schedule.
+                if (Popup!=null) throw new Exception("A popup was open before the immediate-run check.");
+                if (await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('#run-now'))")!="true") throw new Exception("Immediate-run button is missing.");
+                var runOrder=new List<string>();
+                for (int run=0; run<2; run++)
+                {
+                    await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#run-now').click()");
+                    await Task.Delay(600);
+                    if (Popup==null) throw new Exception("Immediate-run button did not open a popup.");
+                    runOrder.Add(Popup.ThemeId);
+                    await Popup.Ready.Task;
+                    Popup.Close();
+                    await Task.Delay(200);
+                }
+                if (!runOrder.SequenceEqual(new string[]{"meditation","poem"})) throw new Exception("Immediate run did not follow saved theme order: " + String.Join(",",runOrder));
+                result["immediateRunButton"]=true;
                 ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(700);
                 if (Popup.Bounds!=Screen.PrimaryScreen.Bounds) throw new Exception("Popup is not fullscreen.");
                 var active=Popup;
