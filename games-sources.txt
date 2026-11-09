@@ -121,6 +121,14 @@ Returned title: BLACKPINK - '뚜두뚜두 (DDU-DU DDU-DU)' DANCE PRACTICE VIDEO 
 Official company/artist website links to its YouTube channel: [15]
 서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요. 이동 촬영 버전입니다.
 
+ADDED 2026-11-09 (5 more official videos, each verified live via YouTube oEmbed; IDs found in Soompi articles, then confirmed against the official channel)
+- m87Xif9yZb4 | author IVE (https://www.youtube.com/@IVEstarship) | IVE 아이브 'ATTITUDE' DANCE PRACTICE
+- I8BzqbJYIdk | author IVE (https://www.youtube.com/@IVEstarship) | IVE 아이브 '해야(HEYA)' DANCE PRACTICE
+- ZJwC0VYzGIs | author LE SSERAFIM (https://www.youtube.com/@LESSERAFIM_official) | 'CRAZY' Dance Practice (Moving ver.)
+- JipcAMJcOB8 | author LE SSERAFIM (https://www.youtube.com/@LESSERAFIM_official) | 'EASY' Dance Practice (Fix ver.)
+- 8S9rHj7gTsA | author LE SSERAFIM (https://www.youtube.com/@LESSERAFIM_official) | 'UNFORGIVEN (feat. Nile Rodgers)' Dance Practice (Fix ver.)
+Playback speed / A-B loop use the embed's postMessage API (enablejsapi=1); no external script is loaded. Real in-app playback was NOT tested here.
+
 MEDIA LOADING AND RIGHTS
 Links and metadata only. Do not download/rehost videos or music. Only after explicit user selection, open the chosen official URL. If the UI embeds a player, create that iframe only on selection and set autoplay=0; keep an official-link fallback.
 This file does not create an iframe or start audio. Metadata and official-channel identity were checked; actual playback, geographic restrictions, login/cookies, and file:// embedding were NOT tested.

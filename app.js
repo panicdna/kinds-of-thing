@@ -295,14 +295,55 @@
     $('.user-answer').textContent = entered;
     $('.canonical-answer').textContent = quiz.expected;
   }
+  function practiceControls() {
+    const speeds = [0.25, 0.5, 0.75, 1].map(rate => `<button class="quiet" data-rate="${rate}">${rate}×</button>`).join('');
+    return `<div class="practice-panel"><div class="practice-row"><b>속도</b>${speeds}<span id="practice-rate" class="practice-state">1×</span></div><div class="practice-row"><b>구간 반복</b><button class="quiet" id="loop-back">최근 5초 반복</button><button class="quiet" id="loop-a">여기를 시작(A)</button><button class="quiet" id="loop-b">여기를 끝(B)</button><button class="quiet" id="loop-off">반복 끄기</button><span id="practice-loop" class="practice-state">반복 꺼짐</span></div><div class="practice-row"><b>이동</b><button class="quiet" id="seek-back">⏪ 3초</button><button class="quiet" id="seek-fwd">3초 ⏩</button><span id="practice-time" class="practice-state">0:00</span></div></div>`;
+  }
+  // Remote-controls the embedded player over postMessage (enablejsapi=1); no external script is loaded.
+  function bindPractice() {
+    const frame = $('#dance-frame');
+    const origin = 'https://www.youtube-nocookie.com';
+    const state = { time: 0, a: null, b: null, rate: 1 };
+    const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+    const command = (func, args = []) => { if (frame.contentWindow) frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), origin); };
+    const label = () => { $('#practice-loop').textContent = state.a == null ? '반복 꺼짐' : state.b == null ? `A ${fmt(state.a)} 지정됨 · B를 정하세요` : `${fmt(state.a)} ~ ${fmt(state.b)} 반복 중`; };
+    const startListening = () => { if (frame.contentWindow) frame.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), origin); };
+    const onMessage = event => {
+      if (event.origin !== origin || event.source !== frame.contentWindow) return;
+      let data; try { data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch (e) { return; }
+      const info = data && (data.event === 'infoDelivery' ? data.info : data.event === 'initialDelivery' ? data.info : null);
+      if (!info || typeof info.currentTime !== 'number') return;
+      state.time = info.currentTime;
+      $('#practice-time').textContent = fmt(state.time);
+      if (state.a != null && state.b != null && (state.time >= state.b || state.time < state.a - 1)) command('seekTo', [state.a, true]);
+    };
+    window.addEventListener('message', onMessage);
+    frame.addEventListener('load', startListening);
+    const timer = setInterval(startListening, 4000); // re-subscribe in case the player reloaded
+    document.querySelectorAll('[data-rate]').forEach(button => button.addEventListener('click', () => {
+      state.rate = Number(button.dataset.rate); command('setPlaybackRate', [state.rate]); $('#practice-rate').textContent = `${state.rate}×`;
+    }));
+    $('#loop-back').addEventListener('click', () => { state.b = state.time; state.a = Math.max(0, state.time - 5); label(); command('seekTo', [state.a, true]); command('playVideo'); });
+    $('#loop-a').addEventListener('click', () => { state.a = state.time; state.b = null; label(); });
+    $('#loop-b').addEventListener('click', () => {
+      if (state.a == null) { toast('먼저 시작(A) 지점을 정하세요.'); return; }
+      if (state.time <= state.a + 0.5) { toast('끝(B)은 시작(A)보다 뒤여야 합니다.'); return; }
+      state.b = state.time; label(); command('seekTo', [state.a, true]);
+    });
+    $('#loop-off').addEventListener('click', () => { state.a = state.b = null; label(); });
+    $('#seek-back').addEventListener('click', () => command('seekTo', [Math.max(0, state.time - 3), true]));
+    $('#seek-fwd').addEventListener('click', () => command('seekTo', [state.time + 3, true]));
+    return () => { clearInterval(timer); window.removeEventListener('message', onMessage); };
+  }
   function renderDances() {
     const dances = content.dances || [];
     $('#popup-stage').innerHTML = `<div class="dance-note">서서 하는 원본 안무입니다. 책상·의자와 거리를 두고 공간을 확보하세요. 점프나 깊은 굽힘이 부담되면 보기만 하거나 다른 주제로 바꾸세요. 허리 통증이 있으면 저강도 자세 전환을 먼저 고르세요.<br>공식 영상을 직접 눌렀을 때만 인터넷에 연결합니다. 자동 재생·자동 소리 재생은 하지 않아요.</div><div class="dance-grid">${dances.map((dance, index) => `<article class="dance-card"><div class="dance-art">${['♫', '♪', '♬'][index % 3]}</div><div class="eyebrow" style="margin-top:18px">${escape(dance.artist)}</div><h2>${escape(dance.title)}</h2><p>${escape(dance.note || '공식 채널의 안무 영상을 보고 원본 동작을 확인하세요.')}</p><button class="primary" data-dance="${index}">이 창에서 공식 영상 보기 ▶</button><button class="quiet" data-video-link="${index}">브라우저에서 열기 ↗</button></article>`).join('')}</div>${!dances.length ? '<div class="error-panel">공식 안무 영상의 출처를 검증하지 못해 임의 링크를 넣지 않았습니다.</div>' : ''}`;
     document.querySelectorAll('[data-dance]').forEach(button => button.addEventListener('click', () => {
       const dance = dances[Number(button.dataset.dance)];
       if (!/^[a-zA-Z0-9_-]{11}$/.test(dance.youtubeId)) { toast('검증된 영상 ID가 없습니다. 공식 링크로 열어 주세요.'); return; }
-      $('#popup-stage').innerHTML = `<button id="video-back" class="secondary video-back">← 다른 공식 영상 고르기</button><iframe class="video-player" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=0&rel=0" referrerpolicy="strict-origin-when-cross-origin" allow="encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe><p class="small-help">영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다.</p><button id="video-external" class="secondary">공식 영상 브라우저에서 열기 ↗</button>`;
-      $('#video-back').addEventListener('click', renderDances);
+      $('#popup-stage').innerHTML = `<button id="video-back" class="secondary video-back">← 다른 공식 영상 고르기</button><iframe id="dance-frame" class="video-player" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=0&rel=0&enablejsapi=1" referrerpolicy="strict-origin-when-cross-origin" allow="encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>${practiceControls()}<p class="small-help">영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다. 속도·구간 반복은 영상 재생기를 원격 조작하는 것이며, 반응이 없으면 영상 안의 ⚙ 메뉴에서 직접 바꿀 수 있습니다.</p><button id="video-external" class="secondary">공식 영상 브라우저에서 열기 ↗</button>`;
+      const stopPractice = bindPractice();
+      $('#video-back').addEventListener('click', () => { stopPractice(); renderDances(); });
       $('#video-external').addEventListener('click', () => send('open-link', { url: dance.url }));
     }));
     document.querySelectorAll('[data-video-link]').forEach(button => button.addEventListener('click', () => send('open-link', { url: dances[Number(button.dataset.videoLink)].url })));

@@ -384,9 +384,17 @@ namespace DeskHooker
                 if (Int32.Parse(count)!=Themes.Length) throw new Exception("Theme cards are missing.");
                 result["themeCards"]=Themes.Length;
                 await Capture(SettingsWindow,Path.Combine(folder,"settings.png"));
-                await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#interval').value='30'; document.querySelectorAll('input[name=theme]').forEach(x=>x.checked=['meditation','poem'].includes(x.value)); document.querySelector('#start-reminders').click();");
+                int beforeStartH=Settings.StartHour, beforeStartM=Settings.StartMinute, beforeEndH=Settings.EndHour, beforeEndM=Settings.EndMinute;
+                await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#start-time').value='10:30'; document.querySelector('#end-time').value='10:15'; document.querySelector('#start-reminders').click();");
+                await Task.Delay(400);
+                if (Settings.StartHour!=beforeStartH || Settings.StartMinute!=beforeStartM || Settings.EndHour!=beforeEndH || Settings.EndMinute!=beforeEndM || Settings.Enabled) throw new Exception("End time earlier than start time was accepted.");
+                await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#interval').value='30'; document.querySelector('#start-time').value='08:15'; document.querySelector('#end-time').value='17:45'; document.querySelectorAll('input[name=theme]').forEach(x=>x.checked=['meditation','poem'].includes(x.value)); document.querySelector('#start-reminders').click();");
                 await Task.Delay(400);
                 if (Settings.IntervalMinutes!=30 || !Settings.Enabled || !Settings.ThemeIds.SequenceEqual(new string[]{"meditation","poem"})) throw new Exception("Saving interval/theme settings failed.");
+                if (Settings.StartHour!=8 || Settings.StartMinute!=15 || Settings.EndHour!=17 || Settings.EndMinute!=45) throw new Exception("Hour:minute window was not saved.");
+                string shown=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#start-time').value+'|'+document.querySelector('#end-time').value");
+                if (shown!="\"08:15|17:45\"") throw new Exception("Saved hour:minute window is not shown in the inputs: " + shown);
+                result["timeOfDayInputs"]=true;
                 result["settingsRoundTrip"]=true;
                 ShowPopup("stretch"); await Popup.Ready.Task; await Task.Delay(700);
                 if (Popup.Bounds!=Screen.PrimaryScreen.Bounds) throw new Exception("Popup is not fullscreen.");
