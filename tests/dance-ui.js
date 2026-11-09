@@ -19,7 +19,7 @@
 
     $('[data-dance="0"]').click();
     const frame = $('#dance-frame');
-    check(frame && frame.src.startsWith(ORIGIN + '/embed/' + dances[0].youtubeId) && frame.src.includes('enablejsapi=1') && frame.src.includes('autoplay=0'), 'Player URL is not the no-cookie embed with the JS API and autoplay off');
+    check(frame && frame.src.startsWith(ORIGIN + '/embed/' + dances[0].youtubeId) && frame.src.includes('enablejsapi=1') && frame.src.includes('autoplay=1'), 'Player URL is not the no-cookie embed with the JS API and autoplay on');
     check($('#practice-rate') && $('#loop-back') && $('#loop-a') && $('#loop-b') && $('#loop-off'), 'Practice controls are missing');
 
     document.querySelector('[data-rate="0.5"]').click();

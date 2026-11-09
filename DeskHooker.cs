@@ -523,16 +523,16 @@ namespace DeskHooker
                 // "일어나 움직이기" also has a sub-item list: 4 videos first, the original picture last.
                 ShowPopup("back-standing"); await Popup.Ready.Task; await Task.Delay(500);
                 var standCdp=Popup.Browser.CoreWebView2;
-                if (await standCdp.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="5") throw new Exception("Standing sub-item list should have 5 items.");
-                string[] standIds={"N-V53dmXJ9M","qB7oUZeiV98","exQ8fzkiZjg","uw1aUHnMfo8"};
-                for (int v=0; v<4; v++)
+                if (await standCdp.ExecuteScriptAsync("document.querySelectorAll('[data-variant]').length")!="7") throw new Exception("Standing sub-item list should have 7 items.");
+                string[] standIds={"N-V53dmXJ9M","qB7oUZeiV98","exQ8fzkiZjg","uw1aUHnMfo8","EF_jq5ZaZMI","EN6IpNi45_E"};
+                for (int v=0; v<6; v++)
                 {
                     await standCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\""+v+"\"]').click()");
                     await Task.Delay(300);
                     string standSrc=await standCdp.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
                     if (!standSrc.Contains("youtube-nocookie.com/embed/"+standIds[v])) throw new Exception("Standing item #"+(v+1)+" did not embed its video: "+standSrc);
                 }
-                await standCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\"4\"]').click()");
+                await standCdp.ExecuteScriptAsync("document.querySelector('[data-variant=\"6\"]').click()");
                 await Task.Delay(400);
                 if (await standCdp.ExecuteScriptAsync("Boolean(document.querySelector('.motion-image'))")!="true") throw new Exception("Standing original picture did not show.");
                 Popup.Close(); await Task.Delay(300);

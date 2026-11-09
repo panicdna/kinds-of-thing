@@ -32,6 +32,8 @@ window.THEME_VARIANTS = {
     { id: 'yt-qB7oUZeiV98', type: 'video', title: '의자 하나로 고관절 움직임 따라 하기', author: '1분재활 | 물리치료사 우주쌤', youtubeId: 'qB7oUZeiV98', url: 'https://www.youtube.com/shorts/qB7oUZeiV98' },
     { id: 'yt-exQ8fzkiZjg', type: 'video', title: '간단한 하체 운동 · 의자를 이용한 틈새 운동', author: '더셈 플레이 THESEM PLAY', youtubeId: 'exQ8fzkiZjg', url: 'https://www.youtube.com/shorts/exQ8fzkiZjg' },
     { id: 'yt-uw1aUHnMfo8', type: 'video', wide: true, title: '10분! 서서 하는 전신 스트레칭', author: '필라테스하는 물리치료사,람PT', youtubeId: 'uw1aUHnMfo8', url: 'https://www.youtube.com/watch?v=uw1aUHnMfo8' },
+    { id: 'yt-EF_jq5ZaZMI', type: 'video', wide: true, title: '서서 하는 8분 복근운동 · 매트 없이 하는 홈트', author: '홈트마미', youtubeId: 'EF_jq5ZaZMI', url: 'https://www.youtube.com/watch?v=EF_jq5ZaZMI' },
+    { id: 'yt-EN6IpNi45_E', type: 'video', wide: true, title: '태극권 30분 (30-Min Tai Chi)', author: 'Tai Chi for Health Daily', youtubeId: 'EN6IpNi45_E', url: 'https://www.youtube.com/watch?v=EN6IpNi45_E' },
     { id: 'basic', type: 'gif', title: '기본 · 일어나 움직이기 그림', author: '' }
   ]
 };

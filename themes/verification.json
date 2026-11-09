@@ -21,19 +21,6 @@
       "unique_frames": 40
     },
     {
-      "file": "themes/yoga.gif",
-      "size": [
-        720,
-        800
-      ],
-      "frames": 48,
-      "duration_ms": 7680,
-      "loop": 0,
-      "bytes": 1026977,
-      "sha256": "929bc1411b9924156c5530e85cb445d68f47eedbe2b62eed9eb566a668ba6323",
-      "unique_frames": 48
-    },
-    {
       "file": "themes/pilates.gif",
       "size": [
         720,

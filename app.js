@@ -11,7 +11,7 @@
   const poemCategories = { lyric: '서정시', song: '노랫말', nobel: '노벨 문학상' };
   let state, breathTimer = null, breathStart = 0, quiz = null, selectedPoemId = '';
   const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch'], Enabled: false, StartAtLogin: false, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'ordered-one' };
-  const symbols = { stretch: '↟', meditation: '◌', yoga: '♧', pilates: '↥', core: '◎', breathing: '≈', voice: '♪', 'back-seated': '↕', 'back-standing': '↗', dance: '♫', poem: '文' };
+  const symbols = { stretch: '↟', meditation: '◌', pilates: '↥', core: '◎', breathing: '≈', voice: '♪', 'back-seated': '↕', 'back-standing': '↗', dance: '♫', poem: '文' };
   const themeModes = [
     { id: 'sequential-all', label: '모두 순서대로', help: '알림이 오면 고른 쉼을 목록 순서대로 전부, 하나가 끝나면 이어서' },
     { id: 'random-all', label: '모두 무작위 순서로', help: '알림이 오면 고른 쉼을 전부, 순서를 섞어서 이어서' },
@@ -440,7 +440,7 @@
     document.querySelectorAll('[data-dance]').forEach(button => button.addEventListener('click', () => {
       const dance = dances[Number(button.dataset.dance)];
       if (!/^[a-zA-Z0-9_-]{11}$/.test(dance.youtubeId)) { toast('검증된 영상 ID가 없습니다. 공식 링크로 열어 주세요.'); return; }
-      $('#popup-stage').innerHTML = `<button id="video-back" class="secondary video-back">← 다른 공식 영상 고르기</button><iframe id="dance-frame" class="video-player" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=0&rel=0&enablejsapi=1" referrerpolicy="strict-origin-when-cross-origin" allow="encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>${practiceControls()}<p class="small-help">영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다. 속도·구간 반복은 영상 재생기를 원격 조작하는 것이며, 반응이 없으면 영상 안의 ⚙ 메뉴에서 직접 바꿀 수 있습니다.</p><button id="video-external" class="secondary">공식 영상 브라우저에서 열기 ↗</button>`;
+      $('#popup-stage').innerHTML = `<button id="video-back" class="secondary video-back">← 다른 공식 영상 고르기</button><iframe id="dance-frame" class="video-player" title="${escape(dance.title)}" src="https://www.youtube-nocookie.com/embed/${dance.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>${practiceControls()}<p class="small-help">영상이 임베드를 허용하지 않으면 아래 공식 링크로 여세요. 원본을 내려받거나 재편집하지 않습니다. 속도·구간 반복은 영상 재생기를 원격 조작하는 것이며, 반응이 없으면 영상 안의 ⚙ 메뉴에서 직접 바꿀 수 있습니다.</p><button id="video-external" class="secondary">공식 영상 브라우저에서 열기 ↗</button>`;
       const stopPractice = bindPractice();
       $('#video-back').addEventListener('click', () => { stopPractice(); renderDances(); });
       $('#video-external').addEventListener('click', () => send('open-link', { url: dance.url }));

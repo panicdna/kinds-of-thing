@@ -45,14 +45,6 @@ THEMES = [
                        '원의 움직임에 호흡을 맞추거나 더 깊게 쉴 필요는 없어요.'],
          safety=COMMON+' 눈 감기가 불편하면 눈을 뜬 채 주변을 보세요.',
          file='themes/meditation.gif'),
-    dict(id='yoga', name='의자 요가 · 가볍게 뻗기',
-         summary='앉은 자세에서 팔을 편하게 올리고 옆으로 조금 기울이는 요가 느낌의 동작입니다.',
-         instructions=['양발과 양쪽 엉덩이를 고정하고 편히 앉아요.',
-                       '양팔은 어깨가 편한 높이까지만 천천히 올려요.',
-                       '몸통을 왼쪽과 오른쪽으로 조금 기울였다 가운데로 돌아와요.',
-                       '팔 올리기가 불편하면 손을 허벅지에 두고 생략해요.'],
-         safety=COMMON+' 정식 요가 수업이 아닙니다. 허리를 젖히거나 어깨를 억지로 올리지 마세요.',
-         file='themes/yoga.gif'),
     dict(id='pilates', name='필라테스 느낌 · 자세 인식',
          summary='허리를 젖히지 않고 편하게 길어진 자세와 어깨뼈 움직임을 느끼는 초보용 미리보기입니다.',
          instructions=['골반을 의자에 두고 머리 위가 편하게 길어지는 느낌으로 앉아요.',
@@ -103,11 +95,10 @@ THEMES = [
          file='themes/voice.gif'),
 ]
 
-ORDER = ['stretch','meditation','yoga','pilates','core','breathing','voice','back-seated','back-standing']
+ORDER = ['stretch','meditation','pilates','core','breathing','voice','back-seated','back-standing']
 THEMES.sort(key=lambda item: ORDER.index(item['id']))
 LOOK = {
     'meditation': ('#e4f1eb', '자연스러운 숨에 주의를 두어요', '손은 허벅지에 · 호흡은 그대로', '관찰', '돌아오기'),
-    'yoga': ('#e8eef8', '팔은 편한 높이 · 옆으로 조금만', '양쪽 엉덩이는 계속 의자에', '가운데', '옆으로 살짝'),
     'pilates': ('#f9ebdf', '팔꿈치를 조금 뒤로 · 다시 편하게', '허리를 젖히지 않고 평소처럼 호흡', '편히 길게', '가볍게 풀기'),
     'core': ('#e4f1eb', '자연스러운 날숨에 아주 약한 힘', '숨을 멈추지 말고 · 힘은 바로 풀어요', '감각 느끼기', '아주 약하게'),
     'breathing': ('#e8eef8', '편한 만큼 들이쉬고 · 여유 있게 내쉬기', '숨 참기 없이 · 자신의 속도로', '부드러운 들숨', '느긋한 날숨'),
