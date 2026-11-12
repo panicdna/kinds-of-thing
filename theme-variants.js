@@ -30,16 +30,13 @@ window.THEME_VARIANTS = {
   // 릴렉스 음향: sound-only relaxation, shown as a video.
   relax: [
     { id: 'yt-5yApImDt_Fk', type: 'video', title: '릴렉스 음향 · 양측 음향 릴렉스 뮤직', author: 'octowave: Sleep, Focus & Bible', youtubeId: '5yApImDt_Fk', url: 'https://www.youtube.com/shorts/5yApImDt_Fk' },
-    { id: 'yt-srz5h0UQ6tc', type: 'video', title: '10분 명상 음악', author: '힐링위드사운드', youtubeId: 'srz5h0UQ6tc', url: 'https://www.youtube.com/shorts/srz5h0UQ6tc' },
     { id: 'yt-Yma-nUogjao', type: 'video', title: '4-2-6 호흡법', author: '가치요가 Gachi Yoga', youtubeId: 'Yma-nUogjao', url: 'https://www.youtube.com/shorts/Yma-nUogjao' }
   ],
   // 요리 레시피: a short cooking video as a break.
   recipe: [
     { id: 'yt-s10KwYn064E', type: 'video', title: '양배추 오코노미야끼 (노밀가루)', author: '혹시PICK', youtubeId: 's10KwYn064E', url: 'https://www.youtube.com/shorts/s10KwYn064E' },
     { id: 'yt-Rjfzpzj3bug', type: 'video', title: '알배추 레시피', author: '1분다이어터 1mindiet', youtubeId: 'Rjfzpzj3bug', url: 'https://www.youtube.com/shorts/Rjfzpzj3bug' },
-    { id: 'yt-kLT591PuXB4', type: 'video', wide: true, title: '감자와 두부 후라이팬 레시피', author: '메리니즈부엌Meliniskitchen', youtubeId: 'kLT591PuXB4', url: 'https://www.youtube.com/watch?v=kLT591PuXB4' },
-    { id: 'yt-X8oI4ULOELE', type: 'video', title: '감자와 계란 요리', author: '정미야밥먹자 jungmi Kitchen', youtubeId: 'X8oI4ULOELE', url: 'https://www.youtube.com/shorts/X8oI4ULOELE' },
-    { id: 'yt-iW92Cxhg9h0', type: 'video', title: '감자계란국 레시피', author: '추추의 한끼식사', youtubeId: 'iW92Cxhg9h0', url: 'https://www.youtube.com/shorts/iW92Cxhg9h0' }
+    { id: 'yt-kLT591PuXB4', type: 'video', wide: true, title: '감자와 두부 후라이팬 레시피', author: '메리니즈부엌Meliniskitchen', youtubeId: 'kLT591PuXB4', url: 'https://www.youtube.com/watch?v=kLT591PuXB4' }
   ],
   // Voice: the original picture/timer is replaced by this video.
   voice: [
@@ -60,7 +57,10 @@ window.THEME_VARIANTS = {
     { id: 'yt-exQ8fzkiZjg', type: 'video', title: '간단한 하체 운동 · 의자를 이용한 틈새 운동', author: '더셈 플레이 THESEM PLAY', youtubeId: 'exQ8fzkiZjg', url: 'https://www.youtube.com/shorts/exQ8fzkiZjg' },
     { id: 'yt-uw1aUHnMfo8', type: 'video', wide: true, title: '10분! 서서 하는 전신 스트레칭', author: '필라테스하는 물리치료사,람PT', youtubeId: 'uw1aUHnMfo8', url: 'https://www.youtube.com/watch?v=uw1aUHnMfo8' },
     { id: 'yt-EF_jq5ZaZMI', type: 'video', wide: true, title: '서서 하는 8분 복근운동 · 매트 없이 하는 홈트', author: '홈트마미', youtubeId: 'EF_jq5ZaZMI', url: 'https://www.youtube.com/watch?v=EF_jq5ZaZMI' },
-    { id: 'yt-EN6IpNi45_E', type: 'video', wide: true, title: '태극권 30분 (30-Min Tai Chi)', author: 'Tai Chi for Health Daily', youtubeId: 'EN6IpNi45_E', url: 'https://www.youtube.com/watch?v=EN6IpNi45_E' },
-    { id: 'basic', type: 'gif', title: '기본 · 일어나 움직이기 그림', author: '' }
+    { id: 'yt-EN6IpNi45_E', type: 'video', wide: true, title: '태극권 30분 (30-Min Tai Chi)', author: 'Tai Chi for Health Daily', youtubeId: 'EN6IpNi45_E', url: 'https://www.youtube.com/watch?v=EN6IpNi45_E' }
+  ],
+  // 퇴근버스: 퇴근길 버스 창밖 풍경 — 감상용 가로 영상.
+  'bus-home': [
+    { id: 'yt-TiA5TiaGScY', type: 'video', wide: true, title: '퇴근길 버스 안 풍경 (Homebound Bus)', author: '', youtubeId: 'TiA5TiaGScY', url: 'https://www.youtube.com/watch?v=TiA5TiaGScY' }
   ]
 };
