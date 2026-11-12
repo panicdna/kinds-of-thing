@@ -21,7 +21,7 @@ internal static class ReminderCoreTests
         Run("Next_AddsDefaultInterval", Next_AddsDefaultInterval);
         Run("Next_UsesMinutesAndPreservesPrecisionAndKind", Next_UsesMinutesAndPreservesPrecisionAndKind);
         Run("Next_ClampsBeforeStartToNine", Next_ClampsBeforeStartToNine);
-        Run("Next_AddsIntervalBeforeClamping", Next_AddsIntervalBeforeClamping);
+        Run("Next_BeforeStartTakesFirstSlot", Next_BeforeStartTakesFirstSlot);
         Run("Next_EndIsExclusive", Next_EndIsExclusive);
         Run("Next_AfterHoursUsesNextDayStart", Next_AfterHoursUsesNextDayStart);
         Run("Next_UsesCustomHours", Next_UsesCustomHours);
@@ -54,7 +54,15 @@ internal static class ReminderCoreTests
         Run("VariantModes_DefaultsToEmptyAndOldConfigsStillLoad", VariantModes_DefaultsToEmptyAndOldConfigsStillLoad);
         Run("VariantModes_ValidateAcceptsRandomAndSequentialOnly", VariantModes_ValidateAcceptsRandomAndSequentialOnly);
         Run("VariantModes_JavaScriptSerializerRoundTrip", VariantModes_JavaScriptSerializerRoundTrip);
+        Run("LoopModes_DefaultsToEmptyAndOldConfigsStillLoad", LoopModes_DefaultsToEmptyAndOldConfigsStillLoad);
+        Run("LoopModes_ValidateAcceptsOnAndOffOnly", LoopModes_ValidateAcceptsOnAndOffOnly);
+        Run("LoopModes_JavaScriptSerializerRoundTrip", LoopModes_JavaScriptSerializerRoundTrip);
+        Run("Schedules_DefaultsToEmptyAndOldConfigsStillLoad", Schedules_DefaultsToEmptyAndOldConfigsStillLoad);
+        Run("Schedules_TryParseClockAcceptsDayTimesOnly", Schedules_TryParseClockAcceptsDayTimesOnly);
+        Run("Schedules_ValidateAcceptsKnownCardsWithDayTimes", Schedules_ValidateAcceptsKnownCardsWithDayTimes);
+        Run("Schedules_TimeOnlySelectionIsValidAndRoundTrips", Schedules_TimeOnlySelectionIsValidAndRoundTrips);
         Run("ThemeMode_DefaultsToOrderedOne", ThemeMode_DefaultsToOrderedOne);
+        Run("DefaultPreset_MatchesTheAnnouncedPreset", DefaultPreset_MatchesTheAnnouncedPreset);
         Run("ThemeMode_ValidateAcceptsAllFourAndRejectsOthers", ThemeMode_ValidateAcceptsAllFourAndRejectsOthers);
         Run("PlanRound_SequentialAllKeepsListOrder", PlanRound_SequentialAllKeepsListOrder);
         Run("PlanRound_RandomAllIsPermutationAndAvoidsPrevious", PlanRound_RandomAllIsPermutationAndAvoidsPrevious);
@@ -89,6 +97,41 @@ internal static class ReminderCoreTests
         InvalidSettings("Validate_RejectsHoldAbove30", delegate(ReminderSettings settings) { settings.HoldSeconds = 31; });
         InvalidSettings("Validate_RejectsExhaleZero", delegate(ReminderSettings settings) { settings.ExhaleSeconds = 0; });
         InvalidSettings("Validate_RejectsExhaleAbove30", delegate(ReminderSettings settings) { settings.ExhaleSeconds = 31; });
+        Run("Validate_AcceptsKnoxLeadMinutesMinimum", delegate { Validate(new ReminderSettings { KnoxLeadMinutes = 0 }, KnownThemes()); });
+        Run("Validate_AcceptsKnoxLeadMinutesMaximum", delegate { Validate(new ReminderSettings { KnoxLeadMinutes = 60 }, KnownThemes()); });
+        InvalidSettings("Validate_RejectsKnoxLeadMinutesNegative", delegate(ReminderSettings settings) { settings.KnoxLeadMinutes = -1; });
+        InvalidSettings("Validate_RejectsKnoxLeadMinutesAbove60", delegate(ReminderSettings settings) { settings.KnoxLeadMinutes = 61; });
+        Run("Validate_AcceptsEveryKnoxAutoCloseMode", delegate
+        {
+            foreach (string mode in new string[] { ReminderSettings.KnoxAutoCloseNone, ReminderSettings.KnoxAutoCloseStart, ReminderSettings.KnoxAutoCloseAfter, ReminderSettings.KnoxAutoCloseEnd })
+                Validate(new ReminderSettings { KnoxAutoClose = mode }, KnownThemes());
+        });
+        InvalidSettings("Validate_RejectsUnknownKnoxAutoClose", delegate(ReminderSettings settings) { settings.KnoxAutoClose = "later"; });
+        InvalidSettings("Validate_RejectsNullKnoxAutoClose", delegate(ReminderSettings settings) { settings.KnoxAutoClose = null; });
+        InvalidSettings("Validate_RejectsKnoxAutoCloseMinutesZero", delegate(ReminderSettings settings) { settings.KnoxAutoCloseMinutes = 0; });
+        InvalidSettings("Validate_RejectsKnoxAutoCloseMinutesAbove240", delegate(ReminderSettings settings) { settings.KnoxAutoCloseMinutes = 241; });
+        Run("Validate_AcceptsIdleMinutesBounds", delegate
+        {
+            Validate(new ReminderSettings { PauseWhenIdle = true, IdleMinutes = 1 }, KnownThemes());
+            Validate(new ReminderSettings { PauseWhenIdle = true, IdleMinutes = 240 }, KnownThemes());
+        });
+        InvalidSettings("Validate_RejectsIdleMinutesZero", delegate(ReminderSettings settings) { settings.IdleMinutes = 0; });
+        InvalidSettings("Validate_RejectsIdleMinutesAbove240", delegate(ReminderSettings settings) { settings.IdleMinutes = 241; });
+        Run("Away_OffByDefaultAndOnlyTripsAtTheThreshold", delegate
+        {
+            Equal(false, ReminderSchedule.IsAway(TimeSpan.FromMinutes(999), new ReminderSettings()), "Off by default");
+            Equal(false, ReminderSchedule.IsAway(TimeSpan.FromMinutes(9), new ReminderSettings { PauseWhenIdle = true, IdleMinutes = 10 }), "Just under the threshold is not away");
+            Equal(true, ReminderSchedule.IsAway(TimeSpan.FromMinutes(10), new ReminderSettings { PauseWhenIdle = true, IdleMinutes = 10 }), "At the threshold counts as away");
+            Equal(true, ReminderSchedule.IsAway(TimeSpan.FromMinutes(11), new ReminderSettings { PauseWhenIdle = true, IdleMinutes = 10 }), "Past the threshold is away");
+        });
+        Run("Validate_AcceptsEveryAppearance", delegate
+        {
+            Validate(new ReminderSettings { Appearance = ReminderSettings.AppearanceLight }, KnownThemes());
+            Validate(new ReminderSettings { Appearance = ReminderSettings.AppearanceDark }, KnownThemes());
+            Validate(new ReminderSettings { Appearance = ReminderSettings.AppearanceSystem }, KnownThemes());
+        });
+        InvalidSettings("Validate_RejectsUnknownAppearance", delegate(ReminderSettings settings) { settings.Appearance = "auto"; });
+        InvalidSettings("Validate_RejectsNullAppearance", delegate(ReminderSettings settings) { settings.Appearance = null; });
         Run("Validate_RejectsNullSettings", delegate
             { ThrowsArgument(delegate { Validate(null, KnownThemes()); }, "Null settings"); });
         Run("Validate_RejectsNullCatalog", delegate
@@ -116,18 +159,13 @@ internal static class ReminderCoreTests
         Run("Settings_PartialJsonRetainsConstructorDefaults", Settings_PartialJsonRetainsConstructorDefaults);
         Run("Api_ExactPublicScheduleSignatures", Api_ExactPublicScheduleSignatures);
         Run("Next_MinimumAndMaximumIntervalsAreMinutes", Next_MinimumAndMaximumIntervalsAreMinutes);
+        Run("Next_AbsoluteTimetableStaysOnTheGrid", Next_AbsoluteTimetableStaysOnTheGrid);
         Run("Next_CrossesYearBoundary", Next_CrossesYearBoundary);
         Run("Next_AlwaysChoosesEarliestAllowedCandidate", Next_AlwaysChoosesEarliestAllowedCandidate);
         Run("Community_AcceptsValidItem", Community_AcceptsValidItem);
         Run("Community_RejectsMarkupLinksAndBadIds", Community_RejectsMarkupLinksAndBadIds);
         Run("Community_EnforcesLimits", Community_EnforcesLimits);
         Run("Community_RejectsUnknownSchemaAndNonObjects", Community_RejectsUnknownSchemaAndNonObjects);
-        Run("CardTimes_ParseClockIsStrict24Hour", CardTimes_ParseClockIsStrict24Hour);
-        Run("CardTimes_FiresOnceWhenTheSecondIsPassed", CardTimes_FiresOnceWhenTheSecondIsPassed);
-        Run("CardTimes_OnlyEnabledKnownCardsOnAllowedDays", CardTimes_OnlyEnabledKnownCardsOnAllowedDays);
-        Run("CardTimes_IgnoreWindowAndBreakButNotPause", CardTimes_IgnoreWindowAndBreakButNotPause);
-        Run("CardTimes_NoBurstAfterALongGapAndOrderedAcrossMidnight", CardTimes_NoBurstAfterALongGapAndOrderedAcrossMidnight);
-        Run("CardTimes_ValidateAndEmptyRotation", CardTimes_ValidateAndEmptyRotation);
         Run("Break_IsOffByDefaultAndChangesNothing", Break_IsOffByDefaultAndChangesNothing);
         Run("Break_PostponesAReminderThatLandsInsideIt", Break_PostponesAReminderThatLandsInsideIt);
         Run("Break_StartIsInsideEndIsOutside", Break_StartIsInsideEndIsOutside);
@@ -135,11 +173,54 @@ internal static class ReminderCoreTests
         Run("Break_WorksWithoutAWindowAndOnWeekends", Break_WorksWithoutAWindowAndOnWeekends);
         Run("Break_IsAllowedHonoursTheBreak", Break_IsAllowedHonoursTheBreak);
         Run("Break_ValidateRejectsBadRanges", Break_ValidateRejectsBadRanges);
+        Run("Breaks_ListSuppliesSeveralQuietPeriods", Breaks_ListSuppliesSeveralQuietPeriods);
+        Run("Breaks_EmptyListMeansNoQuietPeriod", Breaks_EmptyListMeansNoQuietPeriod);
+        Run("Breaks_ValidateRejectsCoverageByTwoBreaks", Breaks_ValidateRejectsCoverageByTwoBreaks);
+        Run("Breaks_ValidateRejectsTooManyEntries", Breaks_ValidateRejectsTooManyEntries);
         Run("Community_AcceptsYouTubeVideoIds", Community_AcceptsYouTubeVideoIds);
         Run("Community_RejectsBadVideos", Community_RejectsBadVideos);
         Run("Community_VideoOnlyItemMayOmitInstructions", Community_VideoOnlyItemMayOmitInstructions);
         Run("Community_IconMustBeOneOfTheOfferedSymbols", Community_IconMustBeOneOfTheOfferedSymbols);
         Run("Community_IdIndexIsReservedForTheListFile", Community_IdIndexIsReservedForTheListFile);
+        Run("Calendar_ParseIcsReadsUidTitleAndLocalStart", Calendar_ParseIcsReadsUidTitleAndLocalStart);
+        Run("Calendar_ParseIcsConvertsUtcToLocal", Calendar_ParseIcsConvertsUtcToLocal);
+        Run("Calendar_ParseIcsSkipsIncompleteEvents", Calendar_ParseIcsSkipsIncompleteEvents);
+        Run("Calendar_ParseIcsUnescapesSummary", Calendar_ParseIcsUnescapesSummary);
+        Run("Calendar_ParseIcsOfEmptyOrNullTextIsEmpty", Calendar_ParseIcsOfEmptyOrNullTextIsEmpty);
+        Run("Calendar_DueEntriesFiresWithinLeadWindow", Calendar_DueEntriesFiresWithinLeadWindow);
+        Run("Calendar_DueEntriesNotYetDueIsExcluded", Calendar_DueEntriesNotYetDueIsExcluded);
+        Run("Calendar_DueEntriesAfterStartIsExcluded", Calendar_DueEntriesAfterStartIsExcluded);
+        Run("Calendar_DueEntriesAlreadyFiredIsExcluded", Calendar_DueEntriesAlreadyFiredIsExcluded);
+        Run("Calendar_DueEntriesRescheduledMeetingIsDueAgain", Calendar_DueEntriesRescheduledMeetingIsDueAgain);
+        Run("Calendar_DueEntriesRejectsNullArguments", Calendar_DueEntriesRejectsNullArguments);
+        Run("Calendar_ParseIcsReadsOptionalEnd", Calendar_ParseIcsReadsOptionalEnd);
+        Run("KnoxSync_AppendLogTrimsToTheLimitKeepingNewest", KnoxSync_AppendLogTrimsToTheLimitKeepingNewest);
+        Run("KnoxSync_AppendLogRejectsNullArguments", KnoxSync_AppendLogRejectsNullArguments);
+        Run("KnoxSync_FirstLineSkipsBlanksAndTruncates", KnoxSync_FirstLineSkipsBlanksAndTruncates);
+        Run("KnoxSync_ParseSchedulesReadsSubjectStartAndScheduleId", KnoxSync_ParseSchedulesReadsSubjectStartAndScheduleId);
+        Run("KnoxSync_ParseSchedulesEndIsOptional", KnoxSync_ParseSchedulesEndIsOptional);
+        Run("KnoxSync_BuildIcsWritesEndWhenPresentAndOmitsItWhenNot", KnoxSync_BuildIcsWritesEndWhenPresentAndOmitsItWhenNot);
+        Run("KnoxSync_ParseSchedulesIgnoresAttendeesAndOtherFields", KnoxSync_ParseSchedulesIgnoresAttendeesAndOtherFields);
+        Run("KnoxSync_ParseSchedulesSkipsEntriesMissingSubjectOrStart", KnoxSync_ParseSchedulesSkipsEntriesMissingSubjectOrStart);
+        Run("KnoxSync_ParseSchedulesOfEmptyArrayIsEmpty", KnoxSync_ParseSchedulesOfEmptyArrayIsEmpty);
+        Run("KnoxSync_ParseSchedulesRejectsMissingSchedulesArray", KnoxSync_ParseSchedulesRejectsMissingSchedulesArray);
+        Run("KnoxSync_ParseSchedulesRejectsInvalidJson", KnoxSync_ParseSchedulesRejectsInvalidJson);
+        Run("KnoxSync_ParseSchedulesRejectsNullOrEmptyJson", KnoxSync_ParseSchedulesRejectsNullOrEmptyJson);
+        Run("KnoxSync_ToDtStampConvertsOffsetAndUtcTimes", KnoxSync_ToDtStampConvertsOffsetAndUtcTimes);
+        Run("KnoxSync_ToDtStampRejectsAllDayAndUnreadableStarts", KnoxSync_ToDtStampRejectsAllDayAndUnreadableStarts);
+        Run("KnoxSync_StartDisplayShowsWallClockForOffsetStarts", KnoxSync_StartDisplayShowsWallClockForOffsetStarts);
+        Run("KnoxSync_StartDisplayConvertsUtcZStartsToPcLocalTime", KnoxSync_StartDisplayConvertsUtcZStartsToPcLocalTime);
+        Run("KnoxSync_SummarizeSchedulesListsTimesAndSubjects", KnoxSync_SummarizeSchedulesListsTimesAndSubjects);
+        Run("KnoxSync_SummarizeSchedulesShowsSubjectOnlyWithoutAClockTime", KnoxSync_SummarizeSchedulesShowsSubjectOnlyWithoutAClockTime);
+        Run("KnoxSync_SummarizeSchedulesOfNothingIsEmpty", KnoxSync_SummarizeSchedulesOfNothingIsEmpty);
+        Run("KnoxSync_SummarizeSchedulesTruncatesLongLists", KnoxSync_SummarizeSchedulesTruncatesLongLists);
+        Run("KnoxSync_SummarizeSchedulesRejectsBadArguments", KnoxSync_SummarizeSchedulesRejectsBadArguments);
+        Run("KnoxSync_BuildIcsWritesFixedFormatWithEscaping", KnoxSync_BuildIcsWritesFixedFormatWithEscaping);
+        Run("KnoxSync_BuildIcsSkipsAllDayEntries", KnoxSync_BuildIcsSkipsAllDayEntries);
+        Run("KnoxSync_BuildIcsOfEmptyListIsAnEventlessCalendar", KnoxSync_BuildIcsOfEmptyListIsAnEventlessCalendar);
+        Run("KnoxSync_BuildIcsFallsBackToATimeBasedUidWithoutScheduleId", KnoxSync_BuildIcsFallsBackToATimeBasedUidWithoutScheduleId);
+        Run("KnoxSync_BuildIcsRejectsNullSchedules", KnoxSync_BuildIcsRejectsNullSchedules);
+        Run("KnoxSync_BuildIcsRoundTripsThroughCalendarScheduleParseIcs", KnoxSync_BuildIcsRoundTripsThroughCalendarScheduleParseIcs);
         Console.WriteLine("RESULT: {0} passed, {1} failed", passed, failed);
         return failed == 0 ? 0 : 1;
     }
@@ -228,6 +309,11 @@ internal static class ReminderCoreTests
         PropertyDefault(type, settings, "InhaleSeconds", 4);
         PropertyDefault(type, settings, "HoldSeconds", 0);
         PropertyDefault(type, settings, "ExhaleSeconds", 6);
+        PropertyDefault(type, settings, "KnoxCalendarEnabled", false);
+        PropertyDefault(type, settings, "KnoxLeadMinutes", 5);
+        PropertyDefault(type, settings, "KnoxAutoClose", "none");
+        PropertyDefault(type, settings, "KnoxAutoCloseMinutes", 5);
+        PropertyDefault(type, settings, "Appearance", "system");
         PropertyInfo themesProperty = type.GetProperty("ThemeIds");
         if (themesProperty == null || themesProperty.PropertyType != typeof(string[]) ||
             themesProperty.GetGetMethod() == null || themesProperty.GetSetMethod() == null)
@@ -253,7 +339,7 @@ internal static class ReminderCoreTests
         ReminderSettings settings = new ReminderSettings();
         settings.IntervalMinutes = 35;
         DateTime actual = Next(new DateTime(2026, 11, 9, 9, 1, 23, 456, DateTimeKind.Local), settings);
-        Equal(new DateTime(2026, 11, 9, 9, 36, 23, 456, DateTimeKind.Local), actual, "Custom minutes");
+        Equal(new DateTime(2026, 11, 9, 9, 35, 0, DateTimeKind.Local), actual, "Custom minutes land on the 09:00-anchored slot");
         Equal(DateTimeKind.Local, actual.Kind, "DateTime kind");
     }
 
@@ -263,10 +349,11 @@ internal static class ReminderCoreTests
             Next(new DateTime(2026, 11, 9, 7, 30, 0), new ReminderSettings()), "Before start");
     }
 
-    private static void Next_AddsIntervalBeforeClamping()
+    private static void Next_BeforeStartTakesFirstSlot()
     {
-        Equal(new DateTime(2026, 11, 9, 9, 30, 0),
-            Next(new DateTime(2026, 11, 9, 8, 30, 0), new ReminderSettings()), "Add first, not clamp then add");
+        // 08:30 닫힘(시작 1시간 전): 닫은 시각 + 간격(09:30)이 아니라 시각표의 첫 슬롯 09:00.
+        Equal(new DateTime(2026, 11, 9, 9, 0, 0),
+            Next(new DateTime(2026, 11, 9, 8, 30, 0), new ReminderSettings()), "The timetable's first slot, not close time plus interval");
     }
 
     private static void Next_EndIsExclusive()
@@ -333,8 +420,8 @@ internal static class ReminderCoreTests
     private static void Next_UnlimitedHoursAllowsNight()
     {
         ReminderSettings settings = new ReminderSettings { LimitHours = false };
-        Equal(new DateTime(2026, 11, 10, 0, 30, 0),
-            Next(new DateTime(2026, 11, 9, 23, 30, 0), settings), "No hour limit");
+        Equal(new DateTime(2026, 11, 10, 0, 0, 0),
+            Next(new DateTime(2026, 11, 9, 23, 30, 0), settings), "No hour limit: the 09:00-anchored grid continues through the night");
     }
 
     private static bool IsAllowed(DateTime when, ReminderSettings settings)
@@ -382,7 +469,7 @@ internal static class ReminderCoreTests
         ReminderSettings settings = new ReminderSettings { StartHour = 0, EndHour = 24 };
         Equal(true, IsAllowed(new DateTime(2026, 11, 9, 0, 0, 0), settings), "Midnight");
         Equal(true, IsAllowed(new DateTime(2026, 11, 10, 0, 0, 0).AddTicks(-1), settings), "End 24");
-        Equal(new DateTime(2026, 11, 10, 0, 30, 0),
+        Equal(new DateTime(2026, 11, 10, 0, 0, 0),
             Next(new DateTime(2026, 11, 9, 23, 30, 0), settings), "End 24 crosses midnight normally");
     }
 
@@ -466,9 +553,9 @@ internal static class ReminderCoreTests
             Equal(false, IsDue(resumed.AddSeconds(seconds), stale, settings, true, false, true), "Already open");
         DateTime dismissed = new DateTime(2026, 11, 9, 12, 17, 0);
         DateTime next = Next(dismissed, settings);
-        Equal(new DateTime(2026, 11, 9, 13, 17, 0), next, "Dismissal, not stale due time, is the anchor");
+        Equal(new DateTime(2026, 11, 9, 13, 0, 0), next, "Dismissal lands on the next fixed slot, whatever the close time was");
         Equal(false, IsDue(dismissed, next, settings, false, false, true), "No catch-up popup on dismissal");
-        Equal(false, IsDue(next.AddTicks(-1), next, settings, false, false, true), "Full new interval");
+        Equal(false, IsDue(next.AddTicks(-1), next, settings, false, false, true), "Full slot wait");
         Equal(true, IsDue(next, next, settings, false, false, true), "Next normal popup");
     }
 
@@ -553,6 +640,88 @@ internal static class ReminderCoreTests
         Equal("sequential", back.VariantModes["stretch"], "Saved choice survives the settings file");
     }
 
+    private static void LoopModes_DefaultsToEmptyAndOldConfigsStillLoad()
+    {
+        Equal(0, new ReminderSettings().LoopModes.Count, "New settings have no per-card loop choice, so every card plays once");
+        ReminderSettings old = new JavaScriptSerializer().Deserialize<ReminderSettings>("{\"IntervalMinutes\":25}");
+        Equal(0, old.LoopModes.Count, "Old config without LoopModes");
+        Validate(old, KnownThemes());
+    }
+
+    private static void LoopModes_ValidateAcceptsOnAndOffOnly()
+    {
+        Validate(new ReminderSettings { LoopModes = new Dictionary<string, string> { { "relax", "on" }, { "dance", "off" } } }, KnownThemes());
+        Validate(new ReminderSettings { LoopModes = null }, KnownThemes());
+        foreach (string mode in new string[] { null, "", "ON", "loop", "always" })
+        {
+            string bad = mode;
+            ThrowsArgument(delegate { Validate(new ReminderSettings { LoopModes = new Dictionary<string, string> { { "relax", bad } } }, KnownThemes()); }, "LoopModes must map");
+        }
+        ThrowsArgument(delegate { Validate(new ReminderSettings { LoopModes = new Dictionary<string, string> { { " ", "on" } } }, KnownThemes()); }, "LoopModes must map");
+    }
+
+    private static void LoopModes_JavaScriptSerializerRoundTrip()
+    {
+        ReminderSettings settings = new ReminderSettings();
+        settings.LoopModes["relax"] = "on";
+        JavaScriptSerializer serializer = new JavaScriptSerializer();
+        ReminderSettings back = serializer.Deserialize<ReminderSettings>(serializer.Serialize(settings));
+        Equal("on", back.LoopModes["relax"], "Saved loop choice survives the settings file");
+    }
+
+    private static void Schedules_DefaultsToEmptyAndOldConfigsStillLoad()
+    {
+        Equal(0, new ReminderSettings().Schedules.Count, "New settings carry no per-card run time");
+        ReminderSettings old = new JavaScriptSerializer().Deserialize<ReminderSettings>("{\"IntervalMinutes\":25}");
+        Equal(0, old.Schedules.Count, "Old config without Schedules");
+        Validate(old, KnownThemes());
+    }
+
+    private static void Schedules_TryParseClockAcceptsDayTimesOnly()
+    {
+        int at;
+        foreach (string good in new string[] { "00:00", "0:00", "9:05", "13:30", "23:59", "13:30:00", "13:30:45", "0:00:00", "23:59:59" })
+        {
+            if (!ReminderSettings.TryParseClock(good, out at)) throw new Exception("Should parse: " + good);
+        }
+        foreach (string bad in new string[] { null, "", "9:5", "24:00", "13:60", "-1:00", "1330", "13:30:5", "13:30:60", "13:60:30", "24:00:00", "13:30:00:00", "aa:bb", "9:", ":30" })
+        {
+            if (ReminderSettings.TryParseClock(bad, out at)) throw new Exception("Should reject: " + bad);
+        }
+        ReminderSettings.TryParseClock("13:30", out at);
+        Equal(48600, at, "13:30 is 48600 seconds past midnight (minutes-only times read as :00)");
+        ReminderSettings.TryParseClock("13:30:45", out at);
+        Equal(48645, at, "13:30:45 is 48645 seconds past midnight");
+    }
+
+    private static void Schedules_ValidateAcceptsKnownCardsWithDayTimes()
+    {
+        Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = new Dictionary<string, string> { { "stretch", "13:30" } } }, KnownThemes());
+        Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = new Dictionary<string, string> { { "stretch", "13:30:45" } } }, KnownThemes());
+        Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = null }, KnownThemes());
+        ThrowsArgument(delegate { Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = new Dictionary<string, string> { { "missing", "13:30" } } }, KnownThemes()); }, "Schedules must name");
+        ThrowsArgument(delegate { Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = new Dictionary<string, string> { { "stretch", "24:00" } } }, KnownThemes()); }, "Schedules must map");
+        ThrowsArgument(delegate { Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = new Dictionary<string, string> { { "stretch", "13:30" }, { "breathe", "9:5" } } }, KnownThemes()); }, "Schedules must map");
+        ThrowsArgument(delegate { Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = new Dictionary<string, string> { { "stretch", "13:30:60" } } }, KnownThemes()); }, "Schedules must map");
+        // 한 카드가 주기와 시각 실행에 함께 걸리면 안 된다(UI에서도 서로 회색 처리).
+        ThrowsArgument(delegate { Validate(new ReminderSettings { ThemeIds = new string[] { "stretch" }, Schedules = new Dictionary<string, string> { { "stretch", "13:30" } } }, KnownThemes()); }, "never both");
+        Dictionary<string, string> many = new Dictionary<string, string>();
+        for (int i = 0; i < 65; i++) many.Add("k" + i, "13:30");
+        ThrowsArgument(delegate { Validate(new ReminderSettings { ThemeIds = new string[] { "eyes" }, Schedules = many }, KnownThemes()); }, "too many");
+    }
+
+    private static void Schedules_TimeOnlySelectionIsValidAndRoundTrips()
+    {
+        // 시각 실행 카드만 있고 주기 선택이 비어 있어도 올바른 설정이다.
+        ReminderSettings settings = new ReminderSettings { ThemeIds = new string[0], Schedules = new Dictionary<string, string> { { "stretch", "07:45" }, { "breathe", "07:46:30" } } };
+        Validate(settings, KnownThemes());
+        JavaScriptSerializer serializer = new JavaScriptSerializer();
+        ReminderSettings back = serializer.Deserialize<ReminderSettings>(serializer.Serialize(settings));
+        Equal("07:45", back.Schedules["stretch"], "Saved run time survives the settings file");
+        Equal("07:46:30", back.Schedules["breathe"], "Saved run time with seconds survives the settings file");
+        Equal(0, back.ThemeIds.Length, "No periodic selection survives the settings file");
+    }
+
     private const string VideoItem = "{\"schema\":1,\"id\":\"u-vid\",\"name\":\"N\",\"summary\":\"S\",\"safety\":\"Stop if it hurts.\",\"instructions\":[\"a\"],\"videos\":[{\"id\":\"dQw4w9WgXcQ\",\"title\":\"T\",\"author\":\"A\"},{\"id\":\"-yOiTWEgU_Y\",\"title\":\"U\"}]}";
 
     private static void Community_AcceptsYouTubeVideoIds()
@@ -616,6 +785,46 @@ internal static class ReminderCoreTests
     {
         Equal("ordered-one", new ReminderSettings().ThemeMode, "Default mode keeps the old one-at-a-time rotation");
         Equal("ordered-one", new JavaScriptSerializer().Deserialize<ReminderSettings>("{\"IntervalMinutes\":25}").ThemeMode, "Old config without ThemeMode");
+    }
+
+    // The first-run 기본 프리셋 (303~309): 09:00-18:00 평일 · 60분 간격 · 점심 12:00-13:00 · 로그인 자동 실행 ·
+    // 10분 자리비움 · Knox 캘린더 5분 전(자동 닫힘 없음) · 카드 6개 무작위로 하나씩 · 퇴근버스 17:00.
+    private static void DefaultPreset_MatchesTheAnnouncedPreset()
+    {
+        ReminderSettings s = ReminderSettings.DefaultPreset();
+        Validate(s, new string[] { "stretch", "meditation", "voice", "back-standing", "dance", "relax", "recipe", "bus-home" });
+        Equal(60, s.IntervalMinutes, "Preset: every 60 minutes");
+        Equal(9, s.StartHour, "Preset: starts at 09:00");
+        Equal(18, s.EndHour, "Preset: ends at 18:00");
+        Equal(true, s.WeekdaysOnly, "Preset: weekdays only");
+        Equal(true, s.LimitHours, "Preset: hours limited");
+        Equal(true, s.BreakEnabled, "Preset: lunch break on");
+        Equal(12, s.BreakStartHour, "Preset: lunch starts at 12:00");
+        Equal(13, s.BreakEndHour, "Preset: lunch ends at 13:00");
+        Equal(1, s.Breaks.Count, "Preset: one quiet period in the list");
+        Equal(12, s.Breaks[0].StartHour, "Preset: list lunch starts at 12:00");
+        Equal(13, s.Breaks[0].EndHour, "Preset: list lunch ends at 13:00");
+        Equal(true, s.StartAtLogin, "Preset: starts at Windows login");
+        Equal(true, s.PauseWhenIdle, "Preset: pauses when away");
+        Equal(10, s.IdleMinutes, "Preset: away after 10 minutes");
+        Equal(true, s.KnoxCalendarEnabled, "Preset: Knox calendar alerts on");
+        Equal(5, s.KnoxLeadMinutes, "Preset: Knox 5 minutes before");
+        Equal(ReminderSettings.KnoxAutoCloseNone, s.KnoxAutoClose, "Preset: no auto-close");
+        Equal(ThemeRotation.RandomOne, s.ThemeMode, "Preset: one random card each time");
+        Equal(String.Join(",", new string[] { "stretch", "meditation", "voice", "back-standing", "relax" }),
+              String.Join(",", s.ThemeIds), "Preset: the five chosen cards (dance left out)");
+        Equal(1, s.Schedules.Count, "Preset: one scheduled card");
+        Equal("17:00:00", s.Schedules["bus-home"], "Preset: the bus-home card at 17:00");
+        Equal(false, s.Enabled, "Preset: starts paused until the user turns it on");
+        // The neutral constructor baseline must stay untouched for corrupted-settings recovery and the tests above.
+        ReminderSettings blank = new ReminderSettings();
+        Equal(0, blank.Schedules.Count, "Constructor: no schedules");
+        Equal(1, blank.ThemeIds.Length, "Constructor: one card");
+        Equal(ThemeRotation.OrderedOne, blank.ThemeMode, "Constructor: ordered rotation");
+        Equal(false, blank.StartAtLogin, "Constructor: no auto start");
+        Equal(false, blank.BreakEnabled, "Constructor: no lunch break");
+        Equal(false, blank.KnoxCalendarEnabled, "Constructor: Knox off");
+        Equal(false, blank.PauseWhenIdle, "Constructor: no idle pause");
     }
 
     private static void ThemeMode_ValidateAcceptsAllFourAndRejectsOthers()
@@ -734,6 +943,321 @@ internal static class ReminderCoreTests
         Equal(false, settings.StartAtLogin, "Validation does not enable startup");
     }
 
+    private static void Calendar_ParseIcsReadsUidTitleAndLocalStart()
+    {
+        string ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:evt-1\nSUMMARY:팀 회의\nDTSTART:20261109T140000\nEND:VEVENT\nEND:VCALENDAR";
+        List<CalendarEntry> entries = CalendarSchedule.ParseIcs(ics);
+        Equal(1, entries.Count, "One event parsed");
+        Equal("evt-1", entries[0].Uid, "Uid");
+        Equal("팀 회의", entries[0].Title, "Title");
+        Equal(new DateTime(2026, 11, 9, 14, 0, 0), entries[0].StartLocal, "Local start");
+    }
+
+    private static void Calendar_ParseIcsConvertsUtcToLocal()
+    {
+        string ics = "BEGIN:VEVENT\nUID:evt-utc\nSUMMARY:UTC\nDTSTART:20261109T050000Z\nEND:VEVENT";
+        List<CalendarEntry> entries = CalendarSchedule.ParseIcs(ics);
+        Equal(1, entries.Count, "One event parsed");
+        Equal(new DateTime(2026, 11, 9, 5, 0, 0, DateTimeKind.Utc).ToLocalTime(), entries[0].StartLocal, "UTC converted to local");
+    }
+
+    private static void Calendar_ParseIcsSkipsIncompleteEvents()
+    {
+        // Missing UID, missing DTSTART, and an event never closed are all skipped rather than failing the file.
+        string ics = "BEGIN:VEVENT\nSUMMARY:No uid\nDTSTART:20261109T090000\nEND:VEVENT\n" +
+            "BEGIN:VEVENT\nUID:evt-2\nSUMMARY:No start\nEND:VEVENT\n" +
+            "BEGIN:VEVENT\nUID:evt-3\nSUMMARY:Open\nDTSTART:20261109T090000\n" +
+            "BEGIN:VEVENT\nUID:evt-4\nSUMMARY:Good\nDTSTART:20261109T090000\nEND:VEVENT";
+        List<CalendarEntry> entries = CalendarSchedule.ParseIcs(ics);
+        Equal(1, entries.Count, "Only the complete event is kept");
+        Equal("evt-4", entries[0].Uid, "Surviving event");
+    }
+
+    private static void Calendar_ParseIcsUnescapesSummary()
+    {
+        string ics = "BEGIN:VEVENT\nUID:evt-5\nSUMMARY:A\\, B\\; C\\nD\nDTSTART:20261109T090000\nEND:VEVENT";
+        List<CalendarEntry> entries = CalendarSchedule.ParseIcs(ics);
+        Equal("A, B; C D", entries[0].Title, "Escaped comma/semicolon/newline");
+    }
+
+    private static void Calendar_ParseIcsOfEmptyOrNullTextIsEmpty()
+    {
+        Equal(0, CalendarSchedule.ParseIcs(null).Count, "Null text");
+        Equal(0, CalendarSchedule.ParseIcs("").Count, "Empty text");
+    }
+
+    private static CalendarEntry Event(string uid, DateTime start) { return new CalendarEntry { Uid = uid, Title = "t", StartLocal = start }; }
+
+    private static void Calendar_DueEntriesFiresWithinLeadWindow()
+    {
+        CalendarEntry entry = Event("a", new DateTime(2026, 11, 9, 14, 0, 0));
+        HashSet<string> fired = new HashSet<string>();
+        Equal(1, CalendarSchedule.DueEntries(new DateTime(2026, 11, 9, 13, 55, 0), new[] { entry }, 5, fired).Count, "Exactly at lead time");
+        Equal(1, CalendarSchedule.DueEntries(new DateTime(2026, 11, 9, 13, 59, 59), new[] { entry }, 5, fired).Count, "Just before start");
+    }
+
+    private static void Calendar_DueEntriesNotYetDueIsExcluded()
+    {
+        CalendarEntry entry = Event("a", new DateTime(2026, 11, 9, 14, 0, 0));
+        HashSet<string> fired = new HashSet<string>();
+        Equal(0, CalendarSchedule.DueEntries(new DateTime(2026, 11, 9, 13, 54, 59), new[] { entry }, 5, fired).Count, "Before the lead window opens");
+    }
+
+    private static void Calendar_DueEntriesAfterStartIsExcluded()
+    {
+        CalendarEntry entry = Event("a", new DateTime(2026, 11, 9, 14, 0, 0));
+        HashSet<string> fired = new HashSet<string>();
+        Equal(0, CalendarSchedule.DueEntries(new DateTime(2026, 11, 9, 14, 0, 0), new[] { entry }, 5, fired).Count, "At the meeting start");
+        Equal(0, CalendarSchedule.DueEntries(new DateTime(2026, 11, 9, 14, 5, 0), new[] { entry }, 5, fired).Count, "After the meeting start");
+    }
+
+    private static void Calendar_DueEntriesAlreadyFiredIsExcluded()
+    {
+        CalendarEntry entry = Event("a", new DateTime(2026, 11, 9, 14, 0, 0));
+        HashSet<string> fired = new HashSet<string> { CalendarSchedule.FiredKey(entry) };
+        Equal(0, CalendarSchedule.DueEntries(new DateTime(2026, 11, 9, 13, 58, 0), new[] { entry }, 5, fired).Count, "Already fired is not due again");
+    }
+
+    private static void Calendar_DueEntriesRescheduledMeetingIsDueAgain()
+    {
+        // The user moves the SAME calendar entry to a later time to test; the fired key includes the
+        // start time, so the moved meeting must ring again at its new lead-time moment.
+        CalendarEntry first = Event("a", new DateTime(2026, 11, 9, 14, 0, 0));
+        CalendarEntry moved = Event("a", new DateTime(2026, 11, 9, 16, 0, 0));
+        HashSet<string> fired = new HashSet<string> { CalendarSchedule.FiredKey(first) };
+        Equal(1, CalendarSchedule.DueEntries(new DateTime(2026, 11, 9, 15, 58, 0), new[] { moved }, 5, fired).Count, "The rescheduled meeting is due again");
+        Equal("a|20261109160000", CalendarSchedule.FiredKey(moved), "The fired key is uid plus start");
+    }
+
+    private static void Calendar_DueEntriesRejectsNullArguments()
+    {
+        ThrowsArgument(delegate { CalendarSchedule.DueEntries(DateTime.Now, null, 5, new HashSet<string>()); }, "Null entries");
+        ThrowsArgument(delegate { CalendarSchedule.DueEntries(DateTime.Now, new CalendarEntry[0], 5, null); }, "Null firedUids");
+    }
+
+    private static void Calendar_ParseIcsReadsOptionalEnd()
+    {
+        string ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\nSUMMARY:With end\r\nDTSTART:20261110T140000\r\nDTEND:20261110T150000\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:b\r\nSUMMARY:No end\r\nDTSTART:20261110T160000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        List<CalendarEntry> entries = CalendarSchedule.ParseIcs(ics);
+        Equal(2, entries.Count, "Both events parse");
+        Equal(new DateTime(2026, 11, 10, 15, 0, 0), entries[0].EndLocal.Value, "DTEND round-trips into EndLocal");
+        Equal(false, entries[1].EndLocal.HasValue, "An event without DTEND has no EndLocal");
+    }
+
+    private static void KnoxSync_AppendLogTrimsToTheLimitKeepingNewest()
+    {
+        List<KnoxSyncLogEntry> log = new List<KnoxSyncLogEntry>();
+        for (int i = 0; i < KnoxSync.LogLimit + 5; i++)
+            KnoxSync.AppendLog(log, new KnoxSyncLogEntry { When = i.ToString() });
+        Equal(KnoxSync.LogLimit, log.Count, "The log is capped at the limit");
+        Equal("5", log[0].When, "The oldest entries were dropped");
+        Equal((KnoxSync.LogLimit + 4).ToString(), log[log.Count - 1].When, "The newest entry is kept");
+        // Appending again after trimming keeps the cap stable.
+        KnoxSync.AppendLog(log, new KnoxSyncLogEntry { When = "last" });
+        Equal(KnoxSync.LogLimit, log.Count, "The cap does not grow");
+        Equal("last", log[log.Count - 1].When, "The new entry is last");
+    }
+
+    private static void KnoxSync_AppendLogRejectsNullArguments()
+    {
+        ThrowsArgument(delegate { KnoxSync.AppendLog(null, new KnoxSyncLogEntry()); }, "Null log");
+        ThrowsArgument(delegate { KnoxSync.AppendLog(new List<KnoxSyncLogEntry>(), null); }, "Null entry");
+    }
+
+    private static void KnoxSync_FirstLineSkipsBlanksAndTruncates()
+    {
+        Equal("", KnoxSync.FirstLine(null, 80), "Null has no first line");
+        Equal("", KnoxSync.FirstLine(" \n \r\n", 80), "Only blanks has no first line");
+        Equal("could not reach the server", KnoxSync.FirstLine("\r\n  could not reach the server\nmore\n", 80), "CRLF and blanks are skipped");
+        Equal(80, KnoxSync.FirstLine(new string('x', 200), 80).Length, "Long lines are truncated to maxChars");
+        Equal(true, KnoxSync.FirstLine(new string('x', 200), 80).EndsWith("…", StringComparison.Ordinal), "Truncation is visible");
+        Equal("short", KnoxSync.FirstLine("short", 80), "Short lines stay whole");
+    }
+
+    private const string ScheduleJson = "{\"knox_id\":\"jazzman.han\",\"window\":{},\"schedules\":[" +
+        "{\"scheduleId\":\"SCH1\",\"subject\":\"Weekly sync\",\"start\":\"2026-11-10T14:00:00+09:00\",\"end\":\"2026-11-10T15:00:00+09:00\",\"place\":\"A2101\",\"attendees\":[\"a\",\"b\"],\"attendee_count\":2}" +
+        "]}";
+
+    private static void KnoxSync_ParseSchedulesReadsSubjectStartAndScheduleId()
+    {
+        List<KnoxSchedule> schedules = KnoxSync.ParseSchedules(ScheduleJson);
+        Equal(1, schedules.Count, "One schedule");
+        Equal("SCH1", schedules[0].ScheduleId, "scheduleId");
+        Equal("Weekly sync", schedules[0].Subject, "subject");
+        Equal("2026-11-10T14:00:00+09:00", schedules[0].Start, "start");
+        Equal("2026-11-10T15:00:00+09:00", schedules[0].End, "end");
+    }
+
+    private static void KnoxSync_ParseSchedulesEndIsOptional()
+    {
+        List<KnoxSchedule> schedules = KnoxSync.ParseSchedules("{\"schedules\":[{\"scheduleId\":\"x\",\"subject\":\"No end\",\"start\":\"2026-11-10T09:00:00+09:00\"}]}");
+        Equal(null, schedules[0].End, "A response without 'end' leaves End null");
+    }
+
+    private static void KnoxSync_BuildIcsWritesEndWhenPresentAndOmitsItWhenNot()
+    {
+        var withEnd = new List<KnoxSchedule> { new KnoxSchedule { ScheduleId = "SCH1", Subject = "A", Start = "2026-11-10T14:00:00+09:00", End = "2026-11-10T15:00:00+09:00" } };
+        Equal(true, KnoxSync.BuildIcs(withEnd).Contains("DTEND:20261110T150000"), "A readable end becomes DTEND");
+        var withoutEnd = new List<KnoxSchedule> { new KnoxSchedule { ScheduleId = "SCH2", Subject = "B", Start = "2026-11-10T14:00:00+09:00", End = null } };
+        Equal(false, KnoxSync.BuildIcs(withoutEnd).Contains("DTEND"), "No end means no DTEND line");
+    }
+
+    private static void KnoxSync_ParseSchedulesIgnoresAttendeesAndOtherFields()
+    {
+        // Only ScheduleId/Subject/Start/End exist on KnoxSchedule at all; attendees/place are never read into it.
+        Type type = typeof(KnoxSchedule);
+        string[] fields = Array.ConvertAll(type.GetFields(), f => f.Name);
+        Equal(4, fields.Length, "KnoxSchedule exposes exactly ScheduleId, Subject, Start and End");
+    }
+
+    private static void KnoxSync_ParseSchedulesSkipsEntriesMissingSubjectOrStart()
+    {
+        string json = "{\"schedules\":[{\"scheduleId\":\"x\",\"start\":\"2026-11-10T09:00:00+09:00\"},{\"scheduleId\":\"y\",\"subject\":\"No start\"},{\"scheduleId\":\"z\",\"subject\":\"Good\",\"start\":\"2026-11-10T10:00:00+09:00\"}]}";
+        List<KnoxSchedule> schedules = KnoxSync.ParseSchedules(json);
+        Equal(1, schedules.Count, "Only the entry with both subject and start is kept");
+        Equal("Good", schedules[0].Subject, "The kept entry");
+    }
+
+    private static void KnoxSync_ParseSchedulesOfEmptyArrayIsEmpty()
+    {
+        Equal(0, KnoxSync.ParseSchedules("{\"schedules\":[]}").Count, "An empty window is not an error");
+    }
+
+    private static void KnoxSync_ParseSchedulesRejectsMissingSchedulesArray()
+    {
+        ThrowsArgument(delegate { KnoxSync.ParseSchedules("{\"knox_id\":\"x\"}"); }, "No 'schedules' key");
+        ThrowsArgument(delegate { KnoxSync.ParseSchedules("{\"error\":\"KNOX_ID_NOT_REGISTERED\"}"); }, "Error body without 'schedules'");
+    }
+
+    private static void KnoxSync_ParseSchedulesRejectsInvalidJson()
+    {
+        ThrowsArgument(delegate { KnoxSync.ParseSchedules("not json"); }, "Garbage body");
+        ThrowsArgument(delegate { KnoxSync.ParseSchedules("[1,2,3]"); }, "Array root");
+    }
+
+    private static void KnoxSync_ParseSchedulesRejectsNullOrEmptyJson()
+    {
+        ThrowsArgument(delegate { KnoxSync.ParseSchedules(null); }, "Null json");
+        ThrowsArgument(delegate { KnoxSync.ParseSchedules(""); }, "Empty json");
+    }
+
+    private static void KnoxSync_ToDtStampConvertsOffsetAndUtcTimes()
+    {
+        Equal("20261110T140000", KnoxSync.ToDtStamp("2026-11-10T14:00:00+09:00"), "Offset time keeps its local digits, drops the offset");
+        Equal("20261110T050000Z", KnoxSync.ToDtStamp("2026-11-10T05:00:00Z"), "A literal Z is kept as UTC");
+    }
+
+    private static void KnoxSync_ToDtStampRejectsAllDayAndUnreadableStarts()
+    {
+        Equal(null, KnoxSync.ToDtStamp("2026-11-10"), "Date-only (all-day) start has no time to count down to");
+        Equal(null, KnoxSync.ToDtStamp("not a date"), "Unreadable start");
+        Equal(null, KnoxSync.ToDtStamp(null), "Null start");
+        Equal(null, KnoxSync.ToDtStamp(""), "Empty start");
+    }
+
+    private static void KnoxSync_StartDisplayShowsWallClockForOffsetStarts()
+    {
+        Equal("11.10 14:00", KnoxSync.StartDisplay("2026-11-10T14:00:00+09:00"), "Offset starts show their wall-clock digits, matching the reminder pipeline");
+        Equal("", KnoxSync.StartDisplay("2026-11-10"), "Date-only (all-day) has no clock time");
+        Equal("", KnoxSync.StartDisplay("not a date"), "Unreadable start");
+        Equal("", KnoxSync.StartDisplay(null), "Null start");
+    }
+
+    private static void KnoxSync_StartDisplayConvertsUtcZStartsToPcLocalTime()
+    {
+        // Same conversion rule CalendarSchedule.ParseIcs applies to "Z" stamps, so the log never
+        // disagrees with the popup about when a meeting starts.
+        string expected = new DateTime(2026, 11, 10, 5, 0, 0).ToLocalTime().ToString("MM.dd HH:mm", CultureInfo.InvariantCulture);
+        Equal(expected, KnoxSync.StartDisplay("2026-11-10T05:00:00Z"), "A literal Z is converted to the PC's local time");
+    }
+
+    private static void KnoxSync_SummarizeSchedulesListsTimesAndSubjects()
+    {
+        var schedules = new List<KnoxSchedule> {
+            new KnoxSchedule { Subject = "Weekly sync", Start = "2026-11-10T14:00:00+09:00" },
+            new KnoxSchedule { Subject = "1:1", Start = "2026-11-11T09:30:00+09:00" }
+        };
+        Equal("11.10 14:00 Weekly sync · 11.11 09:30 1:1", KnoxSync.SummarizeSchedules(schedules, 200), "Each fetched meeting shows its local time and subject");
+    }
+
+    private static void KnoxSync_SummarizeSchedulesShowsSubjectOnlyWithoutAClockTime()
+    {
+        var schedules = new List<KnoxSchedule> { new KnoxSchedule { Subject = "Day off", Start = "2026-11-10" } };
+        Equal("Day off", KnoxSync.SummarizeSchedules(schedules, 200), "All-day entries keep their subject, just without a clock time");
+    }
+
+    private static void KnoxSync_SummarizeSchedulesOfNothingIsEmpty()
+    {
+        Equal("", KnoxSync.SummarizeSchedules(new List<KnoxSchedule>(), 200), "No schedules, no content");
+    }
+
+    private static void KnoxSync_SummarizeSchedulesTruncatesLongLists()
+    {
+        var schedules = new List<KnoxSchedule> { new KnoxSchedule { Subject = new string('x', 150), Start = "2026-11-10T14:00:00+09:00" } };
+        string summary = KnoxSync.SummarizeSchedules(schedules, 40);
+        Equal(40, summary.Length, "The summary is capped at maxChars");
+        Equal(true, summary.EndsWith("…", StringComparison.Ordinal), "Truncation is visible");
+    }
+
+    private static void KnoxSync_SummarizeSchedulesRejectsBadArguments()
+    {
+        ThrowsArgument(delegate { KnoxSync.SummarizeSchedules(null, 40); }, "Null schedules");
+        ThrowsArgument(delegate { KnoxSync.SummarizeSchedules(new List<KnoxSchedule>(), 0); }, "Non-positive maxChars");
+    }
+
+    private static void KnoxSync_BuildIcsWritesFixedFormatWithEscaping()
+    {
+        var schedules = new List<KnoxSchedule> { new KnoxSchedule { ScheduleId = "SCH1", Subject = "A, B; C", Start = "2026-11-10T14:00:00+09:00" } };
+        string ics = KnoxSync.BuildIcs(schedules);
+        string[] lines = ics.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+        Equal("BEGIN:VCALENDAR", lines[0], "Calendar opens");
+        Equal("BEGIN:VEVENT", lines[3], "Event opens");
+        Equal("UID:knox-SCH1", lines[4], "UID uses the scheduleId");
+        Equal("SUMMARY:A\\, B\\; C", lines[5], "Commas and semicolons are escaped");
+        Equal("DTSTART:20261110T140000", lines[6], "DTSTART uses the converted stamp");
+        Equal("END:VEVENT", lines[7], "Event closes");
+        Equal("END:VCALENDAR", lines[8], "Calendar closes");
+    }
+
+    private static void KnoxSync_BuildIcsSkipsAllDayEntries()
+    {
+        var schedules = new List<KnoxSchedule> {
+            new KnoxSchedule { ScheduleId = "ALLDAY", Subject = "Day off", Start = "2026-11-10" },
+            new KnoxSchedule { ScheduleId = "TIMED", Subject = "Meeting", Start = "2026-11-10T09:00:00+09:00" }
+        };
+        string ics = KnoxSync.BuildIcs(schedules);
+        Equal(false, ics.Contains("ALLDAY"), "The all-day entry produced no VEVENT");
+        Equal(true, ics.Contains("UID:knox-TIMED"), "The timed entry is kept");
+    }
+
+    private static void KnoxSync_BuildIcsOfEmptyListIsAnEventlessCalendar()
+    {
+        string ics = KnoxSync.BuildIcs(new List<KnoxSchedule>());
+        Equal("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//DeskHooker//knox-ics-export//KO\r\nEND:VCALENDAR\r\n", ics, "No schedules is not an error");
+    }
+
+    private static void KnoxSync_BuildIcsFallsBackToATimeBasedUidWithoutScheduleId()
+    {
+        var schedules = new List<KnoxSchedule> { new KnoxSchedule { ScheduleId = null, Subject = "No id!", Start = "2026-11-10T09:00:00+09:00" } };
+        string ics = KnoxSync.BuildIcs(schedules);
+        Equal(true, ics.Contains("UID:knox-20261110T090000-Noid"), "The fallback UID combines the stamp and an ascii-only slug of the subject");
+    }
+
+    private static void KnoxSync_BuildIcsRejectsNullSchedules()
+    {
+        ThrowsArgument(delegate { KnoxSync.BuildIcs(null); }, "Null schedules");
+    }
+
+    private static void KnoxSync_BuildIcsRoundTripsThroughCalendarScheduleParseIcs()
+    {
+        var schedules = new List<KnoxSchedule> { new KnoxSchedule { ScheduleId = "SCH9", Subject = "회의", Start = "2026-11-10T14:00:00+09:00" } };
+        List<CalendarEntry> entries = CalendarSchedule.ParseIcs(KnoxSync.BuildIcs(schedules));
+        Equal(1, entries.Count, "One event round-trips");
+        Equal("knox-SCH9", entries[0].Uid, "Uid round-trips");
+        Equal("회의", entries[0].Title, "Title round-trips");
+        Equal(new DateTime(2026, 11, 10, 14, 0, 0), entries[0].StartLocal, "StartLocal round-trips");
+    }
+
     private static IEnumerable<string> KnownThemes()
     {
         yield return "stretch";
@@ -762,7 +1286,8 @@ internal static class ReminderCoreTests
             StartHour = 2, EndHour = 23, ThemeIds = new string[] { "eyes", "breathe" }, ThemeMode = "random-all",
             Enabled = true, StartAtLogin = true, InhaleSeconds = 5, HoldSeconds = 7, ExhaleSeconds = 9,
             VariantModes = new Dictionary<string, string> { { "relax", "sequential" }, { "dance", "random" } },
-            CardSchedules = new Dictionary<string, CardSchedule> { { "relax", new CardSchedule { Enabled = true, Time = "12:00:30" } }, { "stretch", new CardSchedule { Enabled = false, Time = "09:15:00" } } }
+            LoopModes = new Dictionary<string, string> { { "relax", "on" } },
+            Schedules = new Dictionary<string, string> { { "stretch", "07:45" } }
         };
         JavaScriptSerializer serializer = new JavaScriptSerializer();
         ReminderSettings restored = serializer.Deserialize<ReminderSettings>(serializer.Serialize(original));
@@ -770,10 +1295,12 @@ internal static class ReminderCoreTests
         {
             if (property.Name == "ThemeIds")
                 Equal(String.Join(",", original.ThemeIds), String.Join(",", restored.ThemeIds), "ThemeIds round trip");
-            else if (property.Name == "CardSchedules")
-                Equal("relax=True@12:00:30,stretch=False@09:15:00", String.Join(",", new SortedDictionary<string, CardSchedule>(restored.CardSchedules).Select(e => e.Key + "=" + e.Value.Enabled + "@" + e.Value.Time).ToArray()), "CardSchedules round trip");
             else if (property.Name == "VariantModes")
                 Equal("dance=random,relax=sequential", String.Join(",", new SortedDictionary<string, string>(restored.VariantModes).Select(e => e.Key + "=" + e.Value).ToArray()), "VariantModes round trip");
+            else if (property.Name == "LoopModes")
+                Equal("relax=on", String.Join(",", new SortedDictionary<string, string>(restored.LoopModes).Select(e => e.Key + "=" + e.Value).ToArray()), "LoopModes round trip");
+            else if (property.Name == "Schedules")
+                Equal("stretch=07:45", String.Join(",", new SortedDictionary<string, string>(restored.Schedules).Select(e => e.Key + "=" + e.Value).ToArray()), "Schedules round trip");
             else
                 Equal(property.GetValue(original, null), property.GetValue(restored, null), property.Name + " round trip");
         }
@@ -803,13 +1330,14 @@ internal static class ReminderCoreTests
         Type type = typeof(ReminderSchedule);
         Equal(true, type.IsPublic && type.IsAbstract && type.IsSealed, "Public static schedule class");
         Equal("DeskHooker", type.Namespace, "Namespace");
-        Equal(5, type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly).Length,
-            "Only the five requested public methods");
+        Equal(6, type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly).Length,
+            "Only the six requested public methods");
         Signature("Validate", typeof(void), typeof(ReminderSettings), typeof(IEnumerable<string>));
         Signature("IsAllowed", typeof(bool), typeof(DateTime), typeof(ReminderSettings));
         Signature("Next", typeof(DateTime), typeof(DateTime), typeof(ReminderSettings));
         Signature("IsDue", typeof(bool), typeof(DateTime), typeof(DateTime), typeof(ReminderSettings),
             typeof(bool), typeof(bool), typeof(bool));
+        Signature("IsAway", typeof(bool), typeof(TimeSpan), typeof(ReminderSettings));
         Signature("NextTheme", typeof(string), typeof(string[]), typeof(int).MakeByRefType());
     }
 
@@ -825,107 +1353,6 @@ internal static class ReminderCoreTests
         DateTime from = new DateTime(2026, 11, 9, 9, 0, 0);
         Equal(new DateTime(2026, 11, 9, 9, 1, 0), Next(from, new ReminderSettings { IntervalMinutes = 1 }), "One minute");
         Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(from, new ReminderSettings { IntervalMinutes = 240 }), "240 minutes");
-    }
-
-    private static ReminderSettings Scheduled(params string[] idsAndTimes)
-    {
-        // idsAndTimes: "relax=12:00:30" enabled, "stretch=!09:00:00" present but switched off.
-        ReminderSettings s = new ReminderSettings { Enabled = true, WeekdaysOnly = false };
-        foreach (string entry in idsAndTimes)
-        {
-            string[] parts = entry.Split('=');
-            bool on = !parts[1].StartsWith("!");
-            s.CardSchedules[parts[0]] = new CardSchedule { Enabled = on, Time = parts[1].TrimStart('!') };
-        }
-        return s;
-    }
-
-    private static void CardTimes_ParseClockIsStrict24Hour()
-    {
-        TimeSpan time;
-        Equal(true, CardTimes.TryParseClock("00:00:00", out time), "Midnight");
-        Equal(true, CardTimes.TryParseClock("23:59:59", out time), "Last second");
-        Equal(true, CardTimes.TryParseClock("14:05:30", out time), "Ordinary time");
-        Equal(new TimeSpan(14, 5, 30), time, "Value");
-        foreach (string bad in new string[] { null, "", "24:00:00", "12:60:00", "12:00:60", "9:05:30", "12:00", "12:00:00 ", "ab:cd:ef", "12-00-00", "1200000" })
-            Equal(false, CardTimes.TryParseClock(bad, out time), "Rejects '" + bad + "'");
-    }
-
-    private static void CardTimes_FiresOnceWhenTheSecondIsPassed()
-    {
-        ReminderSettings s = Scheduled("relax=12:00:30");
-        string[] known = new string[] { "stretch", "relax" };
-        DateTime d = new DateTime(2026, 11, 10, 12, 0, 0);
-        Equal(0, CardTimes.DueCards(d.AddSeconds(28), d.AddSeconds(29), s, known).Length, "One second early");
-        Equal("relax", String.Join(",", CardTimes.DueCards(d.AddSeconds(29), d.AddSeconds(30), s, known)), "The tick that lands exactly on the second includes it");
-        Equal(0, CardTimes.DueCards(d.AddSeconds(30), d.AddSeconds(31), s, known).Length, "The previous tick already fired it: (previous, now]");
-        Equal("relax", String.Join(",", CardTimes.DueCards(d.AddSeconds(29), d.AddSeconds(33), s, known)), "A slightly late tick still catches it");
-    }
-
-    private static void CardTimes_OnlyEnabledKnownCardsOnAllowedDays()
-    {
-        string[] known = new string[] { "stretch", "relax" };
-        DateTime d = new DateTime(2026, 11, 10, 9, 0, 0); // Tuesday
-        ReminderSettings s = Scheduled("relax=!09:00:01", "stretch=09:00:01", "ghost=09:00:01");
-        Equal("stretch", String.Join(",", CardTimes.DueCards(d, d.AddSeconds(2), s, known)), "Switched-off and unknown cards stay quiet");
-        s.Enabled = false;
-        Equal(0, CardTimes.DueCards(d, d.AddSeconds(2), s, known).Length, "Reminders paused");
-        s.Enabled = true; s.WeekdaysOnly = true;
-        DateTime saturday = new DateTime(2026, 11, 14, 9, 0, 0);
-        Equal(0, CardTimes.DueCards(saturday, saturday.AddSeconds(2), s, known).Length, "Weekdays only skips Saturday");
-        s.WeekdaysOnly = false;
-        Equal("stretch", String.Join(",", CardTimes.DueCards(saturday, saturday.AddSeconds(2), s, known)), "Every day when weekdays-only is off");
-    }
-
-    private static void CardTimes_IgnoreWindowAndBreakButNotPause()
-    {
-        string[] known = new string[] { "relax" };
-        ReminderSettings s = Scheduled("relax=12:30:00");
-        s.BreakEnabled = true; s.BreakStartHour = 12; s.BreakEndHour = 13; // lunch
-        DateTime noon = new DateTime(2026, 11, 10, 12, 29, 59);
-        Equal("relax", String.Join(",", CardTimes.DueCards(noon, noon.AddSeconds(1), s, known)), "A card fixed inside the break still starts");
-        ReminderSettings late = Scheduled("relax=21:00:00");
-        DateTime evening = new DateTime(2026, 11, 10, 20, 59, 59);
-        Equal("relax", String.Join(",", CardTimes.DueCards(evening, evening.AddSeconds(1), late, known)), "A card fixed outside the 09-18 window still starts");
-    }
-
-    private static void CardTimes_NoBurstAfterALongGapAndOrderedAcrossMidnight()
-    {
-        string[] known = new string[] { "a", "b" };
-        ReminderSettings s = Scheduled("a=10:00:00", "b=10:00:01");
-        DateTime d = new DateTime(2026, 11, 10, 10, 0, 0);
-        Equal(0, CardTimes.DueCards(d.AddMinutes(-30), d.AddSeconds(5), s, known).Length, "Waking from sleep never replays missed cards");
-        Equal(0, CardTimes.DueCards(d.AddSeconds(5), d.AddSeconds(-5), s, known).Length, "Clock moved backwards");
-        Equal("a,b", String.Join(",", CardTimes.DueCards(d.AddSeconds(-1), d.AddSeconds(2), s, known)), "Two cards in one tick come out in time order");
-        ReminderSettings midnight = Scheduled("a=00:00:00");
-        DateTime before = new DateTime(2026, 11, 10, 23, 59, 59);
-        Equal("a", String.Join(",", CardTimes.DueCards(before, before.AddSeconds(1), midnight, known)), "Crossing midnight reaches the next day's 00:00:00");
-    }
-
-    private static void CardTimes_ValidateAndEmptyRotation()
-    {
-        Validate(Scheduled("relax=12:00:30"), KnownThemes());
-        foreach (string bad in new string[] { "relax=25:00:00", "relax=12:00", "relax=noon" })
-        {
-            string entry = bad;
-            ThrowsArgument(delegate { Validate(Scheduled(entry), KnownThemes()); }, "Bad time " + bad);
-        }
-        ReminderSettings noTime = new ReminderSettings();
-        noTime.CardSchedules["relax"] = new CardSchedule { Enabled = true, Time = null };
-        ThrowsArgument(delegate { Validate(noTime, KnownThemes()); }, "Enabled without a time");
-        ReminderSettings off = new ReminderSettings();
-        off.CardSchedules["relax"] = new CardSchedule { Enabled = false, Time = null };
-        Validate(off, KnownThemes());
-        // Nothing in the interval rotation is fine only when some card has a fixed start time.
-        ReminderSettings onlyFixed = Scheduled("relax=12:00:30");
-        onlyFixed.ThemeIds = new string[0];
-        Validate(onlyFixed, KnownThemes());
-        Equal(true, CardTimes.HasScheduledCard(onlyFixed), "Scheduled card");
-        ReminderSettings nothing = new ReminderSettings { ThemeIds = new string[0] };
-        ThrowsArgument(delegate { Validate(nothing, KnownThemes()); }, "No rotation and no fixed card");
-        ReminderSettings offOnly = Scheduled("relax=!12:00:30");
-        offOnly.ThemeIds = new string[0];
-        ThrowsArgument(delegate { Validate(offOnly, KnownThemes()); }, "A switched-off fixed card does not count");
     }
 
     private static ReminderSettings Lunch(int intervalMinutes)
@@ -945,11 +1372,23 @@ internal static class ReminderCoreTests
 
     private static void Break_PostponesAReminderThatLandsInsideIt()
     {
-        // Monday 2026-11-09. 11:30 + 60 min = 12:30 is lunch, so it waits for 13:00.
+        // Monday 2026-11-09, timetable anchored 09:00. From 11:30 the next slot is 12:00, which is lunch, so it waits for 13:00.
         Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 11, 30, 0), Lunch(60)), "Lands in lunch");
         Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 11, 59, 0), Lunch(1)), "One minute before lunch");
-        Equal(new DateTime(2026, 11, 9, 11, 30, 0), Next(new DateTime(2026, 11, 9, 10, 30, 0), Lunch(60)), "Before lunch is untouched");
+        Equal(new DateTime(2026, 11, 9, 11, 0, 0), Next(new DateTime(2026, 11, 9, 10, 30, 0), Lunch(60)), "Before lunch takes the next fixed slot (11:00)");
         Equal(new DateTime(2026, 11, 9, 14, 0, 0), Next(new DateTime(2026, 11, 9, 13, 0, 0), Lunch(60)), "After lunch is untouched");
+    }
+
+    private static void Next_AbsoluteTimetableStaysOnTheGrid()
+    {
+        // 09:00 시작 · 60분 간격의 고정 시각표(10:00, 11:00, 12:00…).
+        // 팝업을 늦게 닫아도 시각표가 밀리지 않는다 — 절대 시간 기준.
+        ReminderSettings s = new ReminderSettings { IntervalMinutes = 60 };
+        Equal(new DateTime(2026, 11, 9, 11, 0, 0), Next(new DateTime(2026, 11, 9, 10, 7, 0), s), "A late dismissal does not drift the timetable");
+        Equal(new DateTime(2026, 11, 9, 11, 0, 0), Next(new DateTime(2026, 11, 9, 10, 59, 30), s), "Just before a slot takes that slot");
+        Equal(new DateTime(2026, 11, 9, 10, 0, 0), Next(new DateTime(2026, 11, 9, 9, 0, 0), s), "Exactly on a slot goes to the next slot");
+        Equal(new DateTime(2026, 11, 9, 9, 0, 0), Next(new DateTime(2026, 11, 9, 8, 30, 0), s), "Before the day's start waits for the first slot");
+        Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 11, 55, 0), new ReminderSettings { IntervalMinutes = 240 }), "A 240-minute timetable keeps 09:00/13:00/17:00 slots");
     }
 
     private static void Break_StartIsInsideEndIsOutside()
@@ -1006,6 +1445,63 @@ internal static class ReminderCoreTests
         Validate(new ReminderSettings { BreakEnabled = false, BreakStartHour = 13, BreakEndHour = 12 }, KnownThemes());
     }
 
+    // Several quiet periods from the Breaks list (the 325 UI: ＋ adds a row, － removes it).
+    // Each window is { startHour, startMinute, endHour, endMinute }.
+    private static ReminderSettings Lunches(int intervalMinutes, params int[][] windows)
+    {
+        ReminderSettings s = new ReminderSettings { IntervalMinutes = intervalMinutes, BreakEnabled = true };
+        s.Breaks = new List<BreakWindow>();
+        foreach (int[] w in windows)
+            s.Breaks.Add(new BreakWindow { StartHour = w[0], StartMinute = w[1], EndHour = w[2], EndMinute = w[3] });
+        return s;
+    }
+
+    private static void Breaks_ListSuppliesSeveralQuietPeriods()
+    {
+        // Lunch 12:00-13:00 plus a tea break 15:00-15:30 on a 30-minute timetable anchored 09:00.
+        ReminderSettings s = Lunches(30, new int[] { 12, 0, 13, 0 }, new int[] { 15, 0, 15, 30 });
+        Equal(new DateTime(2026, 11, 9, 13, 0, 0), Next(new DateTime(2026, 11, 9, 11, 45, 0), s), "The 12:00 slot waits for lunch to end");
+        Equal(new DateTime(2026, 11, 9, 15, 30, 0), Next(new DateTime(2026, 11, 9, 14, 45, 0), s), "The 15:00 slot waits for the tea break to end");
+        Equal(false, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 15, 15, 0), s), "Inside the second period");
+        Equal(true, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 15, 30, 0), s), "At the second period's end");
+        Equal(true, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 14, 0, 0), s), "Between the two periods");
+        // Back-to-back periods: 12:00-13:00 followed by 13:00-14:00 push a noon slot to 14:00.
+        ReminderSettings chained = Lunches(60, new int[] { 12, 0, 13, 0 }, new int[] { 13, 0, 14, 0 });
+        Equal(new DateTime(2026, 11, 9, 14, 0, 0), Next(new DateTime(2026, 11, 9, 11, 30, 0), chained), "Chained periods both apply");
+        Validate(s, KnownThemes());
+        Validate(chained, KnownThemes());
+    }
+
+    private static void Breaks_EmptyListMeansNoQuietPeriod()
+    {
+        // An explicit empty list means "the feature is on but nothing is excluded" — unlike null,
+        // which stands for an old single-period settings file and falls back to the legacy fields.
+        ReminderSettings s = new ReminderSettings { IntervalMinutes = 60, BreakEnabled = true, Breaks = new List<BreakWindow>() };
+        Equal(new DateTime(2026, 11, 9, 12, 0, 0), Next(new DateTime(2026, 11, 9, 11, 0, 0), s), "Noon stays a normal slot");
+        Equal(true, ReminderSchedule.IsAllowed(new DateTime(2026, 11, 9, 12, 30, 0), s), "Noon is allowed");
+        Validate(s, KnownThemes());
+    }
+
+    private static void Breaks_ValidateRejectsCoverageByTwoBreaks()
+    {
+        // Two periods that together swallow the window 09:00-18:00 are refused…
+        ThrowsArgument(delegate { Validate(Lunches(60, new int[] { 8, 0, 12, 30 }, new int[] { 12, 30, 19, 0 }), KnownThemes()); }, "Two periods cover the window");
+        // …but the same pair with a gap between them is fine.
+        Validate(Lunches(60, new int[] { 8, 0, 12, 30 }, new int[] { 12, 45, 19, 0 }), KnownThemes());
+        // Overlapping periods are merged for the same check.
+        ThrowsArgument(delegate { Validate(Lunches(60, new int[] { 8, 0, 14, 0 }, new int[] { 13, 0, 19, 0 }), KnownThemes()); }, "Overlapping periods cover the window");
+        // A single bad entry in the list is refused.
+        ThrowsArgument(delegate { Validate(Lunches(60, new int[] { 12, 0, 13, 0 }, new int[] { 14, 0, 13, 0 }), KnownThemes()); }, "Second period ends before it starts");
+    }
+
+    private static void Breaks_ValidateRejectsTooManyEntries()
+    {
+        ReminderSettings s = new ReminderSettings { IntervalMinutes = 60, BreakEnabled = true, Breaks = new List<BreakWindow>() };
+        for (int i = 0; i < 9; i++)
+            s.Breaks.Add(new BreakWindow { StartHour = 9 + i, StartMinute = 0, EndHour = 9 + i, EndMinute = 30 });
+        ThrowsArgument(delegate { Validate(s, KnownThemes()); }, "Nine quiet periods");
+    }
+
     private static void Next_CrossesYearBoundary()
     {
         Equal(new DateTime(2027, 1, 1, 9, 0, 0),
@@ -1030,15 +1526,22 @@ internal static class ReminderCoreTests
                 StartHour = starts[window], EndHour = ends[window]
             };
             DateTime from = origin.AddDays(days).AddHours(hour).AddSeconds(17);
-            DateTime candidate = from.AddMinutes(interval);
+            // 절대 시각표: 시작 시각에 간격 배수를 붙인 슬롯들. slot = from 다음의 첫 슬롯(규칙 적용 전).
+            DateTime anchor = from.Date + new TimeSpan(settings.StartHour, settings.StartMinute, 0);
+            long intervalTicks = TimeSpan.FromMinutes(interval).Ticks;
+            long diff = from.Ticks - anchor.Ticks;
+            long steps = diff / intervalTicks;
+            if (diff % intervalTicks != 0 && diff < 0) steps -= 1;
+            DateTime slot = anchor.AddTicks((steps + 1) * intervalTicks);
             DateTime actual = Next(from, settings);
-            Equal(true, actual >= candidate, "Next must not precede the full interval");
+            Equal(true, actual > from, "Next must be strictly after from");
             Equal(true, IsAllowed(actual, settings), "Next must be allowed");
+            Equal(true, actual >= slot, "Next must not skip the timetable slot it owes");
             Equal(from.Kind, actual.Kind, "Sweep preserves kind");
-            if (actual > candidate)
+            if (actual > slot)
                 Equal(false, IsAllowed(actual.AddTicks(-1), settings), "Clamping must choose the first allowed instant");
             else
-                Equal(true, IsAllowed(candidate, settings), "Allowed candidate is not shifted");
+                Equal(true, IsAllowed(slot, settings), "An allowed slot is not shifted");
         }
     }
 

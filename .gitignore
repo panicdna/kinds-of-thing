@@ -25,3 +25,9 @@ webview-error.txt
 settings.json
 *.user
 .vs/
+
+# Release artifacts are built locally, not stored in the repo
+Teum-v*.zip
+Output/
+.idea/
+teum-cards-*.json
