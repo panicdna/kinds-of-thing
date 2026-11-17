@@ -39,6 +39,18 @@ section:has(#knox-on:checked) .knox-auto-line{color:var(--ink)}
 section:has(#knox-on:checked) .schedule-line:has(#knox-lead) input,
 section:has(#knox-on:checked) .knox-auto-line input{accent-color:var(--green)}
 
+/* Knox-mail invitation rows (364) follow the knox-mail checkbox the same way; the password input
+   itself is disabled by the app while the checkbox is off. */
+section:has(#knox-mail-on:not(:checked)) .knox-mail-pass-line{color:var(--muted)}
+section:has(#knox-mail-on:not(:checked)) .knox-mail-pass-line input{accent-color:#9b9f91}
+section:has(#knox-mail-on:checked) .knox-mail-pass-line{color:var(--ink)}
+section:has(#knox-mail-on:checked) .knox-mail-pass-line input{accent-color:var(--green)}
+/* 373: the messenger toggle follows the Knox calendar checkbox (meeting alerts are its only source). */
+section:has(#knox-on:not(:checked)) .knox-messenger-line{color:var(--muted)}
+section:has(#knox-on:not(:checked)) .knox-messenger-line input{accent-color:#9b9f91}
+section:has(#knox-on:checked) .knox-messenger-line{color:var(--ink)}
+section:has(#knox-on:checked) .knox-messenger-line input{accent-color:var(--green)}
+
 /* Start/end times only matter while "시간대에만 알림 받기" is on; grey the inputs and the end-time
    line while it is off. The interval number next to the start time stays editable either way. */
 .interval-display input.time24:disabled{color:var(--muted);border-bottom-color:#e0e3da;cursor:not-allowed}
@@ -65,6 +77,7 @@ dialog.share-panel{width:min(960px,92vw);max-height:88vh;overflow:auto;padding:2
 dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
 .share-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.share-head h2{margin:0;font-size:20px}
 .stretch-picker{margin:0 0 14px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--card)}.stretch-pick-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:14px}.stretch-pick-row b{white-space:nowrap}#variant-pick{flex:1;min-width:220px;max-width:560px;padding:7px 10px;border:1px solid var(--green);border-radius:10px;background:#fbfdf7;color:var(--ink);font-size:13px}.variant-mode-label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap}.variant-mode-label select{padding:4px 7px;border:1px solid var(--line);border-radius:8px;background:#fffef9;color:var(--ink);font-size:12px}#variant-edit{font-size:12px;padding:7px 11px;white-space:nowrap}.variant-edit-box{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#f7f8f0;display:grid;gap:9px}.edit-list{display:grid;gap:4px;max-height:190px;overflow:auto}.edit-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}.edit-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.edit-row .quiet{font-size:11px;padding:4px 9px;flex-shrink:0}.edit-removed>span{color:var(--muted);text-decoration:line-through}.edit-add{display:flex;gap:6px;flex-wrap:wrap}.edit-add input{flex:1;min-width:170px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:#fbfdf7;color:var(--ink);font-size:13px}.edit-add button{padding:8px 14px;font-size:12px}.edit-actions{display:flex;gap:8px;justify-content:flex-end}.edit-actions .quiet{font-size:12px;padding:6px 10px}
+.edit-row-btns{display:flex;gap:4px;flex-shrink:0;overflow:visible;text-overflow:clip}.edit-row-editing{flex-wrap:wrap}.edit-row-editing input{flex:1;min-width:150px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:#fbfdf7;color:var(--ink);font-size:12px}
 
 /* Card-list editing bar (03 section) and the calendar-alert video card. */
 .card-edit-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0 4px}
@@ -110,6 +123,11 @@ dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
 .knox-simple .knox-eyebrow{font-size:clamp(13px,1.4vw,20px);font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#bcd8c3}
 .knox-simple h1{font-size:clamp(34px,5.5vw,90px);letter-spacing:-.05em;margin:0;max-width:92vw;overflow-wrap:break-word;line-height:1.2;text-shadow:0 2px 18px rgba(0,0,0,.45)}
 .knox-simple .knox-when{font-size:clamp(20px,2.4vw,38px);font-weight:700;color:#dff0e2;letter-spacing:.04em;text-shadow:0 2px 14px rgba(0,0,0,.45)}
+/* 350: 같은 시각에 겹친 일정을 한 화면에 나열한 목록 — 일정마다 시각과 제목 한 줄. */
+.knox-simple .knox-list{display:flex;flex-direction:column;align-items:stretch;gap:clamp(8px,1.4vh,18px);max-width:92vw}
+.knox-simple .knox-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:clamp(6px,1vh,12px) clamp(16px,2vw,36px);border:1px solid rgba(255,255,255,.22);border-radius:14px;background:rgba(13,31,22,.5)}
+.knox-simple .knox-item-when{font-size:clamp(15px,1.6vw,26px);font-weight:700;color:#dff0e2;letter-spacing:.04em;text-shadow:0 2px 12px rgba(0,0,0,.45)}
+.knox-simple .knox-item-title{font-size:clamp(22px,3.2vw,54px);font-weight:800;letter-spacing:-.04em;line-height:1.2;overflow-wrap:break-word;text-shadow:0 2px 16px rgba(0,0,0,.45)}
 .knox-simple .knox-note{font-size:clamp(11px,1vw,15px);color:#c4d8c9;margin-top:16px}
 .knox-simple .knox-autoclose{font-size:clamp(11px,1vw,14px);color:#e8e2c9;margin-top:8px;padding:8px 16px;border:1px solid rgba(232,226,201,.35);border-radius:999px;background:rgba(13,31,22,.45)}
 .knox-simple .popup-close{position:absolute;top:26px;right:30px;z-index:20;background:rgba(13,31,22,.55);color:#fff;border:1px solid rgba(255,255,255,.45)}
@@ -144,7 +162,7 @@ dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
 [data-appearance="dark"] .popup-footer{border-top-color:#2a332d}.volume-badge{position:fixed;z-index:40;font-size:12px;color:var(--muted);background:#fffef9d9;border:1px solid var(--line);border-radius:11px;padding:6px 12px;pointer-events:none;font-variant-numeric:tabular-nums}.volume-badge.is-muted{opacity:.72}.volume-badge.bump{animation:volume-bump .25s ease}@keyframes volume-bump{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}[data-appearance="dark"] .volume-badge{background:#191e1bd9;border-color:#37423a}
 [data-appearance="dark"] .popup-next{color:#101412}
 [data-appearance="dark"] .icon-option input:checked+span{background:var(--lime);border-color:var(--green)}
-[data-appearance="dark"] #variant-pick,[data-appearance="dark"] #theme-mode-select,[data-appearance="dark"] .variant-mode-label select,[data-appearance="dark"] .edit-add input{background:#141917;color:var(--ink);border-color:#37423a}
+[data-appearance="dark"] #variant-pick,[data-appearance="dark"] #theme-mode-select,[data-appearance="dark"] .variant-mode-label select,[data-appearance="dark"] .edit-add input,[data-appearance="dark"] .edit-row-editing input{background:#141917;color:var(--ink);border-color:#37423a}
 [data-appearance="dark"] .variant-edit-box{background:#141917;border-color:#37423a}
 /* Dark theme inputs: a light hardcoded paper background must never survive next to light ink.
    Covers the share/add-card dialog fields and the Knox test-picker dropdown. */
@@ -156,3 +174,6 @@ dialog.share-panel::backdrop{background:rgba(35,69,54,.45)}
 .next-list-label{font-size:11px;color:var(--muted)}
 .next-item{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:baseline}
 .next-item b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+/* 383: 설정 04 카드에서 화면에만 숨기는 줄(메신저 알림 줄·동작 기록·안내 문단). 요소와 저장값은 그대로 남아
+   저장·스모크·백그라운드 동작이 바뀌지 않는다. .schedule-line 의 display:flex 를 이기도록 !important. */
+.ux-hidden{display:none!important}

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
 using DeskHooker;
@@ -221,6 +222,34 @@ internal static class ReminderCoreTests
         Run("KnoxSync_BuildIcsFallsBackToATimeBasedUidWithoutScheduleId", KnoxSync_BuildIcsFallsBackToATimeBasedUidWithoutScheduleId);
         Run("KnoxSync_BuildIcsRejectsNullSchedules", KnoxSync_BuildIcsRejectsNullSchedules);
         Run("KnoxSync_BuildIcsRoundTripsThroughCalendarScheduleParseIcs", KnoxSync_BuildIcsRoundTripsThroughCalendarScheduleParseIcs);
+        Run("KnoxMail_DecodeHeaderReadsBase64QAndPlainWords", KnoxMail_DecodeHeaderReadsBase64QAndPlainWords);
+        Run("KnoxMail_DecodeHeaderJoinsAdjacentEncodedWords", KnoxMail_DecodeHeaderJoinsAdjacentEncodedWords);
+        Run("KnoxMail_ParseMailDateHonorsOffsetAsPcLocal", KnoxMail_ParseMailDateHonorsOffsetAsPcLocal);
+        Run("KnoxMail_ParseMailDateWithoutOffsetIsLocal", KnoxMail_ParseMailDateWithoutOffsetIsLocal);
+        Run("KnoxMail_ParseMailDateRejectsGarbage", KnoxMail_ParseMailDateRejectsGarbage);
+        Run("KnoxMail_DateFromHeaderBlockReadsTopResponse", KnoxMail_DateFromHeaderBlockReadsTopResponse);
+        Run("KnoxMail_HtmlToTextKeepsTableShape", KnoxMail_HtmlToTextKeepsTableShape);
+        Run("KnoxMail_HtmlToTextStripsScriptAndDecodesEntities", KnoxMail_HtmlToTextStripsScriptAndDecodesEntities);
+        Run("KnoxMail_ParseInvitationBodyVerbatimSample", KnoxMail_ParseInvitationBodyVerbatimSample);
+        Run("KnoxMail_ParseInvitationBodyEndWithoutDateInheritsStart", KnoxMail_ParseInvitationBodyEndWithoutDateInheritsStart);
+        Run("KnoxMail_ParseInvitationBodyUnreadableWhenKeepsRaw", KnoxMail_ParseInvitationBodyUnreadableWhenKeepsRaw);
+        Run("KnoxMail_ParseInvitationBodyWithoutLabelsIsNull", KnoxMail_ParseInvitationBodyWithoutLabelsIsNull);
+        Run("KnoxMail_ParseMailMessageReadsPlainInvitation", KnoxMail_ParseMailMessageReadsPlainInvitation);
+        Run("KnoxMail_ParseMailMessagePrefersPlainInMultipart", KnoxMail_ParseMailMessagePrefersPlainInMultipart);
+        Run("KnoxMail_ParseMailMessageHtmlOnlyInvitation", KnoxMail_ParseMailMessageHtmlOnlyInvitation);
+        Run("KnoxMail_ParseMailMessageQuotedPrintableKorean", KnoxMail_ParseMailMessageQuotedPrintableKorean);
+        Run("KnoxMail_InvitationToCalendarEntryNeedsStartAndTitleAndIsStable", KnoxMail_InvitationToCalendarEntryNeedsStartAndTitleAndIsStable);
+        Run("KnoxMail_MergeMeetingEntriesDropsCoveredMeetings", KnoxMail_MergeMeetingEntriesDropsCoveredMeetings);
+        Run("KnoxMail_DecideScanStepStopsAtOlderMail", KnoxMail_DecideScanStepStopsAtOlderMail);
+        Run("AvatarMessenger_LoginUrlUsesLoopbackCallback", AvatarMessenger_LoginUrlUsesLoopbackCallback);
+        Run("AvatarMessenger_CodeFromRequestLineReadsOnlyOurCallback", AvatarMessenger_CodeFromRequestLineReadsOnlyOurCallback);
+        Run("AvatarMessenger_AccessTokenFromExchangeReadsTokenAndKnoxId", AvatarMessenger_AccessTokenFromExchangeReadsTokenAndKnoxId);
+        Run("AvatarMessenger_DesktopTokenFromResponseRequiresDesktopPrefix", AvatarMessenger_DesktopTokenFromResponseRequiresDesktopPrefix);
+        Run("AvatarMessenger_MeetingTextListsSoonestFirstWithTimes", AvatarMessenger_MeetingTextListsSoonestFirstWithTimes);
+        Run("AvatarMessenger_MeetingTextStaysUnderServerLimit", AvatarMessenger_MeetingTextStaysUnderServerLimit);
+        Run("AvatarMessenger_JsonBodyEscapesText", AvatarMessenger_JsonBodyEscapesText);
+        Run("Settings_MessengerNotifyIsOffByDefault", Settings_MessengerNotifyIsOffByDefault);
+        Run("AvatarMessenger_AccountMatchesPcUserOnly", AvatarMessenger_AccountMatchesPcUserOnly);
         Console.WriteLine("RESULT: {0} passed, {1} failed", passed, failed);
         return failed == 0 ? 0 : 1;
     }
@@ -313,6 +342,7 @@ internal static class ReminderCoreTests
         PropertyDefault(type, settings, "KnoxLeadMinutes", 5);
         PropertyDefault(type, settings, "KnoxAutoClose", "none");
         PropertyDefault(type, settings, "KnoxAutoCloseMinutes", 5);
+        PropertyDefault(type, settings, "KnoxMailEnabled", false);
         PropertyDefault(type, settings, "Appearance", "system");
         PropertyInfo themesProperty = type.GetProperty("ThemeIds");
         if (themesProperty == null || themesProperty.PropertyType != typeof(string[]) ||
@@ -811,8 +841,8 @@ internal static class ReminderCoreTests
         Equal(5, s.KnoxLeadMinutes, "Preset: Knox 5 minutes before");
         Equal(ReminderSettings.KnoxAutoCloseNone, s.KnoxAutoClose, "Preset: no auto-close");
         Equal(ThemeRotation.RandomOne, s.ThemeMode, "Preset: one random card each time");
-        Equal(String.Join(",", new string[] { "stretch", "meditation", "voice", "back-standing", "relax" }),
-              String.Join(",", s.ThemeIds), "Preset: the five chosen cards (dance left out)");
+        Equal(String.Join(",", new string[] { "stretch", "meditation", "voice", "back-standing" }),
+              String.Join(",", s.ThemeIds), "Preset: the four chosen cards (337 export preset; relax and dance left out)");
         Equal(1, s.Schedules.Count, "Preset: one scheduled card");
         Equal("17:00:00", s.Schedules["bus-home"], "Preset: the bus-home card at 17:00");
         Equal(false, s.Enabled, "Preset: starts paused until the user turns it on");
@@ -1258,6 +1288,296 @@ internal static class ReminderCoreTests
         Equal(new DateTime(2026, 11, 10, 14, 0, 0), entries[0].StartLocal, "StartLocal round-trips");
     }
 
+    // ---------------------------------------------------------------- KnoxMail (knox mail inbox)
+
+    // 실물 초대 메일 양식(2026-11-16 수신 관측) — chatbot2 tests/test_knox_mail_inbox.py 와 동일 원문.
+    private const string KnoxMailInvitationBody =
+        "회의제목\t회의\n" +
+        "회의일시\t2026-11-16 14:00 ~ 2026-11-16 15:00\n" +
+        "회의장소\t화성 DSR C타워 21층 [C타워 21층 중앙휴게실] DSR C타워 A2103\n" +
+        "주관자\t정성문 [AX/PI팀(S.LSI)]\n" +
+        "참석자\t필수참석자 : 고재명,김주영,성지빈,안준형,윤병우,이경춘,한동구,허준녕\n" +
+        "선택참석자 :\n" +
+        "회의내용\t회의\n";
+
+    private static byte[] RawMail(string head, string body)
+    {
+        return System.Text.Encoding.UTF8.GetBytes(head + body);
+    }
+
+    private static string PercentUtf8(string text)
+    {
+        StringBuilder percent = new StringBuilder();
+        foreach (byte b in System.Text.Encoding.UTF8.GetBytes(text))
+            percent.Append('%').Append(b.ToString("X2", CultureInfo.InvariantCulture));
+        return percent.ToString();
+    }
+
+    private static void KnoxMail_DecodeHeaderReadsBase64QAndPlainWords()
+    {
+        string base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("회의"));
+        string euckr = Convert.ToBase64String(System.Text.Encoding.GetEncoding(949).GetBytes("회의"));
+        Equal("회의", KnoxMail.DecodeHeader("=?utf-8?B?" + base64 + "?="), "Base64 encoded word");
+        Equal("회의", KnoxMail.DecodeHeader("=?utf-8?Q?=ED=9A=8C=EC=9D=98?="), "Q encoded word");
+        Equal("hello world", KnoxMail.DecodeHeader("=?utf-8?Q?hello_world?="), "Q underscores are spaces");
+        Equal("회의", KnoxMail.DecodeHeader("=?euc-kr?B?" + euckr + "?="), "euc-kr encoded word");
+        Equal("[지원WP] 회의", KnoxMail.DecodeHeader("[지원WP] =?utf-8?B?" + base64 + "?="), "Plain and encoded mix");
+        Equal("plain subject", KnoxMail.DecodeHeader("plain subject"), "Plain passthrough");
+        Equal("", KnoxMail.DecodeHeader(null), "Null header is empty");
+    }
+
+    private static void KnoxMail_DecodeHeaderJoinsAdjacentEncodedWords()
+    {
+        string first = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("회의"));
+        string second = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("초대"));
+        Equal("회의초대", KnoxMail.DecodeHeader("=?utf-8?B?" + first + "?= =?utf-8?B?" + second + "?="), "Whitespace between adjacent encoded words is dropped");
+        Equal("회의초대", KnoxMail.DecodeHeader("=?utf-8?B?" + first + "?=\t=?utf-8?B?" + second + "?="), "Tabs fold the same way");
+    }
+
+    private static void KnoxMail_ParseMailDateHonorsOffsetAsPcLocal()
+    {
+        DateTime? utc = KnoxMail.ParseMailDate("Sun, 15 Nov 2026 20:00:00 +0000");
+        Equal(true, utc.HasValue, "UTC Date parses");
+        Equal(new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc), utc.Value.ToUniversalTime(), "The UTC instant survives the PC's zone");
+        DateTime? noWeekday = KnoxMail.ParseMailDate("15 Nov 2026 20:00:00 +0000");
+        Equal(true, noWeekday.HasValue, "A Date without the weekday name parses");
+        DateTime? kst = KnoxMail.ParseMailDate("Mon, 16 Nov 2026 14:00:00 +0900");
+        Equal(new DateTime(2026, 11, 16, 5, 0, 0, DateTimeKind.Utc), kst.Value.ToUniversalTime(), "+0900 wall time is nine hours ahead of UTC");
+    }
+
+    private static void KnoxMail_ParseMailDateWithoutOffsetIsLocal()
+    {
+        DateTime? value = KnoxMail.ParseMailDate("Mon, 16 Nov 2026 14:30:00");
+        Equal(true, value.HasValue, "Offsetless Date parses");
+        Equal(new DateTime(2026, 11, 16, 14, 30, 0), value.Value, "Offsetless is taken as already-local");
+    }
+
+    private static void KnoxMail_ParseMailDateRejectsGarbage()
+    {
+        Equal(false, KnoxMail.ParseMailDate("not a date").HasValue, "Plain words are not dates");
+        Equal(false, KnoxMail.ParseMailDate("2026-11-16").HasValue, "ISO dates are not RFC 2822");
+        Equal(false, KnoxMail.ParseMailDate("").HasValue, "Empty is not a date");
+        Equal(false, KnoxMail.ParseMailDate(null).HasValue, "Null is not a date");
+    }
+
+    private static void KnoxMail_DateFromHeaderBlockReadsTopResponse()
+    {
+        byte[] block = System.Text.Encoding.UTF8.GetBytes("Subject: test\r\nDate: Mon, 16 Nov 2026 05:00:00 +0900\r\n\r\nbody past the blank line is ignored");
+        Equal(new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc), KnoxMail.DateFromHeaderBlock(block).Value.ToUniversalTime(), "Date from a TOP n 0 header block");
+        Equal(false, KnoxMail.DateFromHeaderBlock(System.Text.Encoding.UTF8.GetBytes("Subject: only\r\n\r\nno Date here")).HasValue, "No Date header → null");
+        Equal(false, KnoxMail.DateFromHeaderBlock(null).HasValue, "Null block → null");
+    }
+
+    private static void KnoxMail_HtmlToTextKeepsTableShape()
+    {
+        string html = "<html><body><table>"
+            + "<tr><td>회의제목</td><td>회의</td></tr>"
+            + "<tr><td>회의일시</td><td>2026-11-16 14:00 ~ 15:00</td></tr>"
+            + "</table></body></html>";
+        string text = KnoxMail.HtmlToText(html);
+        Equal(true, text.Contains("회의제목\t회의"), "Cells become tab-separated labels");
+        Equal(true, text.Contains("\n회의일시\t2026-11-16 14:00 ~ 15:00"), "Rows become lines");
+    }
+
+    private static void KnoxMail_HtmlToTextStripsScriptAndDecodesEntities()
+    {
+        string html = "<style>b{}</style><p>A&nbsp;&amp;&nbsp;B</p><script>var x=\"</p>\";</script><p>C</p>";
+        string text = KnoxMail.HtmlToText(html);
+        Equal(false, text.Contains("var x"), "Script bodies are dropped");
+        Equal(false, text.Contains("b{}"), "Style bodies are dropped");
+        Equal(true, text.Contains("A & B"), "Named entities decode");
+        Equal(true, text.Contains("C"), "Markup after the script survives");
+        Equal("가나", KnoxMail.HtmlToText("&#xAC00;&#xB098;"), "Numeric entities decode");
+    }
+
+    private static void KnoxMail_ParseInvitationBodyVerbatimSample()
+    {
+        KnoxInvitation meeting = KnoxMail.ParseInvitationBody(KnoxMailInvitationBody);
+        Equal(true, meeting != null, "The verbatim form parses");
+        Equal("회의", meeting.Title, "title");
+        Equal("2026-11-16 14:00 ~ 2026-11-16 15:00", meeting.When, "when keeps the raw text");
+        Equal(new DateTime(2026, 11, 16, 14, 0, 0), meeting.StartsAt.Value, "starts at 14:00");
+        Equal(new DateTime(2026, 11, 16, 15, 0, 0), meeting.EndsAt.Value, "ends at 15:00");
+        Equal("화성 DSR C타워 21층 [C타워 21층 중앙휴게실] DSR C타워 A2103", meeting.Location, "location");
+        Equal("정성문 [AX/PI팀(S.LSI)]", meeting.Organizer, "organizer");
+        Equal(8, meeting.RequiredAttendees.Count, "eight required attendees");
+        Equal("고재명", meeting.RequiredAttendees[0], "first attendee");
+        Equal("허준녕", meeting.RequiredAttendees[7], "last attendee");
+        Equal(0, meeting.OptionalAttendees.Count, "no optional attendees (the continuation line is absorbed)");
+        Equal("회의", meeting.Description, "description");
+    }
+
+    private static void KnoxMail_ParseInvitationBodyEndWithoutDateInheritsStart()
+    {
+        KnoxInvitation meeting = KnoxMail.ParseInvitationBody("회의제목\t주간 회의\n회의일시\t2026-11-16 14:00 ~ 15:00\n회의내용\t첫 줄\n둘째 줄");
+        Equal(new DateTime(2026, 11, 16, 14, 0, 0), meeting.StartsAt.Value, "start");
+        Equal(new DateTime(2026, 11, 16, 15, 0, 0), meeting.EndsAt.Value, "a bare time end inherits the start's date");
+        Equal("첫 줄\n둘째 줄", meeting.Description, "multi-line description");
+    }
+
+    private static void KnoxMail_ParseInvitationBodyUnreadableWhenKeepsRaw()
+    {
+        KnoxInvitation meeting = KnoxMail.ParseInvitationBody("회의제목\t회의\n회의일시\t날짜 미정\n회의내용\t회의");
+        Equal(false, meeting.StartsAt.HasValue, "no start time");
+        Equal(false, meeting.EndsAt.HasValue, "no end time");
+        Equal("날짜 미정", meeting.When, "the raw window text is kept");
+    }
+
+    private static void KnoxMail_ParseInvitationBodyWithoutLabelsIsNull()
+    {
+        Equal(true, KnoxMail.ParseInvitationBody("아무 양식 없는 본문") == null, "no labels → null");
+        Equal(true, KnoxMail.ParseInvitationBody("") == null, "empty → null");
+        Equal(true, KnoxMail.ParseInvitationBody(null) == null, "null → null");
+    }
+
+    private static void KnoxMail_ParseMailMessageReadsPlainInvitation()
+    {
+        byte[] raw = RawMail(
+            "Subject: [지원WP] [Invitation] 회의\r\n" +
+            "From: 정성문 <sungmoon.jeong@samsung.com>\r\n" +
+            "Date: Mon, 16 Nov 2026 05:00:00 +0900\r\n" +
+            "Content-Type: text/plain; charset=\"utf-8\"\r\n" +
+            "\r\n", KnoxMailInvitationBody);
+        KnoxMailMessage mail = KnoxMail.ParseMailMessage(raw, KnoxMail.BodyDefaultChars);
+        Equal("[지원WP] [Invitation] 회의", mail.Subject, "subject");
+        Equal("정성문", mail.Sender, "sender name");
+        Equal("sungmoon.jeong@samsung.com", mail.SenderEmail, "sender address");
+        Equal(new DateTime(2026, 11, 15, 20, 0, 0, DateTimeKind.Utc), mail.Received.Value.ToUniversalTime(), "received instant");
+        Equal(true, mail.Invitation != null, "invitation parsed");
+        Equal(new DateTime(2026, 11, 16, 14, 0, 0), mail.Invitation.StartsAt.Value, "meeting start");
+        Equal(0, mail.AttachmentNames.Count, "no attachments");
+    }
+
+    private static void KnoxMail_ParseMailMessagePrefersPlainInMultipart()
+    {
+        string raw = "Subject: =?utf-8?B?" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("멀티파트 공지")) + "?=\r\n" +
+            "From: a@samsung.com\r\n" +
+            "Date: Mon, 16 Nov 2026 06:00:00 +0900\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: multipart/alternative; boundary=\"BOUND\"\r\n" +
+            "\r\n" +
+            "--BOUND\r\n" +
+            "Content-Type: text/plain; charset=utf-8\r\n" +
+            "Content-Transfer-Encoding: base64\r\n" +
+            "\r\n" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("PLAIN 본문")) + "\r\n" +
+            "--BOUND\r\n" +
+            "Content-Type: text/html; charset=utf-8\r\n" +
+            "Content-Transfer-Encoding: base64\r\n" +
+            "\r\n" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("<p>HTML 본문</p>")) + "\r\n" +
+            "--BOUND\r\n" +
+            "Content-Type: application/octet-stream\r\n" +
+            "Content-Transfer-Encoding: base64\r\n" +
+            "Content-Disposition: attachment; filename*=utf-8''" + PercentUtf8("보고서.hwp") + "\r\n" +
+            "\r\n" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("hwp")) + "\r\n" +
+            "--BOUND--\r\n";
+        KnoxMailMessage mail = KnoxMail.ParseMailMessage(System.Text.Encoding.UTF8.GetBytes(raw), KnoxMail.BodyDefaultChars);
+        Equal("멀티파트 공지", mail.Subject, "encoded subject decodes");
+        Equal("PLAIN 본문", mail.Body, "text/plain wins over text/html");
+        Equal(1, mail.AttachmentNames.Count, "one attachment");
+        Equal("보고서.hwp", mail.AttachmentNames[0], "the RFC 2231 filename decodes");
+        Equal(true, mail.Invitation == null, "no invitation without the prefix");
+    }
+
+    private static void KnoxMail_ParseMailMessageHtmlOnlyInvitation()
+    {
+        string html = "<html><body><table>"
+            + "<tr><td>회의제목</td><td>회의</td></tr>"
+            + "<tr><td>회의일시</td><td>2026-11-16 14:00 ~ 15:00</td></tr>"
+            + "<tr><td>회의장소</td><td>A2103</td></tr>"
+            + "<tr><td>주관자</td><td>정성문</td></tr>"
+            + "<tr><td>참석자</td><td>필수참석자 : 고재명,한동구</td></tr>"
+            + "<tr><td>회의내용</td><td>안건</td></tr>"
+            + "</table></body></html>";
+        string raw = "Subject: [지원WP] [Invitation] HTML 초대\r\n" +
+            "From: a@samsung.com\r\n" +
+            "Date: Mon, 16 Nov 2026 07:00:00 +0900\r\n" +
+            "Content-Type: text/html; charset=\"utf-8\"\r\n" +
+            "\r\n" + html;
+        KnoxMailMessage mail = KnoxMail.ParseMailMessage(System.Text.Encoding.UTF8.GetBytes(raw), KnoxMail.BodyDefaultChars);
+        Equal(true, mail.Invitation != null, "html-only invitation parses");
+        Equal("회의", mail.Invitation.Title, "title from the table");
+        Equal(new DateTime(2026, 11, 16, 15, 0, 0), mail.Invitation.EndsAt.Value, "end inherits the start date");
+        Equal(2, mail.Invitation.RequiredAttendees.Count, "attendees from the table");
+    }
+
+    private static void KnoxMail_ParseMailMessageQuotedPrintableKorean()
+    {
+        StringBuilder quoted = new StringBuilder();
+        foreach (byte b in System.Text.Encoding.GetEncoding(949).GetBytes("회의제목\tQP 본문"))
+        {
+            if (b == '\t' || (b < 127 && b != '='))
+                quoted.Append((char)b);
+            else
+                quoted.Append('=').Append(b.ToString("X2", CultureInfo.InvariantCulture));
+        }
+        string raw = "Subject: =?euc-kr?B?" + Convert.ToBase64String(System.Text.Encoding.GetEncoding(949).GetBytes("QP 공지")) + "?=\r\n" +
+            "From: a@samsung.com\r\n" +
+            "Date: Mon, 16 Nov 2026 08:00:00 +0900\r\n" +
+            "Content-Type: text/plain; charset=\"euc-kr\"\r\n" +
+            "Content-Transfer-Encoding: quoted-printable\r\n" +
+            "\r\n" + quoted.ToString();
+        KnoxMailMessage mail = KnoxMail.ParseMailMessage(System.Text.Encoding.UTF8.GetBytes(raw), KnoxMail.BodyDefaultChars);
+        Equal("QP 공지", mail.Subject, "euc-kr base64 subject");
+        Equal("회의제목\tQP 본문", mail.Body, "euc-kr quoted-printable body");
+    }
+
+    private static void KnoxMail_InvitationToCalendarEntryNeedsStartAndTitleAndIsStable()
+    {
+        byte[] raw = RawMail(
+            "Subject: [지원WP] [Invitation] 회의\r\n" +
+            "From: 정성문 <sungmoon.jeong@samsung.com>\r\n" +
+            "Date: Mon, 16 Nov 2026 05:00:00 +0900\r\n" +
+            "Content-Type: text/plain; charset=\"utf-8\"\r\n" +
+            "\r\n", KnoxMailInvitationBody);
+        CalendarEntry first = KnoxMail.InvitationToCalendarEntry(KnoxMail.ParseMailMessage(raw, KnoxMail.BodyDefaultChars));
+        CalendarEntry second = KnoxMail.InvitationToCalendarEntry(KnoxMail.ParseMailMessage(raw, KnoxMail.BodyDefaultChars));
+        Equal(true, first != null, "A start time and a title make an entry");
+        Equal(first.Uid, second.Uid, "The uid is stable across syncs");
+        Equal(true, first.Uid.StartsWith("knoxmail-", StringComparison.Ordinal), "uid carries the knoxmail- prefix");
+        Equal("회의", first.Title, "title");
+        Equal(new DateTime(2026, 11, 16, 14, 0, 0), first.StartLocal, "start");
+        Equal(new DateTime(2026, 11, 16, 15, 0, 0), first.EndLocal.Value, "end");
+        Equal(true, KnoxMail.InvitationToCalendarEntry(new KnoxMailMessage { Invitation = new KnoxInvitation { StartsAt = DateTime.Now } }) == null, "No title → no entry");
+        Equal(true, KnoxMail.InvitationToCalendarEntry(new KnoxMailMessage { Invitation = new KnoxInvitation { Title = "회의" } }) == null, "No start time → no entry");
+        Equal(true, KnoxMail.InvitationToCalendarEntry(null) == null, "No mail → no entry");
+    }
+
+    private static void KnoxMail_MergeMeetingEntriesDropsCoveredMeetings()
+    {
+        var calendar = new List<CalendarEntry>
+        {
+            new CalendarEntry { Uid = "knox-A", Title = "SLSI Agent Desktop 개발 Sync Up", StartLocal = new DateTime(2026, 11, 16, 15, 0, 0) },
+            new CalendarEntry { Uid = "knox-B", Title = "다른 회의", StartLocal = new DateTime(2026, 11, 16, 16, 0, 0) },
+        };
+        var mail = new List<CalendarEntry>
+        {
+            // covered: the calendar title is contained in the mail title at the same start time
+            new CalendarEntry { Uid = "knoxmail-1", Title = "[지원WP] SLSI Agent Desktop 개발 Sync Up", StartLocal = new DateTime(2026, 11, 16, 15, 0, 0) },
+            // new: only the mail knows about this one
+            new CalendarEntry { Uid = "knoxmail-2", Title = "메일로만 온 회의", StartLocal = new DateTime(2026, 11, 16, 17, 0, 0) },
+            // duplicate uid inside the mail list itself
+            new CalendarEntry { Uid = "knoxmail-2", Title = "메일로만 온 회의", StartLocal = new DateTime(2026, 11, 16, 17, 0, 0) },
+            // covered: an equal title at the same start time
+            new CalendarEntry { Uid = "knoxmail-3", Title = "다른 회의", StartLocal = new DateTime(2026, 11, 16, 16, 0, 0) },
+        };
+        List<CalendarEntry> merged = KnoxMail.MergeMeetingEntries(calendar, mail);
+        Equal(3, merged.Count, "calendar entries plus one new mail meeting");
+        Equal("knox-A", merged[0].Uid, "calendar order stays first");
+        Equal("knox-B", merged[1].Uid, "second calendar entry keeps its place");
+        Equal("knoxmail-2", merged[2].Uid, "only the uncovered mail meeting joins");
+        Equal(2, KnoxMail.MergeMeetingEntries(calendar, null).Count, "null mail list means calendar only");
+        Equal(3, KnoxMail.MergeMeetingEntries(null, mail).Count, "null calendar means every mail meeting, deduped by uid");
+    }
+
+    private static void KnoxMail_DecideScanStepStopsAtOlderMail()
+    {
+        DateTime today = new DateTime(2026, 11, 16, 0, 0, 0);
+        Equal(KnoxMailScanStep.Stop, KnoxMail.DecideScanStep(today, new DateTime(2026, 11, 15, 23, 59, 0)), "older than today stops the scan");
+        Equal(KnoxMailScanStep.Fetch, KnoxMail.DecideScanStep(today, new DateTime(2026, 11, 16, 5, 0, 0)), "today is fetched");
+        Equal(KnoxMailScanStep.Skip, KnoxMail.DecideScanStep(today, new DateTime(2026, 11, 17, 0, 30, 0)), "future-dated mail is skipped but scanning continues");
+        Equal(KnoxMailScanStep.Skip, KnoxMail.DecideScanStep(today, null), "an unreadable Date is skipped");
+    }
+
     private static IEnumerable<string> KnownThemes()
     {
         yield return "stretch";
@@ -1569,5 +1889,91 @@ internal static class ReminderCoreTests
             property.GetGetMethod() == null || property.GetSetMethod() == null)
             throw new Exception(name + " must be a public read/write " + typeof(T).Name + " property");
         Equal(expected, (T)property.GetValue(settings, null), name);
+    }
+
+    private static void AvatarMessenger_LoginUrlUsesLoopbackCallback()
+    {
+        Equal("http://127.0.0.1:51234/cb", AvatarMessenger.CallbackUrl(51234), "Callback is loopback");
+        Equal("https://slsi.agent.samsungds.net:4100/api/auth/desktop/start?cb=http%3A%2F%2F127.0.0.1%3A51234%2Fcb",
+            AvatarMessenger.LoginUrl(51234), "Login URL escapes the callback");
+        ThrowsArgument(delegate { AvatarMessenger.CallbackUrl(0); }, "Port 0 is rejected");
+    }
+
+    private static void AvatarMessenger_CodeFromRequestLineReadsOnlyOurCallback()
+    {
+        Equal("ab12cd", AvatarMessenger.CodeFromRequestLine("GET /cb?code=ab12cd HTTP/1.1"), "Plain code");
+        Equal("x y", AvatarMessenger.CodeFromRequestLine("GET /cb?state=1&code=x%20y HTTP/1.1"), "Code after other params, unescaped");
+        Equal<string>(null, AvatarMessenger.CodeFromRequestLine("GET /favicon.ico HTTP/1.1"), "Favicon is not the callback");
+        Equal<string>(null, AvatarMessenger.CodeFromRequestLine("GET /cb HTTP/1.1"), "Callback without code");
+        Equal<string>(null, AvatarMessenger.CodeFromRequestLine("GET /cb?code= HTTP/1.1"), "Empty code");
+        Equal<string>(null, AvatarMessenger.CodeFromRequestLine("POST /cb?code=ab HTTP/1.1"), "Only GET");
+        Equal<string>(null, AvatarMessenger.CodeFromRequestLine("GET /cbx?code=ab HTTP/1.1"), "Path must match exactly");
+        Equal<string>(null, AvatarMessenger.CodeFromRequestLine(null), "Null line");
+    }
+
+    private static void AvatarMessenger_AccessTokenFromExchangeReadsTokenAndKnoxId()
+    {
+        string knoxId;
+        Equal("jwt-1", AvatarMessenger.AccessTokenFromExchange("{\"claims\":{\"loginid\":\"hong.gildong\",\"mail\":\"x@samsung.com\"},\"access_token\":\"jwt-1\",\"refresh_token\":\"r\"}", out knoxId), "Access token");
+        Equal("hong.gildong", knoxId, "loginid wins");
+        AvatarMessenger.AccessTokenFromExchange("{\"claims\":{\"mail\":\"kim.c@samsung.com\"},\"access_token\":\"jwt-2\"}", out knoxId);
+        Equal("kim.c", knoxId, "Mail local part is the fallback");
+        AvatarMessenger.AccessTokenFromExchange("{\"access_token\":\"jwt-3\"}", out knoxId);
+        Equal("", knoxId, "No claims leaves the id empty");
+        ThrowsArgument(delegate { AvatarMessenger.AccessTokenFromExchange("{\"claims\":{}}", out knoxId); }, "Missing token");
+        ThrowsArgument(delegate { AvatarMessenger.AccessTokenFromExchange("<html>", out knoxId); }, "Not JSON");
+    }
+
+    private static void AvatarMessenger_DesktopTokenFromResponseRequiresDesktopPrefix()
+    {
+        Equal("aa_abc", AvatarMessenger.DesktopTokenFromResponse("{\"ok\":true,\"token\":\"aa_abc\",\"key\":{}}"), "Desktop token");
+        ThrowsArgument(delegate { AvatarMessenger.DesktopTokenFromResponse("{\"ok\":true,\"token\":\"eyJhbGciOi\"}"); }, "A JWT is not a desktop token");
+        ThrowsArgument(delegate { AvatarMessenger.DesktopTokenFromResponse("{\"ok\":false}"); }, "Missing token");
+        ThrowsArgument(delegate { AvatarMessenger.DesktopTokenFromResponse(""); }, "Empty body");
+    }
+
+    private static void AvatarMessenger_MeetingTextListsSoonestFirstWithTimes()
+    {
+        DateTime now = new DateTime(2026, 11, 17, 9, 55, 0);
+        var due = new List<CalendarEntry>
+        {
+            new CalendarEntry { Uid = "knoxmail-b", Title = "제목 둘", StartLocal = new DateTime(2026, 11, 17, 10, 0, 30) },
+            new CalendarEntry { Uid = "a", Title = "주간 회의", StartLocal = new DateTime(2026, 11, 17, 10, 0, 0), EndLocal = new DateTime(2026, 11, 17, 11, 0, 0) },
+            new CalendarEntry { Uid = "c", Title = "", StartLocal = new DateTime(2026, 11, 17, 9, 55, 0) },
+        };
+        Equal("⏰ [쉼] 곧 회의가 시작돼요\n📅 09:55 제목 없는 일정 · 🔔 지금 시작\n📅 10:00~11:00 주간 회의 · ⏳ 5분 뒤\n📩 10:00 제목 둘 · ⏳ 6분 뒤",
+            AvatarMessenger.MeetingText(due, now), "Soonest first, end time when known, minutes rounded up, mail invitations marked");
+        ThrowsArgument(delegate { AvatarMessenger.MeetingText(null, now); }, "Null list");
+    }
+
+    private static void AvatarMessenger_MeetingTextStaysUnderServerLimit()
+    {
+        DateTime now = new DateTime(2026, 11, 17, 9, 0, 0);
+        var due = new List<CalendarEntry>();
+        for (int i = 0; i < 100; i++)
+            due.Add(new CalendarEntry { Uid = "u" + i, Title = new string('가', 300), StartLocal = now.AddMinutes(5) });
+        string text = AvatarMessenger.MeetingText(due, now);
+        if (text.Length > AvatarMessenger.MaxChars) throw new Exception("Text exceeds the server limit: " + text.Length);
+        if (text.IndexOf("…", StringComparison.Ordinal) < 0) throw new Exception("Long titles are clipped with an ellipsis");
+    }
+
+    private static void AvatarMessenger_JsonBodyEscapesText()
+    {
+        Equal("{\"text\":\"a\\\"b\\nc\"}", AvatarMessenger.JsonBody("text", "a\"b\nc"), "Quotes and newlines are escaped");
+    }
+
+    private static void Settings_MessengerNotifyIsOffByDefault()
+    {
+        Equal(false, new ReminderSettings().MessengerNotifyEnabled, "Constructor default");
+        Equal(false, ReminderSettings.DefaultPreset().MessengerNotifyEnabled, "First-run preset default");
+    }
+
+    private static void AvatarMessenger_AccountMatchesPcUserOnly()
+    {
+        Equal(true, AvatarMessenger.AccountMatchesPcUser("hong.gildong", "hong.gildong"), "Same account");
+        Equal(true, AvatarMessenger.AccountMatchesPcUser("Hong.Gildong", "hong.gildong "), "Case and spaces ignored");
+        Equal(false, AvatarMessenger.AccountMatchesPcUser("kim.c", "hong.gildong"), "Another person's SSO account");
+        Equal(false, AvatarMessenger.AccountMatchesPcUser("", "hong.gildong"), "No account in the SSO claims");
+        Equal(false, AvatarMessenger.AccountMatchesPcUser("hong.gildong", null), "No PC user");
     }
 }

@@ -30,7 +30,9 @@ window.THEME_VARIANTS = {
   // 릴렉스 음향: sound-only relaxation, shown as a video.
   relax: [
     { id: 'yt-5yApImDt_Fk', type: 'video', title: '릴렉스 음향 · 양측 음향 릴렉스 뮤직', author: 'octowave: Sleep, Focus & Bible', youtubeId: '5yApImDt_Fk', url: 'https://www.youtube.com/shorts/5yApImDt_Fk' },
-    { id: 'yt-Yma-nUogjao', type: 'video', title: '4-2-6 호흡법', author: '가치요가 Gachi Yoga', youtubeId: 'Yma-nUogjao', url: 'https://www.youtube.com/shorts/Yma-nUogjao' }
+    { id: 'yt-Og_Qli3M_nE', type: 'video', wide: true, title: '레이키 힐링 음악', author: '', youtubeId: 'Og_Qli3M_nE', url: 'https://www.youtube.com/watch?v=Og_Qli3M_nE' },
+    { id: 'yt-p0YfyupeyO4', type: 'video', wide: true, title: '마음이 평안해지는 찬불가', author: '', youtubeId: 'p0YfyupeyO4', url: 'https://www.youtube.com/watch?v=p0YfyupeyO4' },
+    { id: 'yt-yq-lSVEu7U0', type: 'video', wide: true, title: '숲에서 쉬는 효과🌳머리가 맑아지는 치유명상음악 | 3시간', author: '', youtubeId: 'yq-lSVEu7U0', url: 'https://www.youtube.com/watch?v=yq-lSVEu7U0' }
   ],
   // 요리 레시피: a short cooking video as a break.
   recipe: [
@@ -40,16 +42,17 @@ window.THEME_VARIANTS = {
   ],
   // Voice: the original picture/timer is replaced by this video.
   voice: [
-    { id: 'yt-88TBCVp-Tlc', type: 'video', title: '숨쉴 때 편안한 호흡 발성 연습', author: '윤하의 Joyful Voice', youtubeId: '88TBCVp-Tlc', url: 'https://www.youtube.com/shorts/88TBCVp-Tlc' },
-    { id: 'yt-x6y6SPzCQXQ', type: 'video', wide: true, title: '호흡 연습법 STEP 1', author: 'VOCAL LOGIC', youtubeId: 'x6y6SPzCQXQ', url: 'https://www.youtube.com/watch?v=x6y6SPzCQXQ' },
-    { id: 'yt-YdBUnWJBYAo', type: 'video', wide: true, title: '호흡 연습법 STEP 2', author: 'VOCAL LOGIC', youtubeId: 'YdBUnWJBYAo', url: 'https://www.youtube.com/watch?v=YdBUnWJBYAo' },
-    { id: 'yt-YLfFw6IuVqc', type: 'video', wide: true, title: '흉복식호흡 연습법', author: 'VOCAL LOGIC', youtubeId: 'YLfFw6IuVqc', url: 'https://www.youtube.com/watch?v=YLfFw6IuVqc' },
-    { id: 'yt-43MKF1bL_mM', type: 'video', wide: true, title: '복식호흡 연습 · 3회 내쉬고 들이쉬기', author: 'VOCAL LOGIC', youtubeId: '43MKF1bL_mM', url: 'https://www.youtube.com/watch?v=43MKF1bL_mM' }
-  ],
+  { id: 'yt-88TBCVp-Tlc', type: 'video', title: '숨쉴 때 편안한 호흡 발성 연습', author: '윤하의 Joyful Voice', youtubeId: '88TBCVp-Tlc', url: 'https://www.youtube.com/shorts/88TBCVp-Tlc' },
+  { id: 'yt-x6y6SPzCQXQ', type: 'video', wide: true, title: '호흡 연습법 STEP 1', author: 'VOCAL LOGIC', youtubeId: 'x6y6SPzCQXQ', url: 'https://www.youtube.com/watch?v=x6y6SPzCQXQ' },
+  { id: 'yt-YdBUnWJBYAo', type: 'video', wide: true, title: '호흡 연습법 STEP 2', author: 'VOCAL LOGIC', youtubeId: 'YdBUnWJBYAo', url: 'https://www.youtube.com/watch?v=YdBUnWJBYAo' },
+  { id: 'yt-YLfFw6IuVqc', type: 'video', wide: true, title: '흉복식호흡 연습법', author: 'VOCAL LOGIC', youtubeId: 'YLfFw6IuVqc', url: 'https://www.youtube.com/watch?v=YLfFw6IuVqc' },
+  { id: 'yt-43MKF1bL_mM', type: 'video', wide: true, title: '복식호흡 연습 · 3회 내쉬고 들이쉬기', author: 'VOCAL LOGIC', youtubeId: '43MKF1bL_mM', url: 'https://www.youtube.com/watch?v=43MKF1bL_mM' },
+  { id: 'yt-2cy0bowQb5w', type: 'video', wide: true, title: '집중력을 2배 높이는 3-7 호흡법', author: '', youtubeId: '2cy0bowQb5w', url: 'https://www.youtube.com/watch?v=2cy0bowQb5w' }
+],
   meditation: [
     { id: 'yt-6Qu5E3MrVH8', type: 'video', wide: true, title: '5분 명상 · 호흡명상 가이드', author: '에일린 mind yoga', youtubeId: '6Qu5E3MrVH8', url: 'https://www.youtube.com/watch?v=6Qu5E3MrVH8' },
     { id: 'yt-LaM3-_ntnjU', type: 'video', wide: true, title: '복잡한 생각, 5분 만에 정리하는 빼기명상 가이드', author: '마음수련 명상', youtubeId: 'LaM3-_ntnjU', url: 'https://www.youtube.com/watch?v=LaM3-_ntnjU' },
-    { id: 'yt-Og_Qli3M_nE', type: 'video', wide: true, title: '명상 음악 · Reiki Healing Music', author: 'Reiki Flow', youtubeId: 'Og_Qli3M_nE', url: 'https://www.youtube.com/watch?v=Og_Qli3M_nE' }
+    { id: 'yt-dZewQEbQQM0', type: 'video', wide: true, title: '5분 호흡명상 - 뇌를 위한 최고의 휴식법 (스트레스 해소, 뇌 피로회복)', author: '', youtubeId: 'dZewQEbQQM0', url: 'https://www.youtube.com/watch?v=dZewQEbQQM0' }
   ],
   'back-standing': [
     { id: 'yt-N-V53dmXJ9M', type: 'video', title: '허리통증 잡는 초간단 장요근 스트레칭 (의자 활용)', author: '통증요정 김학조', youtubeId: 'N-V53dmXJ9M', url: 'https://www.youtube.com/shorts/N-V53dmXJ9M' },

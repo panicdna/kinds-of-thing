@@ -1,7 +1,7 @@
-; 틈(Teum) 배포용 Inno Setup 스크립트 — package.ps1과 같은 파일 묶음을 setup.exe로 만든다.
-; 사용법: Inno Setup 6 설치 후  ISCC.exe Teum-Setup.iss  →  Output\Teum-Setup-v<버전>.exe 생성
+; 쉼(Shim) 배포용 Inno Setup 스크립트 — package.ps1과 같은 파일 묶음을 setup.exe로 만든다.
+; 사용법: Inno Setup 6 설치 후  ISCC.exe Shim-Setup.iss  →  Output\Shim-Setup-v<버전>.exe 생성
 ; 정책:
-;   - 사용자 폴더 설치(%LOCALAPPDATA%\Programs\틈)라 관리자 권리가 필요 없다.
+;   - 사용자 폴더 설치(%LOCALAPPDATA%\Programs\쉼)라 관리자 권리가 필요 없다.
 ;   - 앱 자체는 이미 HKCU Run 키(DeskHooker.Teum)로 로그인 자동실행을 관리하므로
 ;     인스톨러가 별도의 Run 항목을 만들지 않는다(충돌 방지).
 ;   - 사용자 설정(settings.json·user-themes.json·knox-token.txt·WebView2 프로필)은
@@ -11,16 +11,16 @@
 ;     쉼 카드(user-themes.json)와 각 카드의 영상 목록 편집(WebView2 localStorage)은 남는다.
 ;   - 업그레이드 설치: 같은 "Teum.AppId" GUID로 기존 폴더 위에 덮어쓴다.
 ;   - 재설치 흐름(318): 앱이 트레이 전용이라 Restart Manager가 못 닫는다. [Code]
-;     PrepareToInstall이 실행 중인 DeskHooker.exe를 강제 종료하고, 기존 버전의
+;     PrepareToInstall이 실행 중인 shim.exe를 강제 종료하고, 기존 버전의
 ;     uninstaller를 조용히 먼저 실행한 뒤 새 파일을 설치한다.
 
-#define TeumName "틈"
+#define TeumName "쉼"
 ; AppId는 [Code]의 기존 버전 제거 로직과 같은 값을 공유한다.
 #define TeumAppId "7B3A5C0E-9D4F-4E2B-9C1A-TEUM0001"
 ; exe에 버전 리소스가 없으므로(GetVersionNumbersString→0.0.0.0) 버전은 배포 시 여기서 지정.
-#define TeumVersion "1.3.0"
-#define TeumPublisher "Teum"
-#define TeumExeName "DeskHooker.exe"
+#define TeumVersion "1.4.0"
+#define TeumPublisher "Shim"
+#define TeumExeName "shim.exe"
 
 [Setup]
 AppId={{{#TeumAppId}}}
@@ -33,7 +33,7 @@ DisableProgramGroupPage=yes
 ; 관리자 권한 불필요(사용자 폴더 설치)
 PrivilegesRequired=lowest
 OutputDir=Output
-OutputBaseFilename=Teum-Setup-v{#TeumVersion}
+OutputBaseFilename=Shim-Setup-v{#TeumVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -49,12 +49,12 @@ ShowLanguageDialog=no
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 
 [CustomMessages]
-korean.SetupClosing=설치를 계속하려면 실행 중인 틈을 먼저 종료해 주세요. 작업 표시줄 트레이의 틈 아이콘에서 종료할 수 있습니다.
+korean.SetupClosing=설치를 계속하려면 실행 중인 쉼을 먼저 종료해 주세요. 작업 표시줄 트레이의 쉼 아이콘에서 종료할 수 있습니다.
 korean.LaunchProgram={#TeumName} 실행
 
 [Files]
 ; package.ps1의 런타임 목록과 같은 구성. 소스 경로는 이 스크립트가 있는 폴더 기준.
-Source: "DeskHooker.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "shim.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Microsoft.Web.WebView2.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Microsoft.Web.WebView2.WinForms.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
@@ -99,7 +99,7 @@ Type: filesandordirs; Name: "{app}\EBWebView"
 [Code]
 // 트레이 상주 앱이라 Restart Manager가 닫을 최상위 창이 없어 "자동으로 닫지 못했습니다"
 // 대화상자가 떴다(318). 대신 설치(Install 클릭 직후) 단계에서:
-//   1) DeskHooker.exe를 프로세스 트리째 강제 종료한다(/T로 WebView2 자식까지).
+//   1) shim.exe를 프로세스 트리째 강제 종료한다(/T로 WebView2 자식까지).
 //   2) 기존 버전의 uninstaller를 조용히(/VERYSILENT) 실행해 먼저 제거한다.
 //   3) 그 위에 새 버전 파일을 깐다.
 // 사용자 설정은 %LOCALAPPDATA%\DeskHooker에 있으므로 uninstaller가 지우지 않고,
@@ -108,7 +108,7 @@ procedure KillDeskHooker();
 var
   resultCode: Integer;
 begin
-  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM "DeskHooker.exe" /T /F', '', SW_HIDE, ewWaitUntilTerminated, resultCode);
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM "shim.exe" /T /F', '', SW_HIDE, ewWaitUntilTerminated, resultCode);
 end;
 
 function PreviousUninstallCommand(): String;

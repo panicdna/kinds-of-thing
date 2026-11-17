@@ -10,14 +10,18 @@ foreach ($name in @('Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.Wi
     Copy-Item -LiteralPath $source -Destination (Join-Path $root $name) -Force
 }
 $references += @((Join-Path $root 'Microsoft.Web.WebView2.Core.dll'), (Join-Path $root 'Microsoft.Web.WebView2.WinForms.dll'))
-$argsList = @('/nologo','/target:winexe','/platform:x64','/optimize+',('/out:' + (Join-Path $root 'DeskHooker.exe')))
+$argsList = @('/nologo','/target:winexe','/platform:x64','/optimize+',('/out:' + (Join-Path $root 'shim.exe')))
+# 앱 아이콘(바로가기·작업표시줄·트레이가 기본으로 보는 exe 아이콘)을 themes\아이콘.png에서
+# 만든 app.ico(256~16px)로 심는다. 바로가기(.lnk)는 exe의 Win32 아이콘을 그대로 쓴다.
+$appIcon = Join-Path $root 'app.ico'
+if (Test-Path $appIcon) { $argsList += ('/win32icon:' + $appIcon) }
 foreach ($reference in $references) { $argsList += '/reference:' + $reference }
 $argsList += @((Join-Path $root 'ReminderCore.cs'),(Join-Path $root 'DeskHooker.cs'))
 & $csc @argsList
 if ($LASTEXITCODE -ne 0) { throw 'C# build failed.' }
-Write-Output "Built: $(Join-Path $root 'DeskHooker.exe')"
+Write-Output "Built: $(Join-Path $root 'shim.exe')"
 if ($Test) {
-    $process = Start-Process -FilePath (Join-Path $root 'DeskHooker.exe') -ArgumentList '--ui-test' -PassThru
+    $process = Start-Process -FilePath (Join-Path $root 'shim.exe') -ArgumentList '--ui-test' -PassThru
     if (!$process.WaitForExit(120000)) { $process.Kill(); throw 'UI smoke test timed out.' }
     $result = Join-Path $root 'tests\ui\results.json'
     if (!(Test-Path $result)) { throw 'UI smoke test produced no results.' }

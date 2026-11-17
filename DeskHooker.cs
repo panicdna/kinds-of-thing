@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -26,9 +29,9 @@ namespace DeskHooker
 
     internal static class Program
     {
-        // 배포 버전(319): 설정 창과 팝업의 Head Title에 표시된다. Teum-Setup.iss의 TeumVersion,
-        // package.ps1의 기본 $Version과 함께 세 곳을 항상 같은 값으로 맞춘다.
-        internal const string AppVersion = "1.3.0";
+        // 배포 버전(364~370: Knox 메일 초대 합치기 추가): 설정 창과 팝업의 Head Title에 표시된다.
+        // Teum-Setup.iss의 TeumVersion, package.ps1의 기본 $Version과 함께 세 곳을 항상 같은 값으로 맞춘다.
+        internal const string AppVersion = "1.4.0";
 
         [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
         [StructLayout(LayoutKind.Sequential)] private struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
@@ -49,7 +52,7 @@ namespace DeskHooker
             bool created;
             using (Mutex mutex = new Mutex(true, "Local\\DeskHooker.Teum" + (testing ? ".Test" : ""), out created))
             {
-                if (!created) { MessageBox.Show("이미 실행 중입니다. 작업 표시줄의 틈 아이콘에서 설정을 여세요.", "틈"); return; }
+                if (!created) { MessageBox.Show("이미 실행 중입니다. 작업 표시줄의 쉼 아이콘에서 설정을 여세요.", "쉼"); return; }
                 SetProcessDPIAware();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
@@ -58,7 +61,7 @@ namespace DeskHooker
                 {
                     File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup-error.txt"), error.ToString());
                     Environment.ExitCode = 1;
-                    if (!testing) MessageBox.Show(error.Message, "틈 시작 오류");
+                    if (!testing) MessageBox.Show(error.Message, "쉼 시작 오류");
                 }
             }
         }
@@ -69,6 +72,24 @@ namespace DeskHooker
         public readonly string Root = AppDomain.CurrentDomain.BaseDirectory;
         public readonly bool Testing;
         public readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+        // 창 제목표시줄·작업표시줄·트레이가 함께 쓰는 앱 아이콘. build.ps1이 /win32icon으로
+        // exe에 심은 app.ico(themes\아이콘.png 기반, 331)를 꺼내 쓴다. WinForms는 Form.Icon을
+        // SystemIcons 등으로 덮어쓰면 exe 리소스 대신 그것을 보여 주므로, 여기서 한 번만 로드해
+        // 트레이·설정 창·팝업 모두 같은 아이콘을 쓰게 한다. 실패 시(아이콘 없는 시험 빌드 등) 기존처럼
+        // 시스템 정보 아이콘으로 돌아간다.
+        private static Icon appIcon;
+        internal static Icon AppIcon
+        {
+            get
+            {
+                if (appIcon == null)
+                {
+                    try { appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Information; }
+                    catch { appIcon = SystemIcons.Information; }
+                }
+                return appIcon;
+            }
+        }
         public Theme[] Themes;
         private Theme[] baseThemes;
         // ---- User's own card edits: built-ins can be hidden, own cards added. Stored in the data folder,
@@ -96,9 +117,26 @@ namespace DeskHooker
         private HashSet<string> firedKnoxUids = new HashSet<string>(StringComparer.Ordinal);
         private List<KnoxSyncLogEntry> knoxSyncLog = new List<KnoxSyncLogEntry>(); // newest last, capped by KnoxSync.LogLimit
         private readonly object knoxSyncLogLock = new object();
-        private string knoxPopupTitle;
-        private DateTime knoxPopupStart;
-        private DateTime? knoxPopupEnd;
+        // 350: 한 번의 일정 알림 화면에 함께 띄우는 일정들(시작 시각 오름차순). 같은 시각에 겹친 일정은
+        // 한 화면에 모두 나열하고, 알림이 떠 있는 동안 새로 due가 된 일정은 같은 화면에 합쳐진다.
+        private List<CalendarEntry> knoxPopupEvents = new List<CalendarEntry>();
+        // 364: Knox 수신 메일 회의 초대 — POP3(pop3.samsung.net:995)로 오늘 받은 "[지원WP] [Invitation]"
+        // 메일의 회의를 일정 알림에 병합한다. 비밀번호는 Windows 자격 증명 관리자에만 있고
+        // settings.json·동작 기록·오류 메시지에는 절대 나오지 않는다.
+        private sealed class KnoxMailResult { public string Error; public List<CalendarEntry> Meetings; public int MailCount, InvitationCount; }
+        private volatile KnoxMailResult pendingKnoxMail; // null = not finished yet. Applied on the UI thread by Tick().
+        private bool knoxMailSyncing;
+        private string knoxMailError;
+        private DateTime? lastKnoxMailSync;
+        private List<CalendarEntry> knoxMailMeetings = new List<CalendarEntry>(); // today's invitation mails, uid-stable across syncs
+        // 373: 회의 시작 전 알림의 SLSI Avatar 메신저 송신(보내기 전용). 연결 토큰(aa_…)은 자격 증명
+        // 관리자에만 있고 settings.json·동작 기록·오류 메시지에는 절대 나오지 않는다.
+        private sealed class MessengerResult { public bool Login, Ok, Sent; public string Detail; }
+        private volatile MessengerResult pendingMessenger; // null = nothing finished. Applied on the UI thread by Tick().
+        private volatile bool messengerLoggingIn;
+        private string messengerError;
+        private DateTime? lastMessengerSend;
+        private HashSet<string> messengerSentKeys = new HashSet<string>(StringComparer.Ordinal); // FiredKey of meetings already sent today
         public ReminderSettings Settings;
         public DateTime NextDue;
         public bool Exiting;
@@ -148,11 +186,17 @@ namespace DeskHooker
                 try { Settings = Json.Deserialize<ReminderSettings>(File.ReadAllText(config)); PruneThemeIds(); ReminderSchedule.Validate(Settings, Themes.Select(t => t.id)); }
                 catch { Settings = new ReminderSettings(); notice = "이전 설정을 읽지 못해 안전한 기본값으로 시작했습니다. 설정을 다시 저장하세요."; }
             }
+            else if (!testing)
+            {
+                // 첫 실행(신규 설치 — 인스톨러가 settings.json을 지운다): 프리셋의 내가 만든 카드까지
+                // 깔아 둔다(337). UI 시험(testing)은 항상 깨끗한 상태로 시작한다.
+                EnsurePresetCard(); SaveUserThemes();
+            }
             // The "all at once" run modes were removed from the menu; settings saved with them keep working as the one-per-reminder modes.
             if (Settings.ThemeMode == ThemeRotation.SequentialAll) Settings.ThemeMode = ThemeRotation.OrderedOne;
             else if (Settings.ThemeMode == ThemeRotation.RandomAll) Settings.ThemeMode = ThemeRotation.RandomOne;
             NextDue = ReminderSchedule.Next(DateTime.Now, Settings);
-            tray = new NotifyIcon { Icon=SystemIcons.Information, Text="틈 · 스트레칭과 작은 쉼", Visible=true };
+            tray = new NotifyIcon { Icon=AppIcon, Text="쉼 · 스트레칭과 작은 휴식", Visible=true };
             var menu = new ContextMenuStrip();
             menu.Items.Add("간격·주제 설정", null, delegate { ShowSettings(); });
             menu.Items.Add("지금 한 번 보기", null, delegate { StartRound(); });
@@ -175,12 +219,14 @@ namespace DeskHooker
             syncTimer.Start();
             StartSync(false);
             firedKnoxUids = LoadKnoxState();
+            messengerSentKeys = LoadDayKeys(MessengerStatePath, "sent");
             knoxSyncLog = LoadKnoxSyncLog();
             ReloadKnoxIcsIfChanged();
             knoxSyncTimer = new System.Windows.Forms.Timer { Interval = 15 * 60 * 1000 };
             knoxSyncTimer.Tick += delegate { StartKnoxSync(false); };
             knoxSyncTimer.Start();
             if (Settings.KnoxCalendarEnabled) StartKnoxSync(false);
+            if (Settings.KnoxMailEnabled) StartKnoxMailSync(false);
         }
 
         // ---- Community sharing: items live in the repository's community/ folder ----
@@ -300,6 +346,18 @@ namespace DeskHooker
             File.WriteAllText(UserThemesPath, Json.Serialize(new UserThemeStore { removed = removedThemeIds.ToArray(), custom = userThemes.ToArray() }));
         }
 
+        // ---- 프리셋 기본 쉼 카드(337): shim-cards-20261113-2228.json 내보내기에 담긴, 프리셋의 일부가 된
+        // 내가 만든 카드. 첫 실행(신규 설치 — 인스톨러가 settings.json을 지운 뒤)과 '기본 프리셋으로
+        // 되돌리기' 때 없으면 다시 깐다. 일반 사용자 카드와 같은 성격(◈ · 삭제 가능)이라 기존 카드와
+        // 충돌하지 않는다. instructions가 비어 있어 목록에 글 안내('text') 없이 영상만 골라진다 —
+        // 내보낸 파일의 최종 모습(listEdits.removed.text)과 같다.
+        private void EnsurePresetCard()
+        {
+            if (userThemes.Any(t => t.id == "x-0a04b57c")) return;
+            userThemes.Add(new Theme { id="x-0a04b57c", name="아침에 하는 5분 긍정확언 (아침 확언 명상)", summary="아침에 하는 5분 긍정확언 (아침 확언 명상)", safety="너무 길게 하지 마", icon="◈", user=true,
+                videos=new CommunityVideo[] { new CommunityVideo { id="zGifCNokUy8", title="아침에 하는 5분 긍정확언 (아침 확언 명상)" } } });
+        }
+
         // Themes = built-ins (minus removed) + the user's own cards + shared community cards (minus removed).
         private void RebuildThemes()
         {
@@ -364,11 +422,22 @@ namespace DeskHooker
             }
             Array.Reverse(recent); // newest first, matching how the list is shown
             // The upcoming meetings the "일정 알리기 시험" picker offers, soonest first. Only meetings that
-            // have not started yet make sense to rehearse a lead-time popup for.
+            // have not started yet make sense to rehearse a lead-time popup for. 364: invitation-mail
+            // meetings are part of the same list, flagged so the picker can label them.
             ReloadKnoxIcsIfChanged();
-            var upcoming = calendarEntries.Where(e => e.StartLocal > DateTime.Now).OrderBy(e => e.StartLocal).Take(30)
-                .Select(e => new { uid = e.Uid, title = e.Title, start = e.StartLocal.ToString("o") }).ToArray();
-            return new { enabled = Settings.KnoxCalendarEnabled, syncing = knoxSyncing, last = lastKnoxSync.HasValue ? lastKnoxSync.Value.ToString("o") : null, error = knoxSyncError, offline = Testing, log = recent, calendar = upcoming };
+            string account = MessengerLinkedAccountSafe();
+            var upcoming = CombinedCalendarEntries().Where(e => e.StartLocal > DateTime.Now).OrderBy(e => e.StartLocal).Take(30)
+                .Select(e => new { uid = e.Uid, title = e.Title, start = e.StartLocal.ToString("o"), mail = e.Uid.StartsWith("knoxmail-", StringComparison.Ordinal) }).ToArray();
+            return new { enabled = Settings.KnoxCalendarEnabled, syncing = knoxSyncing, last = lastKnoxSync.HasValue ? lastKnoxSync.Value.ToString("o") : null, error = knoxSyncError, offline = Testing, log = recent, calendar = upcoming,
+                mail = new { enabled = Settings.KnoxMailEnabled, syncing = knoxMailSyncing, hasPassword = KnoxMailHasPasswordSafe(), last = lastKnoxMailSync.HasValue ? lastKnoxMailSync.Value.ToString("o") : null, error = knoxMailError, meetings = knoxMailMeetings.Count },
+                messenger = new { enabled = Settings.MessengerNotifyEnabled, linked = account != null, account = account, loggingIn = messengerLoggingIn, error = messengerError, last = lastMessengerSend.HasValue ? lastMessengerSend.Value.ToString("o") : null } };
+        }
+
+        // 364: 일정 알림이 보는 일정 목록 — ics 캘린더에 오늘 받은 초대 메일의 회의를 병합한 것.
+        // 같은 시작 시각에 같은(또는 포함되는) 제목의 회의는 캘린더가 이미 알려 주므로 메일 쪽에서 빠진다.
+        private List<CalendarEntry> CombinedCalendarEntries()
+        {
+            return Settings.KnoxMailEnabled ? KnoxMail.MergeMeetingEntries(calendarEntries, knoxMailMeetings) : calendarEntries;
         }
 
         private List<KnoxSyncLogEntry> LoadKnoxSyncLog()
@@ -410,32 +479,38 @@ namespace DeskHooker
         }
 
         // Which meeting reminders already popped up today; a new calendar day starts with a clean slate.
-        private HashSet<string> LoadKnoxState()
+        private HashSet<string> LoadKnoxState() { return LoadDayKeys(KnoxStatePath, "fired"); }
+        private void SaveKnoxState() { SaveDayKeys(KnoxStatePath, "fired", firedKnoxUids); }
+        // 373: 메신저로 이미 보낸 회의(FiredKey) — 팝업 기록과 따로 둔다(팝업은 자리비움 동안 미뤄지지만 메신저는 그때도 간다).
+        private string MessengerStatePath { get { return Path.Combine(dataFolder, "knox-messenger-state.json"); } }
+
+        // A per-day key set persisted as {"day": "yyyy-MM-dd", "<listName>": [...]}; another day reads as empty.
+        private HashSet<string> LoadDayKeys(string path, string listName)
         {
-            var fired = new HashSet<string>(StringComparer.Ordinal);
+            var keys = new HashSet<string>(StringComparer.Ordinal);
             try
             {
-                if (Testing || !File.Exists(KnoxStatePath)) return fired;
-                var map = Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(KnoxStatePath));
+                if (Testing || !File.Exists(path)) return keys;
+                var map = Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(path));
                 string day = map.ContainsKey("day") ? map["day"] as string : null;
-                if (day != DateTime.Now.ToString("yyyy-MM-dd")) return fired;
-                var items = map.ContainsKey("fired") ? map["fired"] as System.Collections.IEnumerable : null;
-                if (items != null) foreach (object item in items) fired.Add(Convert.ToString(item));
+                if (day != DateTime.Now.ToString("yyyy-MM-dd")) return keys;
+                var items = map.ContainsKey(listName) ? map[listName] as System.Collections.IEnumerable : null;
+                if (items != null) foreach (object item in items) keys.Add(Convert.ToString(item));
             }
-            catch { fired.Clear(); }
-            return fired;
+            catch { keys.Clear(); }
+            return keys;
         }
 
-        private void SaveKnoxState()
+        private void SaveDayKeys(string path, string listName, HashSet<string> keys)
         {
             if (Testing) return;
             try
             {
-                string tmp = KnoxStatePath + ".new";
-                File.WriteAllText(tmp, Json.Serialize(new Dictionary<string, object> { { "day", DateTime.Now.ToString("yyyy-MM-dd") }, { "fired", firedKnoxUids.ToList() } }));
-                if (File.Exists(KnoxStatePath)) File.Replace(tmp, KnoxStatePath, null); else File.Move(tmp, KnoxStatePath);
+                string tmp = path + ".new";
+                File.WriteAllText(tmp, Json.Serialize(new Dictionary<string, object> { { "day", DateTime.Now.ToString("yyyy-MM-dd") }, { listName, keys.ToList() } }));
+                if (File.Exists(path)) File.Replace(tmp, path, null); else File.Move(tmp, path);
             }
-            catch { /* best-effort; a missed save only risks one repeat popup within the lead window */ }
+            catch { /* best-effort; a missed save only risks one repeat alert within the lead window */ }
         }
 
         // Re-reads knox-schedule.ics only when its contents changed since the last read, so the knox-ics-export
@@ -455,9 +530,13 @@ namespace DeskHooker
 
         // A manual fetch (테스트용 바로 가져오기) runs even when the feature toggle is off, so the
         // pipeline can be tested before committing to reminders; the timer only fetches when enabled.
+        // 364: it also refreshes today's invitation mails alongside the calendar (each part keeps its
+        // own enabled/toggle rules — see StartKnoxMailSync).
         private void StartKnoxSync(bool manual)
         {
-            if (Testing || knoxSyncing || Exiting) return;
+            if (Testing || Exiting) return;
+            StartKnoxMailSync(manual);
+            if (knoxSyncing) return;
             if (!manual && !Settings.KnoxCalendarEnabled) return;
             knoxSyncing = true; knoxSyncError = null; SendThemes();
             Task.Factory.StartNew(delegate { pendingKnoxResult = RunKnoxIcsExport() ?? ""; });
@@ -563,21 +642,535 @@ namespace DeskHooker
                 return reader.ReadToEnd();
         }
 
+        // ---- 364: Knox 수신 메일 — POP3 클라이언트·자격 증명 관리자·동기화 본체 ----
+
+        // POP3 실패의 두 갈래: 로그인 거부(비밀번호 확인 대상)와 접속·프로토콜 계열(사내망/VPN 확인 대상).
+        private sealed class Pop3AuthException : Exception { public Pop3AuthException() : base("POP3 login rejected") { } }
+        private sealed class Pop3UpstreamException : Exception { public Pop3UpstreamException(string message) : base(message) { } }
+
+        // A minimal blocking POP3 client for the one job this feature needs: reverse-scan today's
+        // inbox (chatbot2 app/mail_pop3_client.py 계약 이식). DELE is never sent, so the mailbox and
+        // its read flags stay untouched. Lines travel through a Latin-1 char view (1 byte = 1 char)
+        // and are cast back losslessly, so 8-bit mail bodies survive until KnoxMail decodes them.
+        private sealed class Pop3Client : IDisposable
+        {
+            private readonly TcpClient client;
+            private readonly SslStream stream;
+
+            private Pop3Client(TcpClient client, SslStream stream) { this.client = client; this.stream = stream; }
+
+            public static Pop3Client Connect(string host, int port, int timeoutMs)
+            {
+                var client = new TcpClient();
+                try
+                {
+                    client.NoDelay = true;
+                    client.ReceiveTimeout = timeoutMs;
+                    client.SendTimeout = timeoutMs;
+                    client.Connect(host, port);
+                    var stream = new SslStream(client.GetStream(), false);
+                    stream.AuthenticateAsClient(host);
+                    var pop3 = new Pop3Client(client, stream);
+                    pop3.ReadLine(); // 서버 인사말 "+OK …" — 줄이 -ERR이면 첫 명령에서 실패로 드러난다
+                    return pop3;
+                }
+                catch (Exception)
+                {
+                    try { client.Close(); } catch { }
+                    throw;
+                }
+            }
+
+            private string ReadLine()
+            {
+                var line = new StringBuilder();
+                while (true)
+                {
+                    int b = stream.ReadByte();
+                    if (b < 0) throw new IOException("POP3 연결이 끊겼습니다");
+                    if (b == '\n') break;
+                    line.Append((char)(b & 0xFF));
+                }
+                string text = line.ToString();
+                return text.EndsWith("\r", StringComparison.Ordinal) ? text.Substring(0, text.Length - 1) : text;
+            }
+
+            private string Command(string command)
+            {
+                byte[] payload = Encoding.ASCII.GetBytes(command + "\r\n");
+                stream.Write(payload, 0, payload.Length);
+                stream.Flush();
+                string response = ReadLine();
+                if (response.StartsWith("-ERR", StringComparison.Ordinal)) throw new Pop3UpstreamException(response);
+                return response;
+            }
+
+            public void Login(string user, string password)
+            {
+                try
+                {
+                    Command("USER " + user);
+                    Command("PASS " + password);
+                }
+                catch (Pop3UpstreamException)
+                {
+                    // -ERR 배너에 자격증명이 되돌아오지는 않지만, 방어적으로 응답 내용을 담지 않는다.
+                    throw new Pop3AuthException();
+                }
+            }
+
+            public int MessageCount()
+            {
+                Command("LIST");
+                int count = 0;
+                while (ReadLine() != ".") count++;
+                return count;
+            }
+
+            public byte[] Top(int messageNumber) { Command("TOP " + messageNumber + " 0"); return ReadMultiline(); }
+            public byte[] Retr(int messageNumber) { Command("RETR " + messageNumber); return ReadMultiline(); }
+
+            // Multi-line response up to the lone "." terminator, with byte-stuffing (".." → ".") undone.
+            private byte[] ReadMultiline()
+            {
+                var bytes = new List<byte>();
+                while (true)
+                {
+                    string line = ReadLine();
+                    if (line == ".") break;
+                    if (line.StartsWith(".", StringComparison.Ordinal)) line = line.Substring(1);
+                    foreach (char c in line) bytes.Add((byte)(c & 0xFF));
+                    bytes.Add((byte)'\n');
+                }
+                return bytes.ToArray();
+            }
+
+            public void Dispose()
+            {
+                try { Command("QUIT"); } catch { } // 세션 정리 실패는 조회 결과와 무관 — 조용히 폐기
+                try { stream.Close(); } catch { }
+                try { client.Close(); } catch { }
+            }
+        }
+
+        // ---- Windows 자격 증명 관리자: POP3 비밀번호의 유일한 저장소. 비밀번호는 POP3 소켓과 이 사이를
+        // 오가는 일 없이 settings.json·동작 기록·오류 메시지에 나오는 일이 없다.
+        private const string KnoxMailCredentialTarget = "DeskHooker.KnoxMail";
+        private const int CredentialTypeGeneric = 1, CredentialPersistLocalMachine = 2;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct NativeCredential
+        {
+            public int Flags;
+            public int Type;
+            public IntPtr TargetName;
+            public IntPtr Comment;
+            public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+            // wincred.h 순서: CredentialBlobSize(DWORD)가 CredentialBlob(LPBYTE)보다 먼저다. 순서를
+            // 바꾸면 CredWrite가 87(잘못된 매개변수)로 실패한다.
+            public int CredentialBlobSize;
+            public IntPtr CredentialBlob;
+            public int Persist;
+            public int AttributeCount;
+            public IntPtr Attributes;
+            public IntPtr TargetAlias;
+            public IntPtr UserName;
+        }
+
+        [DllImport("advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CredRead(string target, int type, int flags, out IntPtr credentialPtr);
+        [DllImport("advapi32.dll", EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CredWrite(ref NativeCredential credential, int flags);
+        [DllImport("advapi32.dll", EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CredDelete(string target, int type, int flags);
+        [DllImport("advapi32.dll")]
+        private static extern void CredFree(IntPtr credential);
+
+        private static void KnoxMailSavePassword(string password)
+        {
+            if (String.IsNullOrEmpty(password)) { KnoxMailDeletePassword(); return; }
+            CredSaveSecret(KnoxMailCredentialTarget, Environment.UserName, password, "자격 증명 관리자에 비밀번호를 저장하지 못했습니다");
+        }
+
+        private static string KnoxMailReadPassword()
+        {
+            string user;
+            return CredReadSecret(KnoxMailCredentialTarget, out user);
+        }
+
+        private static void KnoxMailDeletePassword()
+        {
+            CredDelete(KnoxMailCredentialTarget, CredentialTypeGeneric, 0); // 없으면 실패만 돌아온다 — 그대로 둔다
+        }
+
+        // Generic credential-manager slot: the secret is UTF-16 bytes in CredentialBlob, userName is
+        // a display label only (never a secret).
+        private static void CredSaveSecret(string target, string userName, string secret, string failure)
+        {
+            byte[] blob = Encoding.Unicode.GetBytes(secret);
+            IntPtr blobPtr = Marshal.AllocHGlobal(blob.Length);
+            Marshal.Copy(blob, 0, blobPtr, blob.Length); // AllocHGlobal은 초기화 안 된 힙을 준다 — 반드시 직접 복사한다
+            IntPtr targetPtr = Marshal.StringToHGlobalUni(target);
+            IntPtr userPtr = Marshal.StringToHGlobalUni(userName ?? "");
+            try
+            {
+                var credential = new NativeCredential();
+                credential.Type = CredentialTypeGeneric;
+                credential.TargetName = targetPtr;
+                credential.UserName = userPtr;
+                credential.CredentialBlobSize = blob.Length;
+                credential.CredentialBlob = blobPtr;
+                credential.Persist = CredentialPersistLocalMachine;
+                if (!CredWrite(ref credential, 0)) throw new Exception(failure + "(" + Marshal.GetLastWin32Error() + ")");
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(blobPtr);
+                Marshal.FreeHGlobal(targetPtr);
+                Marshal.FreeHGlobal(userPtr);
+            }
+        }
+
+        private static string CredReadSecret(string target, out string userName)
+        {
+            userName = null;
+            IntPtr credentialPtr;
+            if (!CredRead(target, CredentialTypeGeneric, 0, out credentialPtr)) return null;
+            try
+            {
+                var credential = (NativeCredential)Marshal.PtrToStructure(credentialPtr, typeof(NativeCredential));
+                if (credential.UserName != IntPtr.Zero) userName = Marshal.PtrToStringUni(credential.UserName);
+                if (credential.CredentialBlob == IntPtr.Zero || credential.CredentialBlobSize <= 0) return null;
+                byte[] blob = new byte[credential.CredentialBlobSize];
+                Marshal.Copy(credential.CredentialBlob, blob, 0, blob.Length);
+                string secret = Encoding.Unicode.GetString(blob);
+                return secret.Length == 0 ? null : secret;
+            }
+            finally { CredFree(credentialPtr); }
+        }
+
+        // Never throws: the settings window only wants to know whether a password is stored. Test
+        // runs never touch the real credential store.
+        private bool KnoxMailHasPasswordSafe()
+        {
+            if (Testing) return false;
+            try { return KnoxMailReadPassword() != null; }
+            catch { return false; }
+        }
+
+        // ---- 373: SLSI Avatar 메신저 회의 알림(보내기 전용) ----
+        // 연결: 브라우저로 alpha 서버 SSO → 이 PC loopback 으로 원타임 code → exchange(SSO access 토큰) →
+        // /api/me/desktop-token(만료 없는 aa_ 토큰, slsi-agent-desktop 과 같은 발급 경로·PC마다 따로) →
+        // 자격 증명 관리자. 보내기: 아바타 봇 서버 /api/desktop/messenger/send — 받는 사람은 토큰 주인 본인뿐이다.
+        private const string MessengerCredentialTarget = "DeskHooker.AvatarMessenger";
+        private const int MessengerLoginTimeoutMs = 5 * 60 * 1000, MessengerHttpTimeoutMs = 15000;
+        private sealed class MessengerUnauthorizedException : Exception { public MessengerUnauthorizedException() : base("desktop token rejected") { } }
+
+        // The linked account label (knox id), or null when this PC is not linked. Never throws; test runs
+        // never touch the real credential store.
+        private string MessengerLinkedAccountSafe()
+        {
+            if (Testing) return null;
+            try
+            {
+                string user;
+                string token = CredReadSecret(MessengerCredentialTarget, out user);
+                return token == null ? null : (String.IsNullOrEmpty(user) ? Environment.UserName : user);
+            }
+            catch { return null; }
+        }
+
+        // 378: 단추를 누른 순간부터 동작 기록에 남긴다(기록이 없으면 눌림 자체가 안 온 것). loopback 대기와
+        // 브라우저 열기는 UI(STA) 스레드에서 한다 — ShellExecute 는 STA 에서 불러야 안전하다. 기다림·교환만 뒤에서.
+        private void StartMessengerLogin()
+        {
+            if (Testing || Exiting) return;
+            if (messengerLoggingIn) { AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메신저: 이미 로그인을 기다리는 중(브라우저 창을 확인하세요)" }); SendThemes(); return; }
+            TcpListener listener = null;
+            try
+            {
+                listener = new TcpListener(IPAddress.Loopback, 0);
+                listener.Start();
+                int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메신저: SSO 로그인 시작 — 브라우저를 엽니다(127.0.0.1:" + port + " 에서 결과 대기, 5분)" });
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AvatarMessenger.LoginUrl(port)) { UseShellExecute = true });
+            }
+            catch (Exception error)
+            {
+                if (listener != null) try { listener.Stop(); } catch { }
+                messengerError = "로그인 창을 열지 못했어요: " + KnoxSync.FirstLine(error.Message, 100);
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = false, Detail = "메신저: 로그인 창 열기 실패: " + KnoxSync.FirstLine(error.Message, 100) });
+                SendThemes();
+                return;
+            }
+            messengerLoggingIn = true; messengerError = null; SendThemes();
+            TcpListener waiting = listener;
+            Task.Factory.StartNew(delegate { pendingMessenger = RunMessengerLogin(waiting); });
+        }
+
+        private MessengerResult RunMessengerLogin(TcpListener listener)
+        {
+            var result = new MessengerResult { Login = true };
+            try
+            {
+                string code = WaitForLoginCode(listener, MessengerLoginTimeoutMs);
+                if (code == null) { result.Detail = "로그인 시간이 지났어요(5분). 다시 눌러 주세요."; return LogMessenger(result, "연결: 로그인 시간 초과"); }
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메신저: SSO 로그인 결과 받음 — 서버와 교환 중" });
+                string knoxId;
+                string access = AvatarMessenger.AccessTokenFromExchange(
+                    HttpPostJson(AvatarMessenger.AlphaBase + AvatarMessenger.ExchangePath, AvatarMessenger.JsonBody("code", code), null), out knoxId);
+                // 377: 이 PC 사용자 본인의 SSO 계정일 때만 연결한다 — 다른 계정으로 로그인하면 토큰을 받지도 않는다
+                // (받는 사람은 서버가 토큰 주인으로만 정하므로, 여기서 막으면 알림은 이 PC 사용자에게만 간다).
+                if (!AvatarMessenger.AccountMatchesPcUser(knoxId, Environment.UserName))
+                {
+                    result.Detail = "이 PC 사용자(" + Environment.UserName + ") 본인의 계정으로 로그인해 주세요" + (knoxId.Length > 0 ? " — 로그인한 계정: " + knoxId : "") + ".";
+                    return LogMessenger(result, "연결 거절: SSO 계정(" + (knoxId.Length > 0 ? knoxId : "알 수 없음") + ")이 이 PC 사용자(" + Environment.UserName + ")와 다름");
+                }
+                string token = AvatarMessenger.DesktopTokenFromResponse(
+                    HttpPostJson(AvatarMessenger.AlphaBase + AvatarMessenger.DesktopTokenPath, "{}", access));
+                string account = knoxId;
+                CredSaveSecret(MessengerCredentialTarget, account, token, "자격 증명 관리자에 메신저 연결을 저장하지 못했습니다");
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메신저: " + account + " 계정과 연결됨(자격 증명 관리자)" });
+                // 연결 확인을 겸한 첫 메시지 — 여기까지 되면 회의 알림도 같은 길로 간다. 실패해도 연결은 남긴다
+                // (메신저 서버만 잠깐 안 되는 경우) — 단, 서버가 토큰을 거절(401)하면 쓸 수 없는 연결이라 지운다.
+                try
+                {
+                    SendAvatarMessage(token, "✅ [쉼] 이 방으로 회의 시작 전 알림을 보내 드릴게요. (보내기 전용이라 여기에 답장하셔도 쉼은 받지 않아요)");
+                    result.Ok = true; result.Sent = true;
+                    return LogMessenger(result, "연결 확인 메시지 보냄");
+                }
+                catch (MessengerUnauthorizedException)
+                {
+                    try { CredDelete(MessengerCredentialTarget, CredentialTypeGeneric, 0); } catch { }
+                    result.Detail = "메신저 서버가 연결 토큰을 받지 않았어요. 잠시 뒤 다시 로그인해 주세요.";
+                    return LogMessenger(result, "연결 확인 메시지: 서버 인증 거절(401) — 연결을 지움");
+                }
+                catch (WebException error)
+                {
+                    result.Detail = "연결은 저장됐지만 확인 메시지를 보내지 못했어요: " + DescribeWebError(error);
+                    return LogMessenger(result, "연결 확인 메시지 못 보냄: " + DescribeWebError(error));
+                }
+            }
+            catch (WebException error)
+            {
+                result.Detail = "로그인 서버와 연결하지 못했어요: " + DescribeWebError(error);
+                return LogMessenger(result, "연결 실패: " + DescribeWebError(error));
+            }
+            catch (Exception error)
+            {
+                result.Detail = "메신저 연결에 실패했어요: " + KnoxSync.FirstLine(error.Message, 100);
+                return LogMessenger(result, "연결 실패: " + KnoxSync.FirstLine(error.Message, 100));
+            }
+            finally
+            {
+                if (listener != null) try { listener.Stop(); } catch { }
+            }
+        }
+
+        // Accepts loopback connections until one carries our callback with a code (the browser may also
+        // ask for /favicon.ico). Answers the browser with a short page either way. Null on timeout.
+        private static string WaitForLoginCode(TcpListener listener, int timeoutMs)
+        {
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (true)
+            {
+                int left = (int)(deadline - DateTime.UtcNow).TotalMilliseconds;
+                if (left <= 0) return null;
+                IAsyncResult pending = listener.BeginAcceptTcpClient(null, null);
+                if (!pending.AsyncWaitHandle.WaitOne(left)) return null;
+                using (TcpClient client = listener.EndAcceptTcpClient(pending))
+                {
+                    client.ReceiveTimeout = 5000; client.SendTimeout = 5000;
+                    NetworkStream stream = client.GetStream();
+                    string code = null;
+                    try
+                    {
+                        var reader = new StreamReader(stream, Encoding.ASCII, false, 4096, true);
+                        code = AvatarMessenger.CodeFromRequestLine(reader.ReadLine());
+                        string header;
+                        while (!String.IsNullOrEmpty(header = reader.ReadLine())) { } // drain headers
+                    }
+                    catch (IOException) { continue; }
+                    string html = code != null
+                        ? "<!doctype html><meta charset=utf-8><title>쉼</title><body style=\"font-family:sans-serif;padding:40px\"><h2>쉼 · 메신저 연결 로그인 완료</h2><p>이 창은 닫아도 돼요. 쉼 설정 창에서 연결 상태를 확인하세요.</p></body>"
+                        : "<!doctype html><meta charset=utf-8><title>쉼</title><body>not found</body>";
+                    byte[] body = Encoding.UTF8.GetBytes(html);
+                    byte[] head = Encoding.ASCII.GetBytes((code != null ? "HTTP/1.1 200 OK" : "HTTP/1.1 404 Not Found") +
+                        "\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: " + body.Length + "\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n");
+                    try { stream.Write(head, 0, head.Length); stream.Write(body, 0, body.Length); stream.Flush(); } catch (IOException) { }
+                    if (code != null) return code;
+                }
+            }
+        }
+
+        // Fire-and-forget send on a background thread; the outcome lands in the action log and the
+        // settings window. A 401 means the desktop token was revoked: the stored link is dropped.
+        private void StartMessengerSend(string text, string what)
+        {
+            if (Testing || Exiting) return;
+            string user;
+            string token = null;
+            try { token = CredReadSecret(MessengerCredentialTarget, out user); } catch { }
+            if (token == null)
+            {
+                messengerError = "메신저가 연결돼 있지 않아요. [SSO 로그인으로 연결]을 눌러 주세요.";
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = false, Detail = "메신저: " + what + " 못 보냄(연결 안 됨)" });
+                SendThemes();
+                return;
+            }
+            Task.Factory.StartNew(delegate
+            {
+                var result = new MessengerResult();
+                try { SendAvatarMessage(token, text); result.Ok = true; result.Sent = true; pendingMessenger = LogMessenger(result, what + " 보냄"); }
+                catch (MessengerUnauthorizedException)
+                {
+                    try { CredDelete(MessengerCredentialTarget, CredentialTypeGeneric, 0); } catch { }
+                    result.Detail = "메신저 연결이 끊겼어요(토큰 폐기됨). 다시 로그인해 주세요.";
+                    pendingMessenger = LogMessenger(result, what + " 못 보냄: 인증 거절(401) — 연결을 지움");
+                }
+                catch (WebException error) { result.Detail = "메신저 서버에 보내지 못했어요: " + DescribeWebError(error); pendingMessenger = LogMessenger(result, what + " 못 보냄: " + DescribeWebError(error)); }
+                catch (Exception error) { result.Detail = "메신저로 보내지 못했어요: " + KnoxSync.FirstLine(error.Message, 100); pendingMessenger = LogMessenger(result, what + " 못 보냄: " + KnoxSync.FirstLine(error.Message, 100)); }
+            });
+        }
+
+        private static void SendAvatarMessage(string token, string text)
+        {
+            try { HttpPostJson(AvatarMessenger.BotBase + AvatarMessenger.SendPath, AvatarMessenger.JsonBody("text", text), token); }
+            catch (WebException error)
+            {
+                var response = error.Response as HttpWebResponse;
+                if (response != null && response.StatusCode == HttpStatusCode.Unauthorized) throw new MessengerUnauthorizedException();
+                throw;
+            }
+        }
+
+        private MessengerResult LogMessenger(MessengerResult result, string detail)
+        {
+            AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = result.Ok, Detail = "메신저: " + detail });
+            return result;
+        }
+
+        // Status code plus the server's short reason; never the request body (which may carry a code or token).
+        private static string DescribeWebError(WebException error)
+        {
+            var response = error.Response as HttpWebResponse;
+            if (response == null) return KnoxSync.FirstLine(error.Message, 100);
+            string detail = "";
+            try
+            {
+                using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
+                {
+                    var map = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(reader.ReadToEnd());
+                    object d;
+                    if (map != null && map.TryGetValue("detail", out d) && d is string) detail = (string)d;
+                }
+            }
+            catch { }
+            return "HTTP " + (int)response.StatusCode + (detail.Length > 0 ? " " + KnoxSync.FirstLine(detail, 80) : "");
+        }
+
+        // JSON POST with a bounded timeout. Direct connection (no PC proxy), like slsi-agent-desktop's
+        // trust_env=False: both servers are on the intranet. Throws WebException on a non-2xx status.
+        private static string HttpPostJson(string url, string json, string bearerToken)
+        {
+            ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; // TLS 1.2 on .NET Framework 4.x
+            var request = (HttpWebRequest)WebRequest.Create(url);
+            request.Method = "POST"; request.Proxy = null;
+            request.UserAgent = "DeskHooker-Teum"; request.Accept = "application/json"; request.ContentType = "application/json; charset=utf-8";
+            if (!String.IsNullOrEmpty(bearerToken)) request.Headers[HttpRequestHeader.Authorization] = "Bearer " + bearerToken;
+            request.Timeout = MessengerHttpTimeoutMs; request.ReadWriteTimeout = MessengerHttpTimeoutMs;
+            byte[] body = Encoding.UTF8.GetBytes(json ?? "{}");
+            request.ContentLength = body.Length;
+            using (Stream upload = request.GetRequestStream()) upload.Write(body, 0, body.Length);
+            using (var response = (HttpWebResponse)request.GetResponse())
+            using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
+                return reader.ReadToEnd();
+        }
+
+        // 364: fetches today's mails over POP3 and turns invitation mails into meeting entries.
+        // The timer only runs while enabled; a manual run works with the toggle off too — but never
+        // having stored a password means the user never set the feature up, so it skips silently
+        // instead of piling up failure log lines.
+        private void StartKnoxMailSync(bool manual)
+        {
+            if (Testing || knoxMailSyncing || Exiting) return;
+            bool hasPassword = KnoxMailHasPasswordSafe();
+            if (!Settings.KnoxMailEnabled && !hasPassword) return;
+            if (!hasPassword)
+            {
+                knoxMailError = "Knox 메일 비밀번호가 저장되지 않았어요. 설정의 비밀번호 칸에 입력하고 저장하세요.";
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = false, Detail = "메일: 비밀번호 없음" });
+                SendThemes();
+                return;
+            }
+            knoxMailSyncing = true; knoxMailError = null; SendThemes();
+            string password = KnoxMailReadPassword();
+            Task.Factory.StartNew(delegate { pendingKnoxMail = RunKnoxMailFetch(password); });
+        }
+
+        // The fetch itself (background thread): newest message number first, TOP n 0 reads the Date
+        // header, the scan stops at the first mail older than today, and each of today's mails is
+        // RETR'd and parsed. Capped at KnoxMail.MaxScan. Returns meetings plus counts, or a fixed
+        // error text — never the password, never raw text from the login path.
+        private KnoxMailResult RunKnoxMailFetch(string password)
+        {
+            var meetings = new List<CalendarEntry>();
+            DateTime today = DateTime.Now.Date;
+            int mails = 0, invitations = 0;
+            bool truncated = false;
+            try
+            {
+                using (var pop3 = Pop3Client.Connect(KnoxMail.Host, KnoxMail.Port, KnoxMail.TimeoutMs))
+                {
+                    pop3.Login(Environment.UserName, password);
+                    int count = pop3.MessageCount();
+                    for (int n = count, scanned = 0; n >= 1; n--)
+                    {
+                        if (++scanned > KnoxMail.MaxScan) { truncated = true; break; }
+                        KnoxMailScanStep step = KnoxMail.DecideScanStep(today, KnoxMail.DateFromHeaderBlock(pop3.Top(n)));
+                        if (step == KnoxMailScanStep.Stop) break;
+                        if (step != KnoxMailScanStep.Fetch) continue;
+                        KnoxMailMessage mail = KnoxMail.ParseMailMessage(pop3.Retr(n), KnoxMail.BodyDefaultChars);
+                        mails++;
+                        CalendarEntry entry = KnoxMail.InvitationToCalendarEntry(mail);
+                        if (entry != null) { meetings.Add(entry); invitations++; }
+                    }
+                }
+            }
+            catch (Pop3AuthException)
+            {
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = false, Detail = "메일: 인증 실패" });
+                return new KnoxMailResult { Error = "POP3 로그인이 거부됐어요. Knox 포털 비밀번호를 확인하세요(만료·SSO 재인증일 수 있어요)." };
+            }
+            catch (Exception error)
+            {
+                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = false, Detail = "메일: 서버 연결 실패: " + KnoxSync.FirstLine(error.Message, 100) });
+                return new KnoxMailResult { Error = "POP3 서버(pop3.samsung.net)에 연결하지 못했습니다: " + KnoxSync.FirstLine(error.Message, 100) };
+            }
+            AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메일: 성공(오늘 " + mails + "통 · 초대 " + invitations + "건)" + (truncated ? " · 스캔 상한" : "") });
+            return new KnoxMailResult { Meetings = meetings, MailCount = mails, InvitationCount = invitations };
+        }
+
         // Shows a lightweight meeting-reminder popup, distinct from the full-screen stretch/breath overlay.
         // Called only from Tick(), which already holds the Popup==null/locked/session guards. When a
-        // prewarm window for this meeting is alive, that already-buffered window is revealed instead of
-        // creating a cold one, so the bell video starts right away.
-        private void ShowCalendarPopup(CalendarEntry entry)
+        // prewarm window for one of these meetings is alive, that already-buffered window is revealed
+        // instead of creating a cold one, so the bell video starts right away. 350: every meeting that
+        // is due right now joins the same screen — the prewarm window's text is refreshed in place
+        // (app.js keeps the buffered iframe and only redraws the veil).
+        private void ShowCalendarPopup(List<CalendarEntry> entries)
         {
-            firedKnoxUids.Add(CalendarSchedule.FiredKey(entry)); SaveKnoxState();
-            knoxPopupTitle = entry.Title; knoxPopupStart = entry.StartLocal; knoxPopupEnd = entry.EndLocal;
-            if (knoxPrewarm != null && !knoxPrewarm.IsDisposed && knoxPrewarmUid == entry.Uid)
+            if (entries == null || entries.Count == 0) return;
+            foreach (CalendarEntry e in entries) firedKnoxUids.Add(CalendarSchedule.FiredKey(e));
+            SaveKnoxState();
+            knoxPopupEvents = SortedKnoxEvents(entries);
+            if (knoxPrewarm != null && !knoxPrewarm.IsDisposed && knoxPopupEvents.Any(e => e.Uid == knoxPrewarmUid))
             {
                 var ready = knoxPrewarm; knoxPrewarm = null; knoxPrewarmUid = null;
                 ready.Prewarm = false;
                 ready.Bounds = Screen.PrimaryScreen.Bounds;
                 ready.ShowInTaskbar = true;
                 Popup = ready;
+                SendState(ready); // 겹친 일정 전체 목록으로 글자만 갱신(종소리 iframe은 app.js가 그대로 둔다)
                 ready.Show(); ready.Activate();
                 try
                 {
@@ -587,8 +1180,20 @@ namespace DeskHooker
                 catch { /* the page may still be loading; the muted video keeps playing either way */ }
                 return;
             }
-            Popup = new WebWindow(this, true, "knox:" + entry.Uid);
+            Popup = new WebWindow(this, true, "knox:" + knoxPopupEvents[0].Uid);
             Popup.Show(); Popup.Activate();
+        }
+
+        // 350: 같은 화면에 나열할 일정들의 순서 — 시작 시각 오름차순, 같은 시각이면 제목 순.
+        private static List<CalendarEntry> SortedKnoxEvents(IEnumerable<CalendarEntry> entries)
+        {
+            var list = new List<CalendarEntry>(entries);
+            list.Sort(delegate(CalendarEntry a, CalendarEntry b)
+            {
+                int byStart = a.StartLocal.CompareTo(b.StartLocal);
+                return byStart != 0 ? byStart : String.CompareOrdinal(a.Title ?? "", b.Title ?? "");
+            });
+            return list;
         }
 
         // ---- Bell-video prewarming: buffer the video before the popup moment ----
@@ -608,7 +1213,7 @@ namespace DeskHooker
         private void StartKnoxPrewarm(CalendarEntry entry)
         {
             CloseKnoxPrewarm();
-            knoxPopupTitle = entry.Title; knoxPopupStart = entry.StartLocal; knoxPopupEnd = entry.EndLocal;
+            knoxPopupEvents = SortedKnoxEvents(new CalendarEntry[] { entry }); // 예열 창의 첫 그리기용; 실제 알림 순간에 due 전체로 다시 그려진다
             knoxPrewarmUid = entry.Uid;
             knoxPrewarm = new WebWindow(this, true, "knox:" + entry.Uid);
             knoxPrewarm.Prewarm = true;
@@ -624,7 +1229,7 @@ namespace DeskHooker
         {
             if (knoxPrewarm == null) return;
             if (knoxPrewarm.IsDisposed || !Settings.KnoxCalendarEnabled || firedKnoxUids.Contains(knoxPrewarmUid)) { CloseKnoxPrewarm(); return; }
-            var entry = calendarEntries.FirstOrDefault(e => e.Uid == knoxPrewarmUid && !firedKnoxUids.Contains(CalendarSchedule.FiredKey(e)));
+            var entry = CombinedCalendarEntries().FirstOrDefault(e => e.Uid == knoxPrewarmUid && !firedKnoxUids.Contains(CalendarSchedule.FiredKey(e)));
             if (entry == null || entry.StartLocal <= now) CloseKnoxPrewarm();
         }
 
@@ -649,6 +1254,17 @@ namespace DeskHooker
             {
                 if (enable) key.SetValue("DeskHooker.Teum", "\""+Application.ExecutablePath+"\" --background", RegistryValueKind.String);
                 else key.DeleteValue("DeskHooker.Teum", false);
+            }
+            // 작업 관리자의 "시작 프로그램 사용 안 함" 기록은 Run 값과 별개로
+            // StartupApproved\Run에 남는다. 이 기록이 끔 상태면 Run 값을 다시 써도
+            // Windows가 로그인 때 실행을 건너뛴다. 켤 때 이 기록을 함께 지워야
+            // 앱의 체크박스만으로 실제 자동 실행이 되살아난다.
+            if (enable)
+            {
+                using (RegistryKey approved=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", true))
+                {
+                    if (approved!=null) approved.DeleteValue("DeskHooker.Teum", false);
+                }
             }
         }
 
@@ -749,6 +1365,42 @@ namespace DeskHooker
                 if (finishedKnox.Length==0) { lastKnoxSync=DateTime.Now; knoxSyncError=null; } else knoxSyncError=finishedKnox;
                 SendThemes();
             }
+            // 364: POP3 초대 메일 조회 결과 반영 — 성공이면 오늘 받은 초대 회의 목록을 갈아끼운다.
+            var finishedMail=pendingKnoxMail;
+            if (finishedMail!=null)
+            {
+                pendingKnoxMail=null; knoxMailSyncing=false;
+                if (finishedMail.Error==null)
+                {
+                    knoxMailMeetings=finishedMail.Meetings ?? new List<CalendarEntry>();
+                    lastKnoxMailSync=DateTime.Now; knoxMailError=null;
+                }
+                else knoxMailError=finishedMail.Error;
+                SendThemes();
+            }
+            // 373: 메신저 연결·발송 결과 반영.
+            var finishedMessenger=pendingMessenger;
+            if (finishedMessenger!=null)
+            {
+                pendingMessenger=null;
+                if (finishedMessenger.Login) messengerLoggingIn=false;
+                messengerError=finishedMessenger.Ok?null:finishedMessenger.Detail;
+                if (finishedMessenger.Sent) lastMessengerSend=DateTime.Now;
+                SendThemes();
+            }
+            // 373: 회의 시작 전 메신저 알림 — 팝업과 같은 시각(시작 N분 전)이지만 자리비움·화면 잠금과
+            // 무관하게 보낸다(자리에 없을 때 받으라고 있는 알림이다). 회의마다 하루 한 번만.
+            if (Settings.KnoxCalendarEnabled && Settings.MessengerNotifyEnabled && !Testing)
+            {
+                ReloadKnoxIcsIfChanged();
+                var dueMessenger=CalendarSchedule.DueEntries(now,CombinedCalendarEntries(),Settings.KnoxLeadMinutes,messengerSentKeys);
+                if (dueMessenger.Count>0)
+                {
+                    foreach (CalendarEntry e in dueMessenger) messengerSentKeys.Add(CalendarSchedule.FiredKey(e));
+                    SaveDayKeys(MessengerStatePath,"sent",messengerSentKeys);
+                    StartMessengerSend(AvatarMessenger.MeetingText(dueMessenger,now),"회의 알림 "+dueMessenger.Count+"건");
+                }
+            }
             // "Away from the desk" (PauseWhenIdle): no input for IdleMinutes means the user is out,
             // so both stretch breaks and meeting alerts are held back until they return.
             bool away=ReminderSchedule.IsAway(Program.IdleFor(),Settings);
@@ -760,27 +1412,41 @@ namespace DeskHooker
             if (away && Popup!=null && (Popup.ThemeId==null || !Popup.ThemeId.StartsWith("knox:",StringComparison.Ordinal)))
             { var idleOld=Popup; Popup=null; pendingRound.Clear(); idleOld.Close(); }
             // Meeting alerts are the absolute priority: not subject to work-hours/weekday/lunch-break
-            // rules. The soonest newly-due meeting always wins and replaces whatever popup is on
-            // screen — a stretch/breath break, or an older meeting alert still ringing. A stretch whose
-            // moment arrives while an alert is alive is skipped, not deferred: PopupClosed re-arms
-            // NextDue on the absolute timetable, so the next stretch comes at the next fixed slot.
+            // rules. A newly-due meeting always wins and replaces whatever stretch/breath popup is on
+            // screen. A stretch whose moment arrives while an alert is alive is skipped, not deferred:
+            // PopupClosed re-arms NextDue on the absolute timetable, so the next stretch comes at the
+            // next fixed slot. 350: when a meeting alert is already ringing, a meeting that becomes due
+            // joins that same screen instead of replacing it — overlapping meetings are listed together,
+            // with the bell video and the already-buffered stream left untouched.
             if (Settings.KnoxCalendarEnabled && sessionActive)
             {
                 ReloadKnoxIcsIfChanged();
-                var due=CalendarSchedule.DueEntries(now,calendarEntries,Settings.KnoxLeadMinutes,firedKnoxUids);
+                var due=CalendarSchedule.DueEntries(now,CombinedCalendarEntries(),Settings.KnoxLeadMinutes,firedKnoxUids);
                 if (due.Count>0)
                 {
-                    CalendarEntry target=due[0];
-                    foreach (CalendarEntry e in due) if (e.StartLocal<target.StartLocal) target=e;
-                    if (Popup!=null) { var old=Popup; Popup=null; pendingRound.Clear(); old.Close(); } // 내리고: replace the running popup with the newest alert
-                    ShowCalendarPopup(target);
+                    if (Popup!=null && Popup.ThemeId!=null && Popup.ThemeId.StartsWith("knox:",StringComparison.Ordinal))
+                    {
+                        // 350: 떠 있는 일정 알림에 합치기 — 이미 시작해 버린 옛 일정은 안내에서 빼고,
+                        // 새로 due가 된 일정을 목록에 더해 글자만 다시 그린다(종소리 영상은 그대로).
+                        knoxPopupEvents.RemoveAll(e => e.StartLocal<=now);
+                        knoxPopupEvents.AddRange(due);
+                        knoxPopupEvents=SortedKnoxEvents(knoxPopupEvents);
+                        foreach (CalendarEntry e in due) firedKnoxUids.Add(CalendarSchedule.FiredKey(e));
+                        SaveKnoxState();
+                        SendState(Popup);
+                    }
+                    else
+                    {
+                        if (Popup!=null) { var old=Popup; Popup=null; pendingRound.Clear(); old.Close(); } // 내리고: replace the running popup with the alert
+                        ShowCalendarPopup(due);
+                    }
                 }
                 else if (Popup==null && knoxPrewarm==null && !ReminderSchedule.IsDue(now,NextDue,Settings,Popup!=null,false,sessionActive))
                 {
                     // Not due yet: prewarm the soonest meeting whose lead-time moment is less than
                     // KnoxPrewarmSeconds away, so the bell video is buffered before the popup appears.
                     CalendarEntry next=null;
-                    foreach (CalendarEntry e in calendarEntries)
+                    foreach (CalendarEntry e in CombinedCalendarEntries())
                     {
                         if (String.IsNullOrEmpty(e.Uid) || firedKnoxUids.Contains(CalendarSchedule.FiredKey(e)) || e.StartLocal<=now) continue;
                         DateTime popupAt=e.StartLocal.AddMinutes(-Settings.KnoxLeadMinutes);
@@ -829,15 +1495,28 @@ namespace DeskHooker
         }
 
         // Auto-close of the meeting-alert popup, per the "일정 알림 자동 닫힘" setting. "none" never
-        // closes on its own; "start"/"after" close at/after the meeting start; "end" closes at the
-        // meeting's end time and never fires when the calendar carried no end for this meeting.
+        // closes on its own; "start"/"after" close at/after the LAST listed meeting's start (350: with
+        // overlapping meetings on one screen the alert must outlive the earliest start); "end" closes
+        // at the latest end time and never fires when any listed meeting carried no end.
         private void CloseKnoxPopupIfDue(DateTime now)
         {
             if (Popup==null || Popup.ThemeId==null || !Popup.ThemeId.StartsWith("knox:",StringComparison.Ordinal)) return;
+            if (knoxPopupEvents.Count==0) return;
+            DateTime lastStart=DateTime.MinValue;
+            foreach (CalendarEntry e in knoxPopupEvents) if (e.StartLocal>lastStart) lastStart=e.StartLocal;
             DateTime? closeAt=null;
-            if (Settings.KnoxAutoClose==ReminderSettings.KnoxAutoCloseStart) closeAt=knoxPopupStart;
-            else if (Settings.KnoxAutoClose==ReminderSettings.KnoxAutoCloseAfter) closeAt=knoxPopupStart.AddMinutes(Settings.KnoxAutoCloseMinutes);
-            else if (Settings.KnoxAutoClose==ReminderSettings.KnoxAutoCloseEnd) closeAt=knoxPopupEnd; // null end → stays open
+            if (Settings.KnoxAutoClose==ReminderSettings.KnoxAutoCloseStart) closeAt=lastStart;
+            else if (Settings.KnoxAutoClose==ReminderSettings.KnoxAutoCloseAfter) closeAt=lastStart.AddMinutes(Settings.KnoxAutoCloseMinutes);
+            else if (Settings.KnoxAutoClose==ReminderSettings.KnoxAutoCloseEnd)
+            {
+                DateTime lastEnd=DateTime.MinValue; bool allHaveEnd=true;
+                foreach (CalendarEntry e in knoxPopupEvents)
+                {
+                    if (!e.EndLocal.HasValue) { allHaveEnd=false; break; }
+                    if (e.EndLocal.Value>lastEnd) lastEnd=e.EndLocal.Value;
+                }
+                if (allHaveEnd) closeAt=lastEnd; // 하나라도 종료 시각이 없으면 자동으로 닫지 않는다
+            }
             if (closeAt.HasValue && now>=closeAt.Value) Popup.Close(); // PopupClosed re-arms the stretch interval
         }
         private void UpdateStatus()
@@ -852,7 +1531,7 @@ namespace DeskHooker
             target.Send(new { type="state", mode=target.IsPopup?"popup":"settings", themeId=target.ThemeId, version=Program.AppVersion,
                 settings=Settings, themes=Themes, removedThemeIds=removedThemeIds.ToArray(), sync=SyncInfo(), knoxSync=KnoxSyncInfo(), next=NextDue.ToString("o"), now=DateTime.Now.ToString("o"), notice=notice, testing=Testing, remaining=pendingRound.Count,
                 away=ReminderSchedule.IsAway(Program.IdleFor(),Settings),
-                knoxTitle = isKnoxPopup ? knoxPopupTitle : null, knoxStart = isKnoxPopup ? knoxPopupStart.ToString("o") : null, knoxEnd = isKnoxPopup ? (knoxPopupEnd.HasValue ? knoxPopupEnd.Value.ToString("o") : null) : null, knoxPrewarm = isKnoxPopup && target.Prewarm });
+                knoxEvents = isKnoxPopup ? knoxPopupEvents.Select(e => new { title = e.Title, start = e.StartLocal.ToString("o"), end = e.EndLocal.HasValue ? e.EndLocal.Value.ToString("o") : null }).ToArray() : null, knoxPrewarm = isKnoxPopup && target.Prewarm });
         }
 
         public void Handle(WebWindow source, string message)
@@ -872,11 +1551,36 @@ namespace DeskHooker
                     // The settings window no longer edits the breathing timings; keep the stored ones (the file format is unchanged).
                     settings.VariantModes=Settings.VariantModes; settings.LoopModes=Settings.LoopModes; settings.InhaleSeconds=Settings.InhaleSeconds; settings.HoldSeconds=Settings.HoldSeconds; settings.ExhaleSeconds=Settings.ExhaleSeconds;
                     ReminderSchedule.Validate(settings,Themes.Select(t => t.id));
-                    bool previousStartup=Settings.StartAtLogin, previousKnoxEnabled=Settings.KnoxCalendarEnabled;
+                    bool previousStartup=Settings.StartAtLogin, previousKnoxEnabled=Settings.KnoxCalendarEnabled, previousKnoxMail=Settings.KnoxMailEnabled;
                     Settings=settings;
                     firedSchedules.Clear(); // 시각을 새로 정했으니 오늘 발사 기록은 다시 센다
+                    // 364: POP3 비밀번호는 설정 객체 옆에 따로 오고 자격 증명 관리자에만 저장된다 —
+                    // settings.json·동작 기록·오류 메시지에는 절대 실리지 않는다. 시험 실행은 진짜
+                    // 자격 증명 저장소를 건드리지 않는다. 동기화 트리거보다 먼저 처리한다: 토글을
+                    // 켠 첫 저장에서 "비밀번호 없음" 실패 기록이 남지 않게 하기 위해서다.
+                    bool mailPasswordSaved = false;
+                    object mailPassword;
+                    if (!Testing && msg.TryGetValue("knoxMailPassword", out mailPassword))
+                    {
+                        string typed = mailPassword as string;
+                        if (!String.IsNullOrEmpty(typed))
+                        {
+                            try
+                            {
+                                KnoxMailSavePassword(typed);
+                                mailPasswordSaved = true;
+                                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메일: 비밀번호 저장됨(자격 증명 관리자)" });
+                            }
+                            catch (Exception error)
+                            {
+                                AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = false, Detail = "메일: 비밀번호 저장 실패: " + KnoxSync.FirstLine(error.Message, 100) });
+                                throw; // 저장 실패는 저장 오류 안내(toast)로도 보여야 한다
+                            }
+                        }
+                    }
                     if (Settings.StartAtLogin!=previousStartup) Startup(Settings.StartAtLogin);
                     if (Settings.KnoxCalendarEnabled && !previousKnoxEnabled) StartKnoxSync(false);
+                    if (Settings.KnoxMailEnabled && (!previousKnoxMail || mailPasswordSaved)) StartKnoxMailSync(false);
                     Persist(); cursor=0; pendingRound.Clear(); NextDue=ReminderSchedule.Next(DateTime.Now,Settings);
                     notice=Settings.Enabled?"알림이 시작됐습니다. 창을 닫아도 트레이에서 계속 동작합니다.":"설정이 저장됐습니다. 알림은 일시정지 상태입니다.";
                     SendState(source); return;
@@ -933,7 +1637,7 @@ namespace DeskHooker
                     string name=Convert.ToString(msg["name"]).Trim(), summary=Convert.ToString(msg["summary"]).Trim(), safety=Convert.ToString(msg["safety"]).Trim();
                     if (name.Length<1 || name.Length>30) throw new ArgumentException("이름은 1~30자로 적어 주세요.");
                     if (summary.Length<1 || summary.Length>60) throw new ArgumentException("한 줄 설명은 1~60자로 적어 주세요.");
-                    if (safety.Length<1 || safety.Length>150) throw new ArgumentException("주의사항은 1~150자로 적어 주세요.");
+                    if (safety.Length>150) throw new ArgumentException("주의사항은 150자 이하로 적어 주세요."); // 338: 비워 둬도 저장된다
                     var steps=new List<string>();
                     foreach (string line in Convert.ToString(msg["steps"]).Split('\n'))
                     {
@@ -965,21 +1669,23 @@ namespace DeskHooker
                 }
                  if (action=="reset-themes")
                  {
-                     if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 변경할 수 있습니다.");
-                     removedThemeIds.Clear(); userThemes.Clear();
-                     SaveUserThemes(); RebuildThemes(); PruneThemeIds();
-                     cursor=0; pendingRound.Clear(); Persist();
-                     notice="카드 목록을 기본 프리셋으로 되돌렸어요.";
-                     SendState(source); return;
-                 }
+                      if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 변경할 수 있습니다.");
+                      removedThemeIds.Clear(); userThemes.Clear();
+                      // 프리셋 되돌리기도 프리셋의 내가 만든 카드를 다시 깐다(337). 시험 모드는 깨끗한 상태 유지.
+                      if (!Testing) EnsurePresetCard();
+                      SaveUserThemes(); RebuildThemes(); PruneThemeIds();
+                      cursor=0; pendingRound.Clear(); Persist();
+                      notice="카드 목록을 기본 프리셋으로 되돌렸어요.";
+                      SendState(source); return;
+                  }
                  // ---- 쉼 카드 내보내기/가져오기: 카드 목록과 각 카드의 하위 영상 목록을 JSON 파일 하나로 ----
                  if (action=="export-cards")
                  {
                      if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 사용할 수 있습니다.");
                      string json=Convert.ToString(msg["json"]);
                      var check=Json.Deserialize<Dictionary<string,object>>(json); // 반드시 JSON이어야 한다
-                     if (Convert.ToString(check["format"])!="teum-cards") throw new ArgumentException("내보낼 내용이 올바르지 않습니다.");
-                     using (var dialog=new SaveFileDialog { Title="쉼 카드와 영상 목록 내보내기", Filter="JSON 파일 (*.json)|*.json", FileName="teum-cards-"+DateTime.Now.ToString("yyyyMMdd-HHmm")+".json" })
+                      if (Convert.ToString(check["format"])!="shim-cards" && Convert.ToString(check["format"])!="teum-cards") throw new ArgumentException("내보낼 내용이 올바르지 않습니다.");
+                      using (var dialog=new SaveFileDialog { Title="쉼 카드와 영상 목록 내보내기", Filter="JSON 파일 (*.json)|*.json", FileName="shim-cards-"+DateTime.Now.ToString("yyyyMMdd-HHmm")+".json" })
                      {
                          if (dialog.ShowDialog()!=DialogResult.OK) return; // 취소는 조용히 끝낸다
                          File.WriteAllText(dialog.FileName, json);
@@ -996,7 +1702,7 @@ namespace DeskHooker
                          if (dialog.ShowDialog()!=DialogResult.OK) return; // 취소는 조용히 끝낸다
                          string json=File.ReadAllText(dialog.FileName);
                          var check=Json.Deserialize<Dictionary<string,object>>(json);
-                         if (Convert.ToString(check["format"])!="teum-cards") throw new ArgumentException("틈의 '영상 목록 내보내기'로 저장한 파일이 아닌 것 같아요: "+Path.GetFileName(dialog.FileName));
+                          if (Convert.ToString(check["format"])!="shim-cards" && Convert.ToString(check["format"])!="teum-cards") throw new ArgumentException("쉼의 '영상 목록 내보내기'로 저장한 파일이 아닌 것 같아요: "+Path.GetFileName(dialog.FileName));
                          source.Send(new { type="cards-import", json=json }); // 페이지가 목록 편집을 두고 apply-import를 되돌려 보낸다
                      }
                      return;
@@ -1010,7 +1716,7 @@ namespace DeskHooker
                      foreach (Theme card in cards)
                      {
                          if (card==null || String.IsNullOrEmpty(card.id) || !System.Text.RegularExpressions.Regex.IsMatch(card.id,@"^x-[0-9a-f]{8}$")) throw new ArgumentException("가져온 카드의 아이디가 올바르지 않습니다.");
-                         if (String.IsNullOrEmpty(card.name) || card.name.Trim().Length<1 || card.name.Trim().Length>30 || String.IsNullOrEmpty(card.summary) || card.summary.Trim().Length<1 || card.summary.Trim().Length>60 || String.IsNullOrEmpty(card.safety) || card.safety.Trim().Length<1 || card.safety.Trim().Length>150) throw new ArgumentException("가져온 카드의 내용이 올바르지 않습니다: "+card.id);
+                          if (String.IsNullOrEmpty(card.name) || card.name.Trim().Length<1 || card.name.Trim().Length>30 || String.IsNullOrEmpty(card.summary) || card.summary.Trim().Length<1 || card.summary.Trim().Length>60 || (card.safety??"").Trim().Length>150) throw new ArgumentException("가져온 카드의 내용이 올바르지 않습니다: "+card.id); // 338: 주의사항은 비어 있어도 된다
                          var steps=(card.instructions ?? new string[] { }).Where(s => !String.IsNullOrWhiteSpace(s)).Select(s => s.Trim().Length>60 ? s.Trim().Substring(0,60) : s.Trim()).Take(6).ToArray();
                          var videos=new List<CommunityVideo>();
                          foreach (CommunityVideo v in card.videos ?? new CommunityVideo[] { })
@@ -1022,8 +1728,9 @@ namespace DeskHooker
                          }
                          if (steps.Length==0 && videos.Count==0) continue;
                          Theme existing=userThemes.FirstOrDefault(t => t.id==card.id);
-                         if (existing==null) userThemes.Add(new Theme { id=card.id, name=card.name.Trim(), summary=card.summary.Trim(), safety=card.safety.Trim(), icon="◈", instructions=steps, videos=videos.ToArray(), user=true });
-                         else { existing.name=card.name.Trim(); existing.summary=card.summary.Trim(); existing.safety=card.safety.Trim(); existing.instructions=steps; existing.videos=videos.ToArray(); }
+                         string cardSafety=(card.safety??"").Trim();
+                         if (existing==null) userThemes.Add(new Theme { id=card.id, name=card.name.Trim(), summary=card.summary.Trim(), safety=cardSafety, icon="◈", instructions=steps, videos=videos.ToArray(), user=true });
+                         else { existing.name=card.name.Trim(); existing.summary=card.summary.Trim(); existing.safety=cardSafety; existing.instructions=steps; existing.videos=videos.ToArray(); }
                          restored++;
                      }
                      // 목록에서 뺀 카드: 내보낸 PC와 같은 목록 모양이 되도록 그대로 따른다(모르는 아이디는 뺀다).
@@ -1040,7 +1747,32 @@ namespace DeskHooker
                      notice=String.Format("쉼 카드와 영상 목록을 가져왔어요. 카드 {0}개 · 목록 편집 저장됨.",restored);
                      SendState(source); return;
                  }
-                if (action=="sync-knox") { if (!source.IsPopup) StartKnoxSync(true); return; }
+                 if (action=="sync-knox") { if (!source.IsPopup) StartKnoxSync(true); return; }
+                 // 373: SLSI Avatar 메신저 — 연결(SSO 로그인)·시험 발송·연결 끊기(설정 창에서만).
+                 if (action=="messenger-login" || action=="messenger-test" || action=="messenger-logout")
+                 {
+                     if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 변경할 수 있습니다.");
+                     if (action=="messenger-login") StartMessengerLogin();
+                     else if (action=="messenger-test") StartMessengerSend("🔔 [쉼] 메신저 알림 시험이에요. 회의 시작 전에 이렇게 알려 드려요.","시험 메시지");
+                     else if (!Testing)
+                     {
+                         CredDelete(MessengerCredentialTarget, CredentialTypeGeneric, 0);
+                         messengerError=null;
+                         AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메신저: 연결 지움" });
+                     }
+                     SendState(source); return;
+                 }
+                 // 364: 저장된 POP3 비밀번호를 자격 증명 관리자에서 지운다(설정 창에서만).
+                 if (action=="knox-mail-pass-clear")
+                 {
+                     if (source.IsPopup) throw new InvalidOperationException("설정 창에서만 변경할 수 있습니다.");
+                     if (!Testing)
+                     {
+                         KnoxMailDeletePassword();
+                         AddKnoxSyncLog(new KnoxSyncLogEntry { When = DateTime.Now.ToString("o"), Ok = true, Detail = "메일: 비밀번호 삭제됨" });
+                     }
+                     SendState(source); return;
+                 }
                 if (action=="test-knox")
                 {
                     // Rehearses one upcoming meeting's lead-time popup. Deliberately does NOT mark the UID
@@ -1052,13 +1784,15 @@ namespace DeskHooker
                     if (source.IsPopup) return;
                     ReloadKnoxIcsIfChanged();
                     string uid=Convert.ToString(msg["uid"]);
-                    var entry=calendarEntries.FirstOrDefault(e => e.Uid==uid);
+                    var entry=CombinedCalendarEntries().FirstOrDefault(e => e.Uid==uid);
                     if (entry==null) throw new InvalidOperationException("선택한 일정을 찾을 수 없습니다. 먼저 '지금 일정 가져오기'로 일정을 받아 오세요.");
                     if (Popup!=null) { var old=Popup; Popup=null; pendingRound.Clear(); old.Close(); }
                     CloseKnoxPrewarm(); // the rehearsal window replaces any hidden prewarm for the real reminder
-                    knoxPopupTitle=entry.Title; knoxPopupStart=entry.StartLocal; knoxPopupEnd=entry.EndLocal;
+                    knoxPopupEvents=SortedKnoxEvents(new CalendarEntry[]{ entry }); // 시험은 한 일정만 띄운다(발사 기록은 남기지 않는다)
                     Popup=new WebWindow(this,true,"knox:"+uid);
                     Popup.Show(); Popup.Activate();
+                    // 378: 메신저 알림을 켜 두었으면 시험도 메신저로 같은 글을 한 통 보낸다(실제 발송 기록은 남기지 않는다).
+                    if (Settings.MessengerNotifyEnabled) StartMessengerSend("[시험] "+AvatarMessenger.MeetingText(new CalendarEntry[]{ entry },DateTime.Now),"시험 회의 알림");
                     return;
                 }
                 if (action=="run-now") { if (source.IsPopup) return; if (Settings.ThemeIds==null || Settings.ThemeIds.Length==0) throw new InvalidOperationException("저장된 주제가 없습니다."); StartRound(); return; }
@@ -1245,11 +1979,13 @@ namespace DeskHooker
                 if (!Settings.ThemeIds.Contains("meditation")) throw new Exception("주기 실행 복귀가 저장되지 않았습니다.");
                 result["cardScheduleToggle"]=true;
                 // 실제 발사: 방금 지난 시각(초까지)을 주면 다음 틱(1초) 안에 그 카드만 뜬다. 하루 한 번 제약도 함께 본다.
-                // 295번부터 시각 실행도 근무 창 규칙을 따르므로, 이 검사는 벽시계와 무관하게 돌도록 창을 잠시 끈다.
+                // 295번부터 시각 실행도 근무 창·요일 규칙을 따르므로, 이 검사는 벽시계(시각·요일)와 무관하게 돌도록
+                // 근무 창과 "월~금만"을 잠시 끈다. 요일까지 끄지 않으면 주말에 이 검사가 실패한다(345).
                 if (!Settings.Enabled) throw new Exception("알림이 꺼진 상태에서 시각 발사를 검사할 수 없습니다.");
-                await gridCdp.ExecuteScriptAsync("document.querySelector('#limit-hours').click(); document.querySelector('#save-settings').click()");
+                await gridCdp.ExecuteScriptAsync("document.querySelector('#limit-hours').click(); document.querySelector('#weekdays').checked=false; document.querySelector('#save-settings').click()");
                 await Task.Delay(400);
                 if (Settings.LimitHours) throw new Exception("근무 창 끄기가 저장되지 않았습니다.");
+                if (Settings.WeekdaysOnly) throw new Exception("요일 제한 끄기가 저장되지 않았습니다.");
                 int at=DateTime.Now.Hour*3600+DateTime.Now.Minute*60+DateTime.Now.Second-1; if (at<0) at=0;
                 Settings.Schedules["meditation"]=string.Format("{0:00}:{1:00}:{2:00}",at/3600,(at/60)%60,at%60);
                 try
@@ -1306,10 +2042,11 @@ namespace DeskHooker
                 {
                     Settings.Schedules.Remove("meditation"); // 어떤 경로로든 시각 실행이 남지 않게 (await는 finally에 못 쓰므로 UI 복원은 아래에서)
                 }
-                await gridCdp.ExecuteScriptAsync("document.querySelector('#limit-hours').checked=true; document.querySelector('#break-on').checked=false; window.__unsched()");
+                await gridCdp.ExecuteScriptAsync("document.querySelector('#limit-hours').checked=true; document.querySelector('#break-on').checked=false; document.querySelector('#weekdays').checked=true; window.__unsched()");
                 await Task.Delay(400);
                 if (Settings.Schedules.ContainsKey("meditation")) throw new Exception("295 검사 뒤 시각 실행이 남아 있습니다.");
                 if (!Settings.LimitHours) throw new Exception("295 검사 뒤 근무 창이 켜져 있지 않습니다.");
+                if (!Settings.WeekdaysOnly) throw new Exception("295 검사 뒤 요일 제한이 켜져 있지 않습니다.");
                 // "Next rest" button: shown only while rests remain in a run-all round; Next continues, Close ends the round.
                 string savedMode=Settings.ThemeMode; string[] savedThemes=Settings.ThemeIds;
                 Settings.ThemeMode=ThemeRotation.SequentialAll; Settings.ThemeIds=new string[]{"meditation","voice"};
@@ -1335,11 +2072,11 @@ namespace DeskHooker
                     result["nextRestButton"]=true;
                 }
                 finally { Settings.ThemeMode=savedMode; Settings.ThemeIds=savedThemes; pendingRound.Clear(); }
-                // Voice theme: only videos (two), no picture, no timer, no steps.
+                // Voice theme: only videos, no picture, no timer, no steps. 337 프리셋: 3-7 호흡법까지 6개.
                 ShowPopup("voice"); await Popup.Ready.Task; await Task.Delay(400);
-                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="5") throw new Exception("Voice sub-item list should have 5 items.");
-                string[] voiceIds={"88TBCVp-Tlc","x6y6SPzCQXQ","YdBUnWJBYAo","YLfFw6IuVqc","43MKF1bL_mM"};
-                for (int v=0; v<5; v++)
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="6") throw new Exception("Voice sub-item list should have 6 items.");
+                string[] voiceIds={"88TBCVp-Tlc","x6y6SPzCQXQ","YdBUnWJBYAo","YLfFw6IuVqc","43MKF1bL_mM","2cy0bowQb5w"};
+                for (int v=0; v<6; v++)
                 {
                     await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var s=document.querySelector('#variant-pick'); s.value='"+v+"'; s.dispatchEvent(new Event('change'))");
                     await Task.Delay(300);
@@ -1383,8 +2120,8 @@ namespace DeskHooker
                 // Meditation shows only videos (two): a picker, but no original picture and no step list.
                 ShowPopup("meditation"); await Popup.Ready.Task; await Task.Delay(500);
                 var medCdp=Popup.Browser.CoreWebView2;
-                if (await medCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="3") throw new Exception("Meditation sub-item list should have 3 items.");
-                string[] medIds={"6Qu5E3MrVH8","LaM3-_ntnjU","Og_Qli3M_nE"};
+                 if (await medCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="3") throw new Exception("Meditation sub-item list should have 3 items.");
+                 string[] medIds={"6Qu5E3MrVH8","LaM3-_ntnjU","dZewQEbQQM0"};
                 for (int v=0; v<3; v++)
                 {
                     await medCdp.ExecuteScriptAsync("var s=document.querySelector('#variant-pick'); s.value='"+v+"'; s.dispatchEvent(new Event('change'))");
@@ -1425,9 +2162,9 @@ namespace DeskHooker
                 await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var m=document.querySelector('#variant-mode'); m.value='random'; m.dispatchEvent(new Event('change'));");
                 await Task.Delay(300);
                 result["variantOrderRemembered"]=true;
-                 if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="2") throw new Exception("Relax sub-item list should have 2 items.");
-                 string[] relaxIds={"5yApImDt_Fk","Yma-nUogjao"};
-                 for (int v=0; v<2; v++)
+                   if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="4") throw new Exception("Relax sub-item list should have 4 items.");
+                   string[] relaxIds={"5yApImDt_Fk","Og_Qli3M_nE","p0YfyupeyO4","yq-lSVEu7U0"};
+                   for (int v=0; v<4; v++)
                 {
                     await Popup.Browser.CoreWebView2.ExecuteScriptAsync("var s=document.querySelector('#variant-pick'); s.value='"+v+"'; s.dispatchEvent(new Event('change'))");
                     await Task.Delay(300);
@@ -1459,6 +2196,9 @@ namespace DeskHooker
                  if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#volume-badge').textContent")!="\"🔊 볼륨 65 · Up/Down (키보드키)\"") throw new Exception("▼ 키가 볼륨 배지를 내리지 않았습니다.");
                  if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("localStorage.getItem('teum.volume')")!="\"65\"") throw new Exception("볼륨 선택이 저장되지 않았습니다.");
                  // 배지는 닫기 버튼 바로 아래, 오른쪽 끝이 닫기 버튼과 맞는다(우상단). 2px는 소수점 반올림 오차.
+                 // 볼륨 키를 누를 때마다 배지의 bump 애니메이션(0.25초, scale)이 재시작되고 getBoundingClientRect는
+                 // transform까지 반영하므로, 애니메이션이 끝난 뒤에 재야 한다(중간에 재면 스케일이 위치에 섞인다).
+                 await Task.Delay(600);
                  string badgeSpot=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var b=document.querySelector('#volume-badge').getBoundingClientRect();var c=document.querySelector('.popup-close').getBoundingClientRect();return Math.abs(b.right-c.right)<2 && Math.abs(b.top-c.bottom-8)<2;})()");
                  if (badgeSpot!="true") throw new Exception("볼륨 배지가 닫기 버튼 바로 아래에 있지 않습니다.");
                  // 입력칸에 커서가 있으면 화살표는 입력을 방해하지 않는다.
@@ -1513,27 +2253,50 @@ namespace DeskHooker
                 // 추가: 11자 ID 가진 링크를 넣으면 항목이 끝에 붙고, 패널은 계속 열려 있다.
                 await editCdp.ExecuteScriptAsync("document.querySelector('#edit-url').value='https://youtu.be/abcdefghijk'; document.querySelector('#edit-title').value='시험용 영상'; document.querySelector('#edit-add-btn').click()");
                 await Task.Delay(400);
-                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="3") throw new Exception("Adding a video did not grow the list.");
-                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option')[2].text.indexOf('시험용 영상')>=0")!="true") throw new Exception("The added video is not the last option.");
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="5") throw new Exception("Adding a video did not grow the list.");
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option')[4].text.indexOf('시험용 영상')>=0")!="true") throw new Exception("The added video is not the last option.");
                 if (await editCdp.ExecuteScriptAsync("Boolean(document.querySelector('#variant-edit-box'))")!="true") throw new Exception("The edit panel should stay open after adding.");
-                // 사용자 추가 항목 빼기: 목록이 다시 2개로 줄고 추가분은 목록에서 사라진다.
+                // 추가한 항목 수정: '수정'으로 링크와 제목을 바꾸면 목록 표시와 저장된 항목이 바뀐다(아이디는 그대로).
+                await editCdp.ExecuteScriptAsync("document.querySelector('.edit-modify[data-modify-id=\"custom-abcdefghijk\"]').click()");
+                await Task.Delay(200);
+                if (await editCdp.ExecuteScriptAsync("Boolean(document.querySelector('.edit-row-editing'))")!="true") throw new Exception("The modify button did not open the inline editor.");
+                await editCdp.ExecuteScriptAsync("document.querySelector('.edit-row-url').value='https://youtu.be/zzzzzzzzzzz'; document.querySelector('.edit-row-title').value='바꾼 추가 영상'; document.querySelector('.edit-row-save').click()");
+                await Task.Delay(400);
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option')[4].text.indexOf('바꾼 추가 영상')>=0")!="true") throw new Exception("Modifying the added video did not update the list.");
+                if (await editCdp.ExecuteScriptAsync("JSON.parse(localStorage.getItem('teum.listEdits.relax')).added[0].youtubeId")!="\"zzzzzzzzzzz\"") throw new Exception("Modifying the added video did not update the stored entry.");
+                // 사용자 추가 항목 빼기: 목록이 다시 기본 4개로 줄고 추가분은 목록에서 사라진다.
                 await editCdp.ExecuteScriptAsync("document.querySelector('.edit-remove[data-remove-id=\"custom-abcdefghijk\"]').click()");
                 await Task.Delay(400);
-                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="2") throw new Exception("Removing the added video did not shrink the list.");
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="4") throw new Exception("Removing the added video did not shrink the list.");
                 // 기본 항목 빼기·되돌리기: 뺀 항목은 '뺀 항목' 줄에 나타나고 되돌리면 돌아온다.
                 await editCdp.ExecuteScriptAsync("document.querySelector('.edit-remove[data-remove-id=\"yt-5yApImDt_Fk\"]').click()");
                 await Task.Delay(400);
-                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="1") throw new Exception("Removing a built-in did not shrink the list.");
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="3") throw new Exception("Removing a built-in did not shrink the list.");
                 if (await editCdp.ExecuteScriptAsync("Boolean(document.querySelector('.edit-restore[data-restore-id=\"yt-5yApImDt_Fk\"]'))")!="true") throw new Exception("The removed built-in has no restore button.");
                 await editCdp.ExecuteScriptAsync("document.querySelector('.edit-restore[data-restore-id=\"yt-5yApImDt_Fk\"]').click()");
                 await Task.Delay(400);
-                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="2") throw new Exception("Restoring did not bring the built-in back.");
-                // 되돌리기(초기화): 편집 내용 전체를 지우고 기본 목록으로.
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="4") throw new Exception("Restoring did not bring the built-in back.");
+                // 기본 항목 수정: '수정'을 누르면 지금 링크와 제목이 칸에 채워져 확인할 수 있고, 저장하면 목록·재생기가 따른다.
+                await editCdp.ExecuteScriptAsync("document.querySelector('.edit-modify[data-modify-id=\"yt-5yApImDt_Fk\"]').click()");
+                await Task.Delay(200);
+                if (await editCdp.ExecuteScriptAsync("document.querySelector('.edit-row-url').value.indexOf('5yApImDt_Fk')>=0 && document.querySelector('.edit-row-title').value.length>0")!="true") throw new Exception("The inline editor did not show the current link and title.");
+                // 이미 목록에 있는 영상 링크는 거절된다(중복 방지). 저장되지 않고 칸은 그대로 열려 있다.
+                await editCdp.ExecuteScriptAsync("document.querySelector('.edit-row-url').value='https://youtu.be/Og_Qli3M_nE'; document.querySelector('.edit-row-save').click()");
+                await Task.Delay(200);
+                if (await editCdp.ExecuteScriptAsync("Object.keys((JSON.parse(localStorage.getItem('teum.listEdits.relax')||'{}').edited)||{}).length")!="0") throw new Exception("A duplicate link should not be saved.");
+                if (await editCdp.ExecuteScriptAsync("Boolean(document.querySelector('.edit-row-editing'))")!="true") throw new Exception("The rejected save should keep the inline editor open.");
+                await editCdp.ExecuteScriptAsync("document.querySelector('.edit-row-url').value='https://youtu.be/0000000000A'; document.querySelector('.edit-row-title').value='바꾼 기본 영상'; document.querySelector('.edit-row-save').click()");
+                await Task.Delay(400);
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option')[0].text.indexOf('바꾼 기본 영상')>=0")!="true") throw new Exception("The modified built-in title did not reach the list.");
+                string modSrc=await editCdp.ExecuteScriptAsync("(document.querySelector('#variant-frame')||{}).src||''");
+                if (!modSrc.Contains("youtube-nocookie.com/embed/0000000000A")) throw new Exception("The modified built-in link did not reach the player: "+modSrc);
+                if (await editCdp.ExecuteScriptAsync("JSON.parse(localStorage.getItem('teum.listEdits.relax')).edited['yt-5yApImDt_Fk'].youtubeId")!="\"0000000000A\"") throw new Exception("The built-in modification was not stored as an override.");
+                // 되돌리기(초기화): 편집 내용 전체(수정 포함)를 지우고 기본 목록으로.
                 await editCdp.ExecuteScriptAsync("document.querySelector('.edit-remove[data-remove-id=\"yt-5yApImDt_Fk\"]').click()");
                 await Task.Delay(400);
                 await editCdp.ExecuteScriptAsync("document.querySelector('#edit-reset').click()");
                 await Task.Delay(400);
-                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="2") throw new Exception("Reset did not restore the default list.");
+                if (await editCdp.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="4") throw new Exception("Reset did not restore the default list.");
                 string editLeftover=await editCdp.ExecuteScriptAsync("localStorage.getItem('teum.listEdits.relax')||''");
                 if (editLeftover!="\"{}\"") throw new Exception("Reset left edits behind: "+editLeftover);
                 Popup.Close(); await Task.Delay(300);
@@ -1639,7 +2402,7 @@ namespace DeskHooker
                 if (autoCloseValues!="\"none|start|after|end checked:none\"") throw new Exception("자동 닫힘 라디오 값/기본값이 올바르지 않습니다: "+autoCloseValues);
                 result["knoxAutoCloseRadios"]=true;
                 // 일정 알림 화면의 자동 닫힘 안내: 실제 knox 팝업을 띄워 설정을 한 줄로 말해 주는지 확인한다.
-                knoxPopupTitle="스모크 시험 일정"; knoxPopupStart=DateTime.Now.AddMinutes(3); knoxPopupEnd=DateTime.Now.AddMinutes(33);
+                knoxPopupEvents=SortedKnoxEvents(new CalendarEntry[]{ new CalendarEntry{ Uid="smoke-test", Title="스모크 시험 일정", StartLocal=DateTime.Now.AddMinutes(3), EndLocal=DateTime.Now.AddMinutes(33) } });
                 Popup=new WebWindow(this,true,"knox:smoke-test"); Popup.Show(); Popup.Activate();
                 await Popup.Ready.Task; await Task.Delay(500);
                 if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("Boolean(document.querySelector('.knox-autoclose'))")!="true") throw new Exception("일정 알림 화면에 자동 닫힘 안내 줄이 없습니다.");
@@ -1653,8 +2416,18 @@ namespace DeskHooker
                 string endLine=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('.knox-autoclose').textContent");
                 if (!endLine.Contains("종료 시각에 자동으로 닫혀요")) throw new Exception("'종료 시각' 안내가 갱신되지 않았습니다: "+endLine);
                 Settings.KnoxAutoClose=ReminderSettings.KnoxAutoCloseNone; Settings.KnoxAutoCloseMinutes=5; Persist();
+                // ---- 350: 같은 시각에 겹친 일정은 한 화면에 모두 표시 ----
+                // 상태를 다시 보내면 종소리 iframe은 그대로 두고 안내 글자(veil)만 갱신돼야 한다.
+                await Popup.Browser.CoreWebView2.ExecuteScriptAsync("window.__bellSmoke=document.querySelector('#knox-bell')");
+                knoxPopupEvents=SortedKnoxEvents(new CalendarEntry[]{
+                    new CalendarEntry{ Uid="smoke-a", Title="겹친 일정 첫 번째", StartLocal=DateTime.Now.AddMinutes(3), EndLocal=DateTime.Now.AddMinutes(33) },
+                    new CalendarEntry{ Uid="smoke-b", Title="겹친 일정 두 번째", StartLocal=DateTime.Now.AddMinutes(4), EndLocal=null } });
+                SendState(Popup); await Task.Delay(300);
+                string overlapped=await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('.knox-item').length+'/'+(document.querySelector('.knox-eyebrow').textContent.indexOf('2개')>=0)+'/'+(document.querySelector('.knox-autoclose').textContent.indexOf('자동으로 닫히지 않아요')>=0)+'/'+(document.querySelector('#knox-bell')===window.__bellSmoke)");
+                if (overlapped!="\"2/true/true/true\"") throw new Exception("겹친 일정이 한 화면에 모두 표시되지 않거나 종소리 영상이 다시 로드됩니다: "+overlapped);
                 Popup.Close(); await Task.Delay(300);
                 result["knoxAutoCloseBanner"]=true;
+                result["knoxOverlappedEvents"]=true;
                 // 자리비움 판단: 기본값은 꺼짐, 분 입력칸은 비활성.
                 string pauseIdle=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var c=document.getElementById('pause-idle');var m=document.getElementById('idle-min');return c.checked+'/'+m.disabled+'/'+m.value;})()");
                 if (pauseIdle!="\"false/true/10\"") throw new Exception("자리비움 체크박스 기본값이 올바르지 않습니다: "+pauseIdle);
@@ -1664,10 +2437,25 @@ namespace DeskHooker
                 if (toggleIdle!="true") throw new Exception("자리비움 토글이 입력칸 상태를 바꾸지 않습니다.");
                 string toggleKnox=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var k=document.getElementById('knox-on');var lead=document.getElementById('knox-lead');var radios=document.querySelectorAll('input[name=knox-auto-close]');var before=!lead.disabled&&!radios[0].disabled;k.click();var flipped=lead.disabled===before&&radios[0].disabled===before;k.click();return flipped&&(!lead.disabled===before);})()");
                 if (toggleKnox!="true") throw new Exception("Knox 토글이 종속 입력칸 상태를 바꾸지 않습니다.");
+                // ---- 364: Knox 메일 초대 설정 — 기본 꺼짐, 비밀번호 칸은 토글을 따라 활성화된다 ----
+                string mailDefaults=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var c=document.getElementById('knox-mail-on');var p=document.getElementById('knox-mail-pass');var b=document.getElementById('knox-mail-pass-clear');return c.checked+'/'+p.disabled+'/'+p.type+'/'+b.disabled;})()");
+                if (mailDefaults!="\"false/true/password/true\"") throw new Exception("Knox 메일 설정 기본값이 올바르지 않습니다: "+mailDefaults);
+                string toggleMail=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var c=document.getElementById('knox-mail-on');var p=document.getElementById('knox-mail-pass');c.click();var on=!p.disabled;c.click();return on&&p.disabled;})()");
+                if (toggleMail!="true") throw new Exception("Knox 메일 토글이 비밀번호 칸 상태를 바꾸지 않습니다.");
+                result["knoxMailSettings"]=true;
+                // ---- 373: 메신저 회의 알림 — 기본 꺼짐, 시험 실행은 연결 없음(시험·끊기 단추 잠김), 토글은 Knox 일정 토글을 따른다 ----
+                string messengerDefaults=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var m=document.getElementById('messenger-on');var t=document.getElementById('messenger-test');var o=document.getElementById('messenger-logout');var l=document.getElementById('messenger-login');return m.checked+'/'+t.disabled+'/'+o.disabled+'/'+l.disabled;})()");
+                if (messengerDefaults!="\"false/true/true/false\"") throw new Exception("메신저 알림 설정 기본값이 올바르지 않습니다: "+messengerDefaults);
+                string toggleMessenger=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var k=document.getElementById('knox-on');var m=document.getElementById('messenger-on');var before=m.disabled;k.click();var flipped=m.disabled!==before;k.click();return flipped&&m.disabled===before;})()");
+                if (toggleMessenger!="true") throw new Exception("Knox 일정 토글이 메신저 알림 토글 상태를 바꾸지 않습니다.");
+                // 383: 메신저 줄·동작 기록·안내 문단은 화면에서만 숨긴다(요소는 남아 저장값이 유지된다).
+                string uxHidden=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var q=['.knox-messenger-line','.knox-messenger-link-line','#knox-log-box','section:has(#knox-on) p.small-help.ux-hidden'];return q.map(function(x){var e=document.querySelector(x);return e?getComputedStyle(e).display:'missing';}).join('/');})()");
+                if (uxHidden!="\"none/none/none/none\"") throw new Exception("숨겨야 할 설정 줄이 화면에 보입니다: "+uxHidden);
+                result["messengerSettings"]=true;
                 string toggleHours=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("(function(){var l=document.getElementById('limit-hours');var s=document.getElementById('start-time');var e=document.getElementById('end-time');var before=!s.disabled&&!e.disabled;l.click();var flipped=s.disabled===before&&e.disabled===before;l.click();return flipped&&(!s.disabled===before);})()");
                 if (toggleHours!="true") throw new Exception("시간대 토글이 시작·종료 시각 상태를 바꾸지 않습니다.");
                 result["toggleGreyStates"]=true;
-                // 틈 화면 테마: 선택 도구는 사라졌고, 색 모드는 시스템을 그대로 따라간다(밝게/어둡게 자동).
+                // 쉼 화면 테마: 선택 도구는 사라졌고, 색 모드는 시스템을 그대로 따라간다(밝게/어둡게 자동).
                 string appearanceFollow=await SettingsWindow.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('input[name=appearance]').length+'/'+document.documentElement.dataset.appearance");
                 if (appearanceFollow!="\"0/light\"" && appearanceFollow!="\"0/dark\"") throw new Exception("화면 테마가 시스템을 따르지 않습니다: "+appearanceFollow);
                 result["appearanceFollowsSystem"]=true;
@@ -1693,11 +2481,22 @@ namespace DeskHooker
                 await cardCdp.ExecuteScriptAsync("document.querySelector('#add-theme-open').click()");
                 await Task.Delay(200);
                 if (await cardCdp.ExecuteScriptAsync("document.querySelector('#theme-add-panel').open")!="true") throw new Exception("추가 대화상자가 열리지 않았습니다.");
-                await cardCdp.ExecuteScriptAsync("var f=function(i,v){var e=document.querySelector(i);e.value=v;};f('#add-name','시험 쉼');f('#add-summary','시험용 카드');f('#add-steps','한 줄\\n두 줄');f('#add-videos','https://youtu.be/abcdefghijk | 시험 영상');f('#add-safety','아프면 멈춰요.');document.querySelector('#theme-add-form').dispatchEvent(new Event('submit'))");
+                // 338: 대화상자(뒷배경) 바깥을 클릭해도 닫히지 않는다 — 입력하던 내용이 사라지지 않게.
+                await cardCdp.ExecuteScriptAsync("document.querySelector('#theme-add-panel').click()");
+                await Task.Delay(200);
+                if (await cardCdp.ExecuteScriptAsync("document.querySelector('#theme-add-panel').open")!="true") throw new Exception("바깥 클릭으로 추가 대화상자가 닫혔습니다.");
+                // 338: 주의사항을 비워 둔 채로도 카드가 저장된다.
+                await cardCdp.ExecuteScriptAsync("var f=function(i,v){var e=document.querySelector(i);e.value=v;};f('#add-name','시험 쉼');f('#add-summary','시험용 카드');f('#add-steps','한 줄\\n두 줄');f('#add-videos','https://youtu.be/abcdefghijk | 시험 영상');document.querySelector('#theme-add-form').dispatchEvent(new Event('submit'))");
                 await Task.Delay(400);
                 var added=Themes.FirstOrDefault(t => t.name=="시험 쉼");
                 if (added==null || !added.user || added.id==null || !added.id.StartsWith("x-") || added.videos==null || added.videos.Length!=1 || added.videos[0].id!="abcdefghijk") throw new Exception("새 카드가 올바르게 추가되지 않았습니다.");
+                if (!String.IsNullOrEmpty(added.safety)) throw new Exception("주의사항을 비워 둔 카드가 저장되지 않아야 합니다(빈 값이어야 함).");
                 if (await cardCdp.ExecuteScriptAsync("Boolean(document.querySelector('input[value=\""+added.id+"\"]'))")!="true") throw new Exception("새 카드 타일이 목록에 나타나지 않았습니다.");
+                // 339: 내가 만든 카드의 하위 목록에는 '기본 · 동작 안내' 항목이 끼워지지 않는다 — 영상만 나온다.
+                ShowPopup(added.id); await Popup.Ready.Task; await Task.Delay(400);
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('#variant-pick option').length")!="1") throw new Exception("A user-made card should list only its video, not the '기본 · 동작 안내' item.");
+                if (await Popup.Browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#variant-pick option').text.indexOf('기본 · 동작 안내')>=0")=="true") throw new Exception("The user-made card must not offer the '기본 · 동작 안내' item.");
+                Popup.Close(); await Task.Delay(300);
                 // 프리셋 복원: 뺀 카드가 돌아오고 내가 만든 카드는 사라진다.
                 await cardCdp.ExecuteScriptAsync("document.querySelector('#reset-themes').click()");
                 await Task.Delay(400);
@@ -1750,9 +2549,9 @@ namespace DeskHooker
                 if (await setCdp.ExecuteScriptAsync("Boolean(document.querySelector('#export-cards') && document.querySelector('#import-cards'))")!="true") throw new Exception("내보내기/가져오기 버튼이 없습니다.");
                 await setCdp.ExecuteScriptAsync("localStorage.setItem('teum.listEdits.stretch', JSON.stringify({removed:{'gif-1':true},added:[{id:'yt-test01',youtubeId:'dQw4w9WgXcQ',title:'시험 영상',artist:''}]}))");
                 string exportProbe=await setCdp.ExecuteScriptAsync("(function(){var d=JSON.parse(window.__teumCards.build());return d.format+'/'+d.cards.length+'/'+(d.listEdits.stretch?d.listEdits.stretch.added.length:-1)+'/'+d.themeIds.length;})()");
-                string exportExpect=String.Format("\"teum-cards/{0}/1/{1}\"",Themes.Length+1,Settings.ThemeIds.Length); // 카드 수 = 그리드 카드 + 종소리 항목
+                string exportExpect=String.Format("\"shim-cards/{0}/1/{1}\"",Themes.Length+1,Settings.ThemeIds.Length); // 카드 수 = 그리드 카드 + 종소리 항목
                 if (exportProbe!=exportExpect) throw new Exception("내보내기 JSON이 카드 목록/목록 편집/선택을 담지 않았습니다: "+exportProbe+" (기대 "+exportExpect+")");
-                await setCdp.ExecuteScriptAsync("window.__teumCards.apply(JSON.stringify({format:'teum-cards',version:1,themeIds:['stretch'],removedThemeIds:[],listEdits:{stretch:{removed:{},added:[{id:'yt-in01',youtubeId:'dQw4w9WgXcQ',title:'가져온 영상',artist:''}]}},cards:[{id:'x-0badc0de',name:'가져온 쉼 카드',summary:'가져오기 시험용',safety:'통증이 생기면 중단하세요.',user:true,instructions:['한 줄 안내'],baseVideos:[{id:'dQw4w9WgXcQ',title:'가져온 영상'}],videos:[]}]}))");
+                await setCdp.ExecuteScriptAsync("window.__teumCards.apply(JSON.stringify({format:'shim-cards',version:1,themeIds:['stretch'],removedThemeIds:[],listEdits:{stretch:{removed:{},added:[{id:'yt-in01',youtubeId:'dQw4w9WgXcQ',title:'가져온 영상',artist:''}]}},cards:[{id:'x-0badc0de',name:'가져온 쉼 카드',summary:'가져오기 시험용',safety:'통증이 생기면 중단하세요.',user:true,instructions:['한 줄 안내'],baseVideos:[{id:'dQw4w9WgXcQ',title:'가져온 영상'}],videos:[]}]}))");
                 await Task.Delay(700);
                 if (!Themes.Any(t => t.id=="x-0badc0de" && t.name=="가져온 쉼 카드")) throw new Exception("가져오기가 내 카드를 되살리지 않았습니다.");
                 if (!Settings.ThemeIds.SequenceEqual(new string[]{"stretch"})) throw new Exception("가져오기가 선택한 카드를 반영하지 않았습니다.");
@@ -1770,6 +2569,7 @@ namespace DeskHooker
                 string bellAfterReset=await setCdp.ExecuteScriptAsync("localStorage.getItem('teum.listEdits.knox-bell')||''");
                 if (bellAfterReset!="\"\"") throw new Exception("기본 프리셋 되돌리기가 종소리 목록 편집을 지우지 않았습니다: "+bellAfterReset);
                 // 가져오기: 목록 편집은 덮어쓰기 — 파일에 빈 종소리 편집이면 이 PC의 종소리 편집도 지워진다.
+                // format 'teum-cards'는 '틈' 시절 예전 백업 파일의 호환 경로 검증을 겸한다(336).
                 await setCdp.ExecuteScriptAsync("localStorage.setItem('teum.listEdits.knox-bell', JSON.stringify({removed:{},added:[{id:'yt-bell99',youtubeId:'dQw4w9WgXcQ',title:'종소리 시험',artist:''}]}))");
                 await setCdp.ExecuteScriptAsync("window.__teumCards.apply(JSON.stringify({format:'teum-cards',version:1,themeIds:['stretch'],removedThemeIds:[],listEdits:{'knox-bell':{removed:{},added:[]}},cards:[]}))");
                 await Task.Delay(700);
@@ -1962,9 +2762,9 @@ namespace DeskHooker
         public WebWindow(ReminderHost owner, bool popup, string themeId)
         {
             host=owner; IsPopup=popup; ThemeId=themeId;
-            Text=popup?"틈 · 따라 하는 작은 쉼":"틈 · 알림 간격과 주제 설정";
+            Text=popup?"쉼 · 따라 하는 작은 휴식":"쉼 · 알림 간격과 주제 설정";
             BackColor=ColorTranslator.FromHtml("#f4f3ed");
-            Icon=SystemIcons.Information;
+            Icon=ReminderHost.AppIcon;
             if (popup)
             {
                 FormBorderStyle=FormBorderStyle.None; StartPosition=FormStartPosition.Manual;
@@ -2013,7 +2813,7 @@ namespace DeskHooker
             {
                 Ready.TrySetException(error);
                 if(host.Testing) { File.WriteAllText(Path.Combine(host.Root,"webview-error.txt"),error.ToString()); Environment.ExitCode=1; host.Quit(); }
-                else { MessageBox.Show("화면을 열 수 없습니다. Microsoft Edge WebView2 Runtime을 확인하세요.\n"+error.Message,"틈"); Close(); }
+                else { MessageBox.Show("화면을 열 수 없습니다. Microsoft Edge WebView2 Runtime을 확인하세요.\n"+error.Message,"쉼"); Close(); }
             }
         }
         public void Send(object payload)
