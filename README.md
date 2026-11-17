@@ -10,7 +10,7 @@ Windows에서 정해진 간격마다 전체 화면으로 나타나는, 내 몸�
 
 | 배포 자료 | 위치 |
 |---|---|
-| 설치 파일 | `Output\Shim-Setup-v1.4.0.exe` — 저장소에 직접 커밋(329 지시. 빌드 산출물이지만 예외로 강제 업로드) |
+| 설치 파일 | [Shim-Setup-v1.4.0.exe (GitHub Release v1.4.0)](https://github.com/panicdna/kinds-of-thing/releases/tag/v1.4.0) — 빌드 산출물이라 저장소에는 넣지 않고 Release에만 첨부합니다(SHA-256 `16bd1390ef52ea54540a11cce5d80963ccb61393edb880e4412498887939430e`) |
 | 소개 슬라이드 (PPT풍 HTML) | [쉼-소개-슬라이드.html](쉼-소개-슬라이드.html) — 브라우저에서 열고 ←/→ 키로 넘겨 보기, 인쇄로 PDF 변환 가능 |
 | 사용자 매뉴얼 | [사용자-매뉴얼.md](사용자-매뉴얼.md) — UX 시나리오 11종 + FAQ + 안전·개인정보 안내 |
 
@@ -3961,6 +3961,18 @@ Release에 인스톨러 올려줘
 ```
 
 ### 416. 커밋과 푸시 (Release 업로드 기록)
+
+```text
+커밋하고 푸시해
+```
+
+### 417. README 배포 표를 Release 링크로 수정 지시
+
+```text
+README 배포 표를 Release 링크로 수정해
+```
+
+### 418. 커밋과 푸시 (배포 표 Release 링크)
 
 ```text
 커밋하고 푸시해
