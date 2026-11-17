@@ -10,28 +10,12 @@ window.GAME_CONTENT = {
       "note": "서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요."
     },
     {
-      "id": "dance-m87Xif9yZb4",
-      "title": "IVE 아이브 'ATTITUDE' DANCE PRACTICE",
-      "artist": "IVE",
-      "youtubeId": "m87Xif9yZb4",
-      "url": "https://www.youtube.com/watch?v=m87Xif9yZb4",
-      "note": "서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요."
-    },
-    {
       "id": "dance-I8BzqbJYIdk",
       "title": "IVE 아이브 '해야(HEYA)' DANCE PRACTICE",
       "artist": "IVE",
       "youtubeId": "I8BzqbJYIdk",
       "url": "https://www.youtube.com/watch?v=I8BzqbJYIdk",
       "note": "서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요."
-    },
-    {
-      "id": "dance-ZJwC0VYzGIs",
-      "title": "LE SSERAFIM (르세라핌) ‘CRAZY’ Dance Practice (Moving ver.)",
-      "artist": "LE SSERAFIM",
-      "youtubeId": "ZJwC0VYzGIs",
-      "url": "https://www.youtube.com/watch?v=ZJwC0VYzGIs",
-      "note": "서서 추는 전신 안무입니다. 주변에 충분한 공간을 확보한 뒤 따라 하세요. 의자 운동이 아니며, 앉아서 바꿔 추면 원래 안무와 같지 않습니다. 선택한 영상만 온라인에서 열고 자동 재생하지 마세요. 이동 촬영 버전입니다."
     },
     {
       "id": "dance-JipcAMJcOB8",

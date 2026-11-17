@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace DeskHooker
 {
@@ -62,6 +64,14 @@ namespace DeskHooker
         // only when the calendar carries an end). Pure presentation timing; nothing else reads it.
         public string KnoxAutoClose { get; set; }
         public int KnoxAutoCloseMinutes { get; set; }
+        // Knox 수신 메일 회의 초대 알림: 켜면 POP3(pop3.samsung.net)로 오늘 받은 "[지원WP] [Invitation]"
+        // 초대 메일을 읽어(비밀번호는 Windows 자격 증명 관리자에만 저장된다) 회의를 Knox 캘린더 일정
+        // 알림에 병합한다. 비밀번호는 settings.json 에 절대 실리지 않는다.
+        public bool KnoxMailEnabled { get; set; }
+        // 373: 회의 시작 전 알림을 SLSI Avatar 메신저(내 1:1 방)로도 한 통 보낸다 — 보내기 전용.
+        // 연결(SSO 로그인으로 받은 데스크톱 토큰)은 Windows 자격 증명 관리자에만 저장된다.
+        // 자리비움·화면 잠금과 무관하게 보낸다(자리에 없을 때 쓰라고 있는 알림이다).
+        public bool MessengerNotifyEnabled { get; set; }
         // "Away from the desk": when on, no popup of any kind (break or meeting alert) opens while the
         // mouse/keyboard have been silent for IdleMinutes — the user is treated as out. An already
         // open popup stays; only new popups are held back.
@@ -97,6 +107,8 @@ namespace DeskHooker
             KnoxLeadMinutes = 5;
             KnoxAutoClose = KnoxAutoCloseNone;
             KnoxAutoCloseMinutes = 5;
+            KnoxMailEnabled = false;
+            MessengerNotifyEnabled = false;
             PauseWhenIdle = false;
             IdleMinutes = 10;
             Appearance = AppearanceSystem;
@@ -115,8 +127,9 @@ namespace DeskHooker
             s.KnoxCalendarEnabled = true;          // Knox 캘린더 일정 알림
             s.KnoxLeadMinutes = 5;                 // 시작 5분 전에
             s.KnoxAutoClose = KnoxAutoCloseNone;   // 일정 알림 자동 닫힘 없음
-            // 03 카드: 5개를 무작위로 하나씩 — 스트레칭·명상·발성·허리·릴렉스 (310: 댄스 안무 제외).
-            s.ThemeIds = new string[] { "stretch", "meditation", "voice", "back-standing", "relax" };
+            // 03 카드: 4개를 무작위로 하나씩 — 스트레칭·명상·발성·허리 (337: shim-cards-20261113-2228.json
+            // 내보내기 프리셋 기준. 릴렉스는 목록에 남지만 선택에서 빠진다. 댄스 안무도 제외(310)).
+            s.ThemeIds = new string[] { "stretch", "meditation", "voice", "back-standing" };
             s.ThemeMode = ThemeRotation.RandomOne;
             // 퇴근버스 카드: 17:00에 하루 한 번 (주기 실행에는 포함되지 않는다).
             s.Schedules = new Dictionary<string, string> { { "bus-home", "17:00:00" } };
@@ -731,9 +744,935 @@ namespace DeskHooker
         }
     }
 
+    // One "[지원WP] [Invitation]" meeting invitation, structured out of the mail body's fixed form.
+    // StartsAt/EndsAt are the PC's local time; a "회의일시" that could not be parsed keeps its raw
+    // text in When (and both date fields stay null) instead of inventing a time.
+    public sealed class KnoxInvitation
+    {
+        public string Title, When, Location, Organizer, Description;
+        public DateTime? StartsAt, EndsAt;
+        public List<string> RequiredAttendees, OptionalAttendees;
+        public KnoxInvitation()
+        {
+            RequiredAttendees = new List<string>();
+            OptionalAttendees = new List<string>();
+        }
+    }
+
+    // One received mail as parsed from its raw POP3 bytes. Body is truncated for display; the
+    // invitation, when the subject marks one, is parsed from the FULL text before that truncation.
+    public sealed class KnoxMailMessage
+    {
+        public string Subject, Sender, SenderEmail, Body;
+        public DateTime? Received;
+        public List<string> AttachmentNames;
+        public KnoxInvitation Invitation;
+    }
+
+    // One step of the reverse POP3 scan: mails are numbered oldest→newest, the scan walks them
+    // newest-first, and this is the per-mail decision from the Date header it just read.
+    public enum KnoxMailScanStep { Fetch, Skip, Stop }
+
+    // Pure helpers for the "knox mail" feature: RFC 2047 header decoding, RFC 2822 dates, HTML →
+    // text, MIME multipart walking and the "[지원WP] [Invitation]" form parser, ported from
+    // chatbot2's app/mail_pop3_client.py (docs/mail_pop3_inbox.md 계약). No network or file access
+    // here — DeskHooker.cs owns the POP3 session and the Windows credential manager.
+    public static class KnoxMail
+    {
+        public const string Host = "pop3.samsung.net";
+        public const int Port = 995, TimeoutMs = 12000, MaxScan = 500, BodyDefaultChars = 4000;
+        // Only mails whose subject starts with this prefix are parsed as meeting invitations.
+        public const string InvitationPrefix = "[지원WP] [Invitation]";
+        // The invitation's last field (회의내용) swallows every following line, so the mail's footer
+        // comes along — keep only what is plausible meeting text.
+        public const int DescriptionMaxChars = 2000;
+
+        // ------------------------------------------------------------------ scan decision
+
+        // targetDate is "today" in the PC's zone (the PC runs in KST, which is what chatbot2 fixed
+        // as KST): unreadable Date → keep scanning, older than the target day → stop (every lower
+        // message number is older still), target day → fetch, future (clock skew) → keep scanning.
+        public static KnoxMailScanStep DecideScanStep(DateTime targetDate, DateTime? received)
+        {
+            if (!received.HasValue)
+                return KnoxMailScanStep.Skip;
+            if (received.Value.Date < targetDate)
+                return KnoxMailScanStep.Stop;
+            if (received.Value.Date == targetDate)
+                return KnoxMailScanStep.Fetch;
+            return KnoxMailScanStep.Skip;
+        }
+
+        // ------------------------------------------------------------------ headers
+
+        private static readonly Regex EncodedWordPattern = new Regex("=\\?([^?]+)\\?([BbQq])\\?([^?]*)\\?=");
+        private static readonly Regex AdjacentWordSpace = new Regex("(?<=\\?=)[ \\t]+(?==\\?)");
+
+        // RFC 2047: "=?utf-8?B?...?=" words (B = base64, Q = quoted-printable with '_' as space),
+        // possibly several in a row. Whitespace BETWEEN two adjacent encoded words is dropped; a
+        // header with no encoded words passes through unchanged. A header that carries RAW 8-bit
+        // Korean (senders that skip RFC 2047 — the Latin-1 view came 1:1 from the wire) is decoded
+        // with the utf-8 → euc-kr → Latin-1 fallback, like Python's decode_header.
+        public static string DecodeHeader(string value)
+        {
+            if (String.IsNullOrEmpty(value))
+                return "";
+            string text = value.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Replace("\t", " ");
+            if (EncodedWordPattern.IsMatch(text))
+            {
+                text = AdjacentWordSpace.Replace(text, "");
+                text = EncodedWordPattern.Replace(text, delegate(Match match) { return DecodeEncodedWord(match); });
+            }
+            else if (HasRaw8Bit(text))
+            {
+                byte[] bytes = new byte[text.Length];
+                for (int i = 0; i < text.Length; i++)
+                    bytes[i] = (byte)(text[i] & 0xFF);
+                text = DecodeBytes(bytes, null);
+            }
+            return text.Trim();
+        }
+
+        private static bool HasRaw8Bit(string text)
+        {
+            foreach (char c in text)
+                if (c > 0x7F)
+                    return true;
+            return false;
+        }
+
+        private static string DecodeEncodedWord(Match match)
+        {
+            string charset = match.Groups[1].Value;
+            string encoding = match.Groups[2].Value.ToUpperInvariant();
+            string data = match.Groups[3].Value;
+            byte[] bytes;
+            if (encoding == "B")
+            {
+                StringBuilder compact = new StringBuilder();
+                foreach (char c in data)
+                    if (!Char.IsWhiteSpace(c))
+                        compact.Append(c);
+                try { bytes = Convert.FromBase64String(compact.ToString()); }
+                catch (FormatException) { return match.Value; } // not really base64 — keep the raw word
+            }
+            else if (encoding == "Q")
+                bytes = DecodeQuotedPrintable(data.Replace('_', ' '));
+            else
+                return match.Value;
+            return DecodeBytes(bytes, charset);
+        }
+
+        private static readonly Regex MailDatePattern = new Regex(
+            "^\\s*(?:[A-Za-z]{3,9}\\s*,\\s*)?(\\d{1,2})\\s+([A-Za-z]{3})[A-Za-z]*\\s+(\\d{2,4})\\s+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?\\s*([+-]\\d{4})?\\s*$");
+        private static readonly string[] MonthNames =
+            { "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec" };
+
+        // RFC 2822 "Date:" header → the PC's local time. An explicit numeric offset is honoured
+        // (wall time minus the offset is UTC, converted with ToLocalTime); a header without one is
+        // taken as already-local, matching chatbot2's "KST when no timezone" rule.
+        public static DateTime? ParseMailDate(string value)
+        {
+            if (String.IsNullOrEmpty(value))
+                return null;
+            Match match = MailDatePattern.Match(value.Trim());
+            if (!match.Success)
+                return null;
+            int day, month, year, hour, minute, second = 0;
+            if (!Int32.TryParse(match.Groups[1].Value, out day) ||
+                !Int32.TryParse(match.Groups[3].Value, out year) ||
+                !Int32.TryParse(match.Groups[4].Value, out hour) ||
+                !Int32.TryParse(match.Groups[5].Value, out minute))
+                return null;
+            month = 1 + Array.IndexOf(MonthNames, match.Groups[2].Value.ToLowerInvariant());
+            if (match.Groups[6].Success && !Int32.TryParse(match.Groups[6].Value, out second))
+                return null;
+            if (year < 100)
+                year += year < 50 ? 2000 : 1900;
+            if (month < 1 || day < 1 || hour > 23 || minute > 59 || second > 59)
+                return null;
+            DateTime wall;
+            try { wall = new DateTime(year, month, day, hour, minute, second); }
+            catch (ArgumentOutOfRangeException) { return null; }
+            if (match.Groups[7].Success)
+            {
+                string offsetText = match.Groups[7].Value;
+                int offsetHours, offsetMinutes;
+                if (!Int32.TryParse(offsetText.Substring(1, 2), out offsetHours) ||
+                    !Int32.TryParse(offsetText.Substring(3, 2), out offsetMinutes))
+                    return null;
+                int sign = offsetText[0] == '-' ? -1 : 1;
+                DateTime utc = wall.AddHours(-sign * offsetHours).AddMinutes(-sign * offsetMinutes);
+                return DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime();
+            }
+            return DateTime.SpecifyKind(wall, DateTimeKind.Local);
+        }
+
+        // The Date header out of a "TOP n 0" header block (the raw bytes POP3 returned), or null
+        // when the block carries no readable Date. Everything past the first blank line is ignored.
+        public static DateTime? DateFromHeaderBlock(byte[] raw)
+        {
+            if (raw == null || raw.Length == 0)
+                return null;
+            string head, body;
+            SplitHeadBody(Encoding.GetEncoding(28591).GetString(raw).Replace("\r\n", "\n"), out head, out body);
+            return ParseMailDate(HeaderValue(SplitHeaders(head), "Date"));
+        }
+
+        // ------------------------------------------------------------------ transfer decoding
+
+        private static bool IsHex(char c)
+        {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+        }
+
+        private static int HexValue(char c)
+        {
+            if (c <= '9') return c - '0';
+            return (c <= 'F' ? c - 'A' : c - 'a') + 10;
+        }
+
+        // Quoted-printable "=XX" hex escapes over the Latin-1 view of the text. Soft line breaks
+        // ("=" at end of line) vanish. Header Q-words arrive with '_' already turned into spaces.
+        private static byte[] DecodeQuotedPrintable(string text)
+        {
+            List<byte> bytes = new List<byte>(text.Length);
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == '=')
+                {
+                    if (i + 2 < text.Length && IsHex(text[i + 1]) && IsHex(text[i + 2]))
+                    {
+                        bytes.Add((byte)(HexValue(text[i + 1]) * 16 + HexValue(text[i + 2])));
+                        i += 2;
+                        continue;
+                    }
+                    if (i + 1 >= text.Length || text[i + 1] == '\n')
+                        continue;
+                    if (text[i + 1] == '\r' && (i + 2 >= text.Length || text[i + 2] == '\n'))
+                    {
+                        i += i + 2 < text.Length ? 2 : 1;
+                        continue;
+                    }
+                }
+                bytes.Add((byte)(c & 0xFF));
+            }
+            return bytes.ToArray();
+        }
+
+        // Decodes bytes with the declared charset, falling back utf-8 → euc-kr → Latin-1 like the
+        // Python original. The first two use throw-on-invalid so a wrong guess falls through
+        // instead of silently producing mojibake.
+        private static string DecodeBytes(byte[] bytes, string charset)
+        {
+            if (bytes == null || bytes.Length == 0)
+                return "";
+            List<string> candidates = new List<string>();
+            if (!String.IsNullOrEmpty(charset))
+                candidates.Add(charset);
+            candidates.Add("utf-8");
+            candidates.Add("euc-kr");
+            foreach (string name in candidates)
+            {
+                try
+                {
+                    Encoding encoding = String.Equals(name, "utf-8", StringComparison.OrdinalIgnoreCase)
+                        ? (Encoding)new UTF8Encoding(false, true)
+                        : Encoding.GetEncoding(name, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+                    return encoding.GetString(bytes);
+                }
+                catch (ArgumentException) { } // unknown charset name, or a wrong guess: the strict
+                                              // decoders throw DecoderFallbackException (and
+                                              // NotSupportedException), both ArgumentException subclasses
+            }
+            return Encoding.GetEncoding(28591).GetString(bytes);
+        }
+
+        // RFC 2231 "filename*=utf-8''%ED%9A%8C..." → decoded with the declared charset.
+        private static string DecodeRfc2231(string value)
+        {
+            string charset = null, encoded = value;
+            int quote = value.IndexOf("''", StringComparison.Ordinal);
+            if (quote >= 0)
+            {
+                charset = value.Substring(0, quote);
+                encoded = value.Substring(quote + 2);
+            }
+            List<byte> bytes = new List<byte>(encoded.Length);
+            for (int i = 0; i < encoded.Length; i++)
+            {
+                char c = encoded[i];
+                if (c == '%' && i + 2 < encoded.Length && IsHex(encoded[i + 1]) && IsHex(encoded[i + 2]))
+                {
+                    bytes.Add((byte)(HexValue(encoded[i + 1]) * 16 + HexValue(encoded[i + 2])));
+                    i += 2;
+                }
+                else
+                    bytes.Add((byte)(c & 0xFF));
+            }
+            return DecodeBytes(bytes.ToArray(), charset);
+        }
+
+        // ------------------------------------------------------------------ HTML → text
+
+        private static readonly Regex ScriptStylePattern = new Regex(@"(?is)<(script|style)\b.*?</\1\s*>");
+        private static readonly Regex CellEndPattern = new Regex(@"(?i)</(td|th)\s*>");
+        private static readonly Regex BlockEndPattern = new Regex(@"(?i)</(p|div|tr|table|ul|ol|li|h[1-6])\s*>");
+        private static readonly Regex BrPattern = new Regex(@"(?i)<br\s*/?>");
+        private static readonly Regex AnyTagPattern = new Regex("<[^>]*>");
+        private static readonly Regex EntityPattern = new Regex("&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]{1,10});");
+
+        // HTML → text. Table cells (</td>) become tabs and block ends become newlines so the
+        // invitation's "회의제목\t회의" one-line form survives the conversion. System.Web is
+        // deliberately not referenced, so a minimal entity decoder runs instead of HttpUtility.
+        public static string HtmlToText(string html)
+        {
+            if (String.IsNullOrEmpty(html))
+                return "";
+            string text = ScriptStylePattern.Replace(html, " ");
+            text = CellEndPattern.Replace(text, "\t");
+            text = BlockEndPattern.Replace(text, "\n");
+            text = BrPattern.Replace(text, "\n");
+            text = AnyTagPattern.Replace(text, "");
+            return DecodeEntities(text).Trim();
+        }
+
+        // The numeric forms plus the handful of named entities that actually show up in these
+        // mails; an unknown name stays literal rather than disappearing.
+        private static string DecodeEntities(string text)
+        {
+            return EntityPattern.Replace(text, delegate(Match match)
+            {
+                string body = match.Groups[1].Value;
+                if (body[0] == '#')
+                {
+                    bool hex = body.Length > 1 && (body[1] == 'x' || body[1] == 'X');
+                    int code;
+                    if (!Int32.TryParse(body.Substring(hex ? 2 : 1), hex ? NumberStyles.HexNumber : NumberStyles.Integer, CultureInfo.InvariantCulture, out code))
+                        return match.Value;
+                    if (code < 0 || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF))
+                        return match.Value;
+                    return Char.ConvertFromUtf32(code);
+                }
+                switch (body)
+                {
+                    case "amp": return "&";
+                    case "lt": return "<";
+                    case "gt": return ">";
+                    case "quot": return "\"";
+                    case "apos": return "'";
+                    case "nbsp": return " ";
+                    case "copy": return "©";
+                    case "reg": return "®";
+                    default: return match.Value;
+                }
+            });
+        }
+
+        // ------------------------------------------------------------------ MIME structure
+
+        private sealed class MimePart
+        {
+            public List<string[]> Headers;
+            public string Body;
+        }
+
+        private static void SplitHeadBody(string text, out string head, out string body)
+        {
+            int splitAt = text == null ? -1 : text.IndexOf("\n\n", StringComparison.Ordinal);
+            if (splitAt < 0) { head = text ?? ""; body = ""; }
+            else { head = text.Substring(0, splitAt); body = text.Substring(splitAt + 2); }
+        }
+
+        // Header lines with RFC 822 unfolding: a line starting with space/tab continues the
+        // previous one. Returns [name, value] pairs with names as written (lookups ignore case).
+        private static List<string[]> SplitHeaders(string head)
+        {
+            List<string[]> headers = new List<string[]>();
+            foreach (string rawLine in (head ?? "").Replace("\r\n", "\n").Split('\n'))
+            {
+                string line = rawLine.TrimEnd('\r');
+                if (line.Trim().Length == 0)
+                    continue;
+                if ((line[0] == ' ' || line[0] == '\t') && headers.Count > 0)
+                {
+                    headers[headers.Count - 1][1] = headers[headers.Count - 1][1] + " " + line.Trim();
+                    continue;
+                }
+                int colon = line.IndexOf(':');
+                if (colon < 0)
+                    continue;
+                headers.Add(new string[] { line.Substring(0, colon).Trim(), line.Substring(colon + 1).Trim() });
+            }
+            return headers;
+        }
+
+        private static string HeaderValue(List<string[]> headers, string name)
+        {
+            foreach (string[] header in headers)
+                if (String.Equals(header[0], name, StringComparison.OrdinalIgnoreCase))
+                    return header[1];
+            return null;
+        }
+
+        // "text/plain; charset=\"utf-8\"" → the value of one parameter, or null. "name*" lookups
+        // stay distinct from "name" because the key keeps its asterisk (RFC 2231).
+        private static string HeaderParam(string header, string name)
+        {
+            if (String.IsNullOrEmpty(header))
+                return null;
+            foreach (string piece in header.Split(';'))
+            {
+                string part = piece.Trim();
+                int equals = part.IndexOf('=');
+                if (equals < 0)
+                    continue;
+                if (!String.Equals(part.Substring(0, equals).Trim(), name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                string value = part.Substring(equals + 1).Trim();
+                if (value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"')
+                    value = value.Substring(1, value.Length - 2);
+                return value;
+            }
+            return null;
+        }
+
+        private static string PartFilename(List<string[]> headers)
+        {
+            string disposition = HeaderValue(headers, "Content-Disposition");
+            string extended = disposition == null ? null : HeaderParam(disposition, "filename*");
+            if (extended != null)
+                return DecodeRfc2231(extended);
+            string plain = disposition == null ? null : HeaderParam(disposition, "filename");
+            if (plain == null)
+            {
+                string contentType = HeaderValue(headers, "Content-Type");
+                extended = contentType == null ? null : HeaderParam(contentType, "name*");
+                if (extended != null)
+                    return DecodeRfc2231(extended);
+                plain = contentType == null ? null : HeaderParam(contentType, "name");
+            }
+            return plain == null ? null : DecodeHeader(plain);
+        }
+
+        // Splits a multipart body on its boundary lines, returning the sections between them (the
+        // preamble and the epilogue are dropped). Nested multiparts recurse via CollectParts.
+        private static List<string> SplitOnBoundary(string body, string boundary)
+        {
+            List<string> sections = new List<string>();
+            StringBuilder current = new StringBuilder();
+            string dashBoundary = "--" + boundary;
+            bool inSection = false;
+            foreach (string rawLine in (body ?? "").Replace("\r\n", "\n").Split('\n'))
+            {
+                string line = rawLine.TrimEnd('\r').Trim();
+                if (line == dashBoundary || line == dashBoundary + "--")
+                {
+                    if (inSection)
+                        sections.Add(current.ToString());
+                    current.Length = 0;
+                    inSection = line == dashBoundary;
+                    continue;
+                }
+                if (inSection)
+                    current.Append(rawLine.TrimEnd('\r')).Append('\n');
+            }
+            if (inSection && current.Length > 0)
+                sections.Add(current.ToString());
+            return sections;
+        }
+
+        private static void CollectParts(string body, string boundary, int depth, List<MimePart> parts)
+        {
+            if (depth > 3)
+                return;
+            foreach (string section in SplitOnBoundary(body, boundary))
+            {
+                string head, sectionBody;
+                SplitHeadBody(section, out head, out sectionBody);
+                List<string[]> headers = SplitHeaders(head);
+                string contentType = HeaderValue(headers, "Content-Type") ?? "";
+                string innerBoundary = HeaderParam(contentType, "boundary");
+                if (contentType.TrimStart().StartsWith("multipart", StringComparison.OrdinalIgnoreCase) && !String.IsNullOrEmpty(innerBoundary))
+                    CollectParts(sectionBody, innerBoundary, depth + 1, parts);
+                else
+                    parts.Add(new MimePart { Headers = headers, Body = sectionBody });
+            }
+        }
+
+        // Content-Transfer-Encoding of one leaf part → its raw bytes. The body text travels through
+        // a Latin-1 string view (1 byte = 1 char) until here, so 7bit/8bit is the chars cast back.
+        private static byte[] DecodeTransfer(List<string[]> headers, string body)
+        {
+            string encoding = (HeaderValue(headers, "Content-Transfer-Encoding") ?? "7bit").Trim().ToLowerInvariant();
+            string text = (body ?? "").Replace("\r\n", "\n");
+            if (encoding == "base64")
+            {
+                StringBuilder compact = new StringBuilder();
+                foreach (char c in text)
+                    if (!Char.IsWhiteSpace(c))
+                        compact.Append(c);
+                try { return Convert.FromBase64String(compact.ToString()); }
+                catch (FormatException) { return new byte[0]; }
+            }
+            if (encoding == "quoted-printable")
+                return DecodeQuotedPrintable(text);
+            byte[] bytes = new byte[text.Length];
+            for (int i = 0; i < text.Length; i++)
+                bytes[i] = (byte)(text[i] & 0xFF);
+            return bytes;
+        }
+
+        private static void ParseAddress(string value, out string name, out string address)
+        {
+            name = "";
+            address = "";
+            if (String.IsNullOrEmpty(value))
+                return;
+            int open = value.LastIndexOf('<');
+            int close = value.LastIndexOf('>');
+            if (open >= 0 && close > open)
+            {
+                address = value.Substring(open + 1, close - open - 1).Trim();
+                name = value.Substring(0, open).Trim().Trim('"').Trim();
+            }
+            else
+                address = value.Trim();
+        }
+
+        public static bool IsInvitationSubject(string subject)
+        {
+            return subject != null && subject.StartsWith(InvitationPrefix, StringComparison.Ordinal);
+        }
+
+        // One raw message (as RETR returned it) → one KnoxMailMessage. text/plain beats text/html
+        // (an html-only mail is run through HtmlToText), attachments keep just their filenames,
+        // and the invitation form is parsed from the full text before Body is truncated.
+        public static KnoxMailMessage ParseMailMessage(byte[] raw, int bodyChars)
+        {
+            if (raw == null)
+                throw new ArgumentException("raw is required.", "raw");
+            string head, body;
+            SplitHeadBody(Encoding.GetEncoding(28591).GetString(raw).Replace("\r\n", "\n"), out head, out body);
+            List<string[]> headers = SplitHeaders(head);
+            string contentType = HeaderValue(headers, "Content-Type") ?? "";
+            string boundary = HeaderParam(contentType, "boundary");
+            List<MimePart> parts = new List<MimePart>();
+            if (contentType.TrimStart().StartsWith("multipart", StringComparison.OrdinalIgnoreCase) && !String.IsNullOrEmpty(boundary))
+                CollectParts(body, boundary, 0, parts);
+            else
+                parts.Add(new MimePart { Headers = headers, Body = body });
+
+            string plain = null, html = null;
+            List<string> attachments = new List<string>();
+            foreach (MimePart part in parts)
+            {
+                string filename = PartFilename(part.Headers);
+                string disposition = (HeaderValue(part.Headers, "Content-Disposition") ?? "").ToLowerInvariant();
+                if (filename != null || disposition.IndexOf("attachment", StringComparison.Ordinal) >= 0)
+                {
+                    if (filename != null && filename.Trim().Length > 0)
+                        attachments.Add(filename);
+                    continue;
+                }
+                string partTypeFull = HeaderValue(part.Headers, "Content-Type") ?? "text/plain";
+                string partType = partTypeFull;
+                int semicolon = partTypeFull.IndexOf(';');
+                if (semicolon >= 0)
+                    partType = partTypeFull.Substring(0, semicolon);
+                partType = partType.Trim().ToLowerInvariant();
+                string decoded = DecodeBytes(DecodeTransfer(part.Headers, part.Body), HeaderParam(partTypeFull, "charset"));
+                if (partType == "text/plain" && plain == null)
+                    plain = decoded;
+                else if (partType == "text/html" && html == null)
+                    html = decoded;
+            }
+            string fullText = plain != null && plain.Trim().Length > 0 ? plain : (html != null ? HtmlToText(html) : "");
+
+            string subject = DecodeHeader(HeaderValue(headers, "Subject"));
+            string senderName, senderEmail;
+            ParseAddress(DecodeHeader(HeaderValue(headers, "From")), out senderName, out senderEmail);
+            int limit = Math.Max(0, bodyChars);
+            return new KnoxMailMessage
+            {
+                Subject = subject,
+                Sender = senderName,
+                SenderEmail = senderEmail,
+                Received = ParseMailDate(HeaderValue(headers, "Date")),
+                Body = fullText.Length > limit ? fullText.Substring(0, limit) : fullText,
+                AttachmentNames = attachments,
+                Invitation = IsInvitationSubject(subject) ? ParseInvitationBody(fullText) : null
+            };
+        }
+
+        // ------------------------------------------------------------------ invitation form
+
+        // 실물 양식(2026-11-16 수신 메일 관측) — 라벨과 값이 탭(또는 콜론·공백)으로 나뉜 한 줄씩:
+        //   회의제목\t회의
+        //   회의일시\t2026-11-16 14:00 ~ 2026-11-16 15:00
+        //   회의장소\t화성 DSR C타워 21층 ... A2103
+        //   주관자\t정성문 [AX/PI팀(S.LSI)]
+        //   참석자\t필수참석자 : 고재명,김주영,…
+        //   선택참석자 :        ← 참석자 칸의 이어진 줄이므로 라벨이 아닌 이어진 줄로 흡수한다
+        //   회의내용\t회의
+        private static readonly Regex InvitationLabelLine =
+            new Regex("^\\s*(회의제목|회의일시|회의장소|주관자|참석자|회의내용)\\s*[\\t:：]?\\s*(.*)$");
+        private static readonly Regex RequiredAttendeeLine = new Regex("필수참석자\\s*[:：]?\\s*([^\\n]*)");
+        private static readonly Regex OptionalAttendeeLine = new Regex("선택참석자\\s*[:：]?\\s*([^\\n]*)");
+        private static readonly Regex MeetingDateTimePattern = new Regex("(\\d{4})-(\\d{1,2})-(\\d{1,2})\\s+(\\d{1,2}):(\\d{2})");
+        private static readonly Regex MeetingTimeOnlyPattern = new Regex("^(\\d{1,2}):(\\d{2})$");
+
+        // Structures the invitation form out of a mail body. No label line at all → null; a label
+        // found twice keeps only its last section; continuation lines (like "선택참석자 :") join the
+        // current section. Fields that are missing stay empty rather than failing the whole parse.
+        public static KnoxInvitation ParseInvitationBody(string body)
+        {
+            if (String.IsNullOrEmpty(body))
+                return null;
+            Dictionary<string, List<string>> sections = new Dictionary<string, List<string>>();
+            string current = null;
+            foreach (string rawLine in body.Replace("\r\n", "\n").Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (line.Length == 0)
+                    continue;
+                Match match = InvitationLabelLine.Match(line);
+                if (match.Success)
+                {
+                    current = match.Groups[1].Value;
+                    string value = match.Groups[2].Value.Trim();
+                    List<string> lines = new List<string>();
+                    if (value.Length > 0)
+                        lines.Add(value);
+                    sections[current] = lines;
+                    continue;
+                }
+                if (current != null)
+                    sections[current].Add(line);
+            }
+            if (sections.Count == 0)
+                return null;
+
+            KnoxInvitation meeting = new KnoxInvitation();
+            meeting.Title = SectionText(sections, "회의제목");
+            meeting.When = SectionText(sections, "회의일시");
+            DateTime? start, end;
+            ParseMeetingWindow(meeting.When, out start, out end);
+            meeting.StartsAt = start;
+            meeting.EndsAt = end;
+            meeting.Location = SectionText(sections, "회의장소");
+            meeting.Organizer = SectionText(sections, "주관자");
+            string attendeeText = SectionText(sections, "참석자");
+            Match required = RequiredAttendeeLine.Match(attendeeText);
+            meeting.RequiredAttendees = required.Success ? SplitNames(required.Groups[1].Value) : new List<string>();
+            Match optional = OptionalAttendeeLine.Match(attendeeText);
+            meeting.OptionalAttendees = optional.Success ? SplitNames(optional.Groups[1].Value) : new List<string>();
+            meeting.Description = SectionText(sections, "회의내용");
+            if (meeting.Description.Length > DescriptionMaxChars)
+                meeting.Description = meeting.Description.Substring(0, DescriptionMaxChars);
+            return meeting;
+        }
+
+        private static string SectionText(Dictionary<string, List<string>> sections, string label)
+        {
+            List<string> lines;
+            return sections.TryGetValue(label, out lines) ? String.Join("\n", lines.ToArray()).Trim() : "";
+        }
+
+        // "2026-11-16 14:00 ~ 2026-11-16 15:00" (or "~ 15:00" with the end date left out) → local
+        // start/end. An unreadable window yields two nulls; the raw text stays in When.
+        private static void ParseMeetingWindow(string whenRaw, out DateTime? start, out DateTime? end)
+        {
+            start = null;
+            end = null;
+            if (String.IsNullOrEmpty(whenRaw))
+                return;
+            string[] parts = whenRaw.Split('~');
+            if (parts.Length < 2)
+                return;
+            DateTime? parsedStart = ParseDtOrTime(parts[0].Trim(), null);
+            if (!parsedStart.HasValue)
+                return;
+            start = parsedStart;
+            end = ParseDtOrTime(parts[1].Trim(), parsedStart.Value);
+        }
+
+        // One side of the window: "YYYY-MM-DD HH:MM", or bare "HH:MM" which inherits dateFrom's date.
+        private static DateTime? ParseDtOrTime(string text, DateTime? dateFrom)
+        {
+            if (String.IsNullOrEmpty(text))
+                return null;
+            Match match = MeetingDateTimePattern.Match(text);
+            if (match.Success)
+            {
+                int year, month, day, hour, minute;
+                if (!Int32.TryParse(match.Groups[1].Value, out year) ||
+                    !Int32.TryParse(match.Groups[2].Value, out month) ||
+                    !Int32.TryParse(match.Groups[3].Value, out day) ||
+                    !Int32.TryParse(match.Groups[4].Value, out hour) ||
+                    !Int32.TryParse(match.Groups[5].Value, out minute))
+                    return null;
+                try { return new DateTime(year, month, day, hour, minute, 0); }
+                catch (ArgumentOutOfRangeException) { return null; }
+            }
+            if (dateFrom.HasValue)
+            {
+                Match timeOnly = MeetingTimeOnlyPattern.Match(text);
+                int hour, minute;
+                if (timeOnly.Success && Int32.TryParse(timeOnly.Groups[1].Value, out hour) && Int32.TryParse(timeOnly.Groups[2].Value, out minute)
+                    && hour <= 23 && minute <= 59)
+                    return new DateTime(dateFrom.Value.Year, dateFrom.Value.Month, dateFrom.Value.Day, hour, minute, 0);
+            }
+            return null;
+        }
+
+        // "고재명,김주영" → ["고재명", "김주영"]; empty pieces are dropped.
+        private static List<string> SplitNames(string text)
+        {
+            List<string> names = new List<string>();
+            if (String.IsNullOrEmpty(text))
+                return names;
+            foreach (string piece in text.Split(new char[] { ',', '，', '、', ';' }))
+            {
+                string name = piece.Trim();
+                if (name.Length > 0)
+                    names.Add(name);
+            }
+            return names;
+        }
+
+        // ------------------------------------------------------------------ meeting merge
+
+        private static uint Fnv1a(string text)
+        {
+            uint hash = 2166136261;
+            foreach (char c in text ?? "")
+            {
+                hash = hash ^ c;
+                hash = hash * 16777619;
+            }
+            return hash;
+        }
+
+        // The popup-facing form of one invitation mail. The uid is stable for the same
+        // subject+window, so fired keys and dedup survive repeated syncs. A meeting without a
+        // start time or without a title is not worth a popup — null.
+        public static CalendarEntry InvitationToCalendarEntry(KnoxMailMessage mail)
+        {
+            if (mail == null || mail.Invitation == null)
+                return null;
+            KnoxInvitation meeting = mail.Invitation;
+            if (!meeting.StartsAt.HasValue || String.IsNullOrWhiteSpace(meeting.Title))
+                return null;
+            string seed = mail.Subject + "\n"
+                + meeting.StartsAt.Value.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "\n"
+                + (meeting.EndsAt.HasValue ? meeting.EndsAt.Value.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) : "-");
+            return new CalendarEntry
+            {
+                Uid = "knoxmail-" + meeting.StartsAt.Value.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "-" + Fnv1a(seed).ToString("x8"),
+                Title = meeting.Title,
+                StartLocal = meeting.StartsAt.Value,
+                EndLocal = meeting.EndsAt
+            };
+        }
+
+        // Appends mail meeting entries to the Knox calendar list, dropping ones the calendar
+        // already covers: the same start time with an equal (or containing) title means the same
+        // meeting was invited AND written to the calendar. Duplicates inside the mail list itself
+        // collapse by uid. The result keeps the calendar's order first, mail entries appended.
+        public static List<CalendarEntry> MergeMeetingEntries(IEnumerable<CalendarEntry> calendar, IEnumerable<CalendarEntry> meetings)
+        {
+            List<CalendarEntry> merged = new List<CalendarEntry>();
+            HashSet<string> uids = new HashSet<string>(StringComparer.Ordinal);
+            if (calendar != null)
+                foreach (CalendarEntry entry in calendar)
+                    if (entry != null && !String.IsNullOrEmpty(entry.Uid))
+                    {
+                        merged.Add(entry);
+                        uids.Add(entry.Uid);
+                    }
+            if (meetings != null)
+                foreach (CalendarEntry meeting in meetings)
+                {
+                    if (meeting == null || String.IsNullOrEmpty(meeting.Uid) || uids.Contains(meeting.Uid))
+                        continue;
+                    bool duplicate = false;
+                    foreach (CalendarEntry entry in merged)
+                        if (entry.StartLocal == meeting.StartLocal && TitlesOverlap(entry.Title, meeting.Title))
+                        {
+                            duplicate = true;
+                            break;
+                        }
+                    if (!duplicate)
+                    {
+                        merged.Add(meeting);
+                        uids.Add(meeting.Uid);
+                    }
+                }
+            return merged;
+        }
+
+        private static bool TitlesOverlap(string a, string b)
+        {
+            if (String.IsNullOrEmpty(a) || String.IsNullOrEmpty(b))
+                return String.IsNullOrEmpty(a) && String.IsNullOrEmpty(b);
+            return String.Equals(a, b, StringComparison.Ordinal)
+                || a.IndexOf(b, StringComparison.Ordinal) >= 0
+                || b.IndexOf(a, StringComparison.Ordinal) >= 0;
+        }
+    }
+
     // A validated, plain-text wellness item shared by other people through the
     // repository's community/ folder. Limits MUST match validateShare() in app-core.js.
     // A YouTube video shared with a community item. Only the 11-character id is stored, never a link.
+    // 373: 회의 시작 전 알림의 SLSI Avatar 메신저 송신 — 순수 부분(주소·응답 해석·글 만들기).
+    // 흐름: 브라우저로 alpha 서버 SSO(desktop/start, cb=이 PC loopback) → 원타임 code → exchange 로
+    // SSO access 토큰 → /api/me/desktop-token 으로 만료 없는 데스크톱 토큰(aa_…) → 아바타 봇 서버
+    // /api/desktop/messenger/send 에 Bearer 로 실어 토큰 주인 본인의 1:1 방으로 보낸다. 받기는 없다.
+    public static class AvatarMessenger
+    {
+        public const string AlphaBase = "https://slsi.agent.samsungds.net:4100";
+        public const string BotBase = "http://12.81.222.41:17001";
+        public const string StartPath = "/api/auth/desktop/start";
+        public const string ExchangePath = "/api/auth/desktop/exchange";
+        public const string DesktopTokenPath = "/api/me/desktop-token";
+        public const string SendPath = "/api/desktop/messenger/send";
+        public const string CallbackPath = "/cb";
+        public const string TokenPrefix = "aa_";
+        public const int MaxChars = 2000;      // 서버 상한(chatbot2 SEND_MAX_CHARS)과 같다
+        private const int MaxTitleChars = 120;
+
+        public static string CallbackUrl(int port)
+        {
+            if (port <= 0 || port > 65535)
+                throw new ArgumentException("port must be 1-65535.", "port");
+            return "http://127.0.0.1:" + port.ToString(CultureInfo.InvariantCulture) + CallbackPath;
+        }
+
+        public static string LoginUrl(int port)
+        {
+            return AlphaBase + StartPath + "?cb=" + Uri.EscapeDataString(CallbackUrl(port));
+        }
+
+        // The first line of the browser's request to the loopback listener, e.g. "GET /cb?code=ab12 HTTP/1.1".
+        // Returns the one-time code, or null when the request is not our callback (favicon, other paths)
+        // or carries no code.
+        public static string CodeFromRequestLine(string requestLine)
+        {
+            if (String.IsNullOrEmpty(requestLine)) return null;
+            string[] parts = requestLine.Split(' ');
+            if (parts.Length < 2 || parts[0] != "GET") return null;
+            string target = parts[1];
+            int q = target.IndexOf('?');
+            string path = q < 0 ? target : target.Substring(0, q);
+            if (path != CallbackPath || q < 0) return null;
+            foreach (string pair in target.Substring(q + 1).Split('&'))
+            {
+                int eq = pair.IndexOf('=');
+                if (eq <= 0 || pair.Substring(0, eq) != "code") continue;
+                string code = Uri.UnescapeDataString(pair.Substring(eq + 1).Replace('+', ' ')).Trim();
+                return code.Length == 0 ? null : code;
+            }
+            return null;
+        }
+
+        private static Dictionary<string, object> ParseObject(string json)
+        {
+            if (String.IsNullOrEmpty(json))
+                throw new ArgumentException("Response is empty.");
+            Dictionary<string, object> map;
+            try { map = new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json); }
+            catch (Exception error) { throw new ArgumentException("Response is not valid JSON: " + error.Message); }
+            if (map == null) throw new ArgumentException("Response is not a JSON object.");
+            return map;
+        }
+
+        // /api/auth/desktop/exchange → {claims:{loginid,…}, access_token, …}. Returns the access token;
+        // knoxId gets the login id from the claims (same fallback order as slsi-agent-desktop auth.py).
+        public static string AccessTokenFromExchange(string json, out string knoxId)
+        {
+            var map = ParseObject(json);
+            object raw;
+            string token = map.TryGetValue("access_token", out raw) ? Convert.ToString(raw) : "";
+            if (String.IsNullOrEmpty(token))
+                throw new ArgumentException("Response is missing access_token.");
+            knoxId = "";
+            var claims = map.TryGetValue("claims", out raw) ? raw as Dictionary<string, object> : null;
+            if (claims != null)
+            {
+                foreach (string key in new[] { "loginid", "userid" })
+                {
+                    object v;
+                    if (claims.TryGetValue(key, out v) && !String.IsNullOrEmpty(Convert.ToString(v))) { knoxId = Convert.ToString(v); break; }
+                }
+                object mail;
+                if (knoxId.Length == 0 && (claims.TryGetValue("mail", out mail) || claims.TryGetValue("email", out mail)))
+                {
+                    string m = Convert.ToString(mail) ?? "";
+                    int at = m.IndexOf('@');
+                    knoxId = at > 0 ? m.Substring(0, at) : m;
+                }
+            }
+            return token;
+        }
+
+        // 377: 알림은 이 PC 사용자 본인에게만 간다 — SSO 로 로그인한 계정(knox id)이 Windows 로그인 계정
+        // 이름과 같을 때만 연결한다(Knox 일정 조회도 같은 이름을 knox id 로 쓴다). 대소문자는 무시한다.
+        public static bool AccountMatchesPcUser(string knoxId, string pcUser)
+        {
+            if (String.IsNullOrEmpty(knoxId) || String.IsNullOrEmpty(pcUser)) return false;
+            return String.Equals(knoxId.Trim(), pcUser.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        // /api/me/desktop-token → {ok, token:"aa_…"}. Anything else is refused so a wrong-shaped answer
+        // never ends up stored as a credential.
+        public static string DesktopTokenFromResponse(string json)
+        {
+            var map = ParseObject(json);
+            object raw;
+            string token = map.TryGetValue("token", out raw) ? Convert.ToString(raw) : "";
+            if (String.IsNullOrEmpty(token) || !token.StartsWith(TokenPrefix, StringComparison.Ordinal))
+                throw new ArgumentException("Response is missing a desktop token.");
+            return token;
+        }
+
+        public static string JsonBody(string key, string value)
+        {
+            return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> { { key, value } });
+        }
+
+        // The messenger text for meetings whose lead-time moment has arrived, soonest first (382: 이모지 —
+        // Knox 스티커 코드는 TEXT 메시지에서 글자 그대로 보여서 유니코드 이모지만 쓴다):
+        //   ⏰ [쉼] 곧 회의가 시작돼요
+        //   📅 10:00~11:00 주간 회의 · ⏳ 5분 뒤      (캘린더 일정)
+        //   📩 10:30 초대 메일 회의 · ⏳ 35분 뒤      (메일 초대에서 온 회의, uid "knoxmail-")
+        //   📅 09:55 바로 시작하는 회의 · 🔔 지금 시작
+        public static string MeetingText(IEnumerable<CalendarEntry> due, DateTime now)
+        {
+            if (due == null)
+                throw new ArgumentException("due is required.", "due");
+            var list = new List<CalendarEntry>(due);
+            list.Sort((a, b) => a.StartLocal.CompareTo(b.StartLocal));
+            var text = new StringBuilder("⏰ [쉼] 곧 회의가 시작돼요");
+            foreach (CalendarEntry e in list)
+            {
+                string title = String.IsNullOrEmpty(e.Title) ? "제목 없는 일정" : e.Title.Trim();
+                if (title.Length > MaxTitleChars) title = title.Substring(0, MaxTitleChars) + "…";
+                string when = e.StartLocal.ToString("HH:mm", CultureInfo.InvariantCulture);
+                if (e.EndLocal.HasValue && e.EndLocal.Value > e.StartLocal)
+                    when += "~" + e.EndLocal.Value.ToString("HH:mm", CultureInfo.InvariantCulture);
+                int minutes = (int)Math.Ceiling((e.StartLocal - now).TotalMinutes);
+                string left = minutes <= 0 ? "🔔 지금 시작" : "⏳ " + minutes.ToString(CultureInfo.InvariantCulture) + "분 뒤";
+                bool fromMail = e.Uid != null && e.Uid.StartsWith("knoxmail-", StringComparison.Ordinal);
+                string line = "\n" + (fromMail ? "📩 " : "📅 ") + when + " " + title + " · " + left;
+                if (text.Length + line.Length > MaxChars) break;
+                text.Append(line);
+            }
+            return text.ToString();
+        }
+    }
+
     public sealed class CommunityVideo
     {
         public string id, title, author;

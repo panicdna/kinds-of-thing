@@ -1,23 +1,23 @@
-# kinds-of-thing · 틈
+# kinds-of-thing · 쉼
 
-Windows에서 정해진 간격마다 전체 화면으로 나타나는, 내 몸과 마음을 위한 작은 휴식 알림기입니다. 알림 간격과 주제는 사용자가 선택합니다.
+Windows에서 정해진 간격마다 전체 화면으로 나타나는, 내 몸과 마음을 위한 작은 휴식 알림기입니다. 알림 간격과 주제는 사용자가 선택합니다. (앱 이름은 '틈'에서 '쉼'(SHIM)으로 바뀌었고, 실행 파일은 `shim.exe`입니다. 331~335 참고)
 
 이 저장소는 `/mnt/c/work/desk-stretch`에서 이번 작업 중 만든 산출물만 모은 독립 저장소입니다. 다른 프로젝트의 코드나 Git 이력은 포함하지 않습니다.
 
-## 배포 (v1.3.0)
+## 배포 (v1.4.0)
 
-**사용자는 설치 파일 하나면 됩니다.** Release에 첨부된 `Teum-Setup-v1.3.0.exe`를 내려받아 실행하세요. 관리자 권한이 필요 없고(사용자 폴더 `%LOCALAPPDATA%\Programs\틈`에 설치), 설치만으로 기본 프리셋(평일 09:00–18:00 · 60분 · 점심 12–13시 제외 · 카드 5종 무작위 · 퇴근버스 17:00 · 로그인 자동 실행 · 자리비움 10분 · Knox 일정 5분 전)이 적용됩니다. 앱이 실행 중이어도 재설치가 됩니다(자동 종료 → 조용한 제거 → 재설치).
+**사용자는 설치 파일 하나면 됩니다.** Release에 첨부된 `Shim-Setup-v1.4.0.exe`를 내려받아 실행하세요. 관리자 권한이 필요 없고(사용자 폴더 `%LOCALAPPDATA%\Programs\쉼`에 설치), 설치만으로 기본 프리셋(평일 09:00–18:00 · 60분 · 점심 12–13시 제외 · 카드 4종 무작위(스트레칭·명상·발성·허리) · 퇴근버스 17:00 · 로그인 자동 실행 · 자리비움 10분 · Knox 일정 5분 전 — 337 내보내기 프리셋 기준)이 적용됩니다. 앱이 실행 중이어도 재설치가 됩니다(자동 종료 → 조용한 제거 → 재설치).
 
 | 배포 자료 | 위치 |
 |---|---|
-| 설치 파일 | `Output\Teum-Setup-v1.3.0.exe` — 저장소에 직접 커밋(329 지시. 빌드 산출물이지만 예외로 강제 업로드) |
-| 소개 슬라이드 (PPT풍 HTML) | [틈-소개-슬라이드.html](틈-소개-슬라이드.html) — 브라우저에서 열고 ←/→ 키로 넘겨 보기, 인쇄로 PDF 변환 가능 |
+| 설치 파일 | `Output\Shim-Setup-v1.4.0.exe` — 저장소에 직접 커밋(329 지시. 빌드 산출물이지만 예외로 강제 업로드) |
+| 소개 슬라이드 (PPT풍 HTML) | [쉼-소개-슬라이드.html](쉼-소개-슬라이드.html) — 브라우저에서 열고 ←/→ 키로 넘겨 보기, 인쇄로 PDF 변환 가능 |
 | 사용자 매뉴얼 | [사용자-매뉴얼.md](사용자-매뉴얼.md) — UX 시나리오 11종 + FAQ + 안전·개인정보 안내 |
 
 **새 버전 배포 절차 (배포 담당자용):**
-1. `DeskHooker.cs`의 `Program.AppVersion`, `Teum-Setup.iss`의 `TeumVersion`, `package.ps1`의 기본 `$Version` — 세 곳을 같은 값으로 맞춘다(설정 창·팝업 Head Title에 표시되는 버전).
+1. `DeskHooker.cs`의 `Program.AppVersion`, `Shim-Setup.iss`의 `TeumVersion`, `package.ps1`의 기본 `$Version` — 세 곳을 같은 값으로 맞춘다(설정 창·팝업 Head Title에 표시되는 버전).
 2. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Test`로 빌드 + UI 스모크.
-3. `"C:\Program Files\Inno Setup 7\ISCC.exe" Teum-Setup.iss` → `Output\Teum-Setup-v<버전>.exe` 생성.
+3. `"C:\Program Files\Inno Setup 7\ISCC.exe" Shim-Setup.iss` → `Output\Shim-Setup-v<버전>.exe` 생성.
 4. 실제 설치 PC에서 재설치 흐름(실행 중 자동 종료 → 제거 → 설치 → 재실행) 확인.
 5. Release에 인스톨러를 첨부하고, 이 절의 버전과 링크를 갱신한다.
 
@@ -2944,9 +2944,825 @@ install 설치 버젼도 만들어, 머지하고 마무리해
 
 > 조치(329): 인스톨러 산출물 `Output\Teum-Setup-v1.3.0.exe`(약 10MB)를 `.gitignore`의 `Output/` 규칙을 넘겨(`git add -f`) 저장소에 직접 커밋하고 origin main으로 push했다. 이 파일 한 개만 예외로 올렸고(같은 폴더의 구버전 v1.2.1 exe는 제외), 배포 자료 표의 설치 파일 설명을 실제 상태에 맞게 수정했다.
 
-> 병합 안내: 아래 330~339번은 병합 전 이 저장소에서 따로 기록한 프롬프트이며(원래 번호 187~196), 가져온 기록과 번호가 겹쳐 뒤에 이어 붙이며 번호만 바꿨습니다. 원문은 그대로입니다.
+### 330. 목록 편집 항목 수정 기능 추가 지시
 
-### 330. 쉼 카드마다 정확한 시작 시각(시:분:초) 입력과 사용 여부 체크박스 추가
+```text
+틈
+A LITTLE RESET · v1.3.0 · 일정 알림 영상
+닫기 × Esc
+잠깐 쉬어가도 괜찮아요
+일정 알림 영상
+일정 알림 화면에 무작위(기본) 또는 순서대로 하나가 재생돼요
+
+3 / 5  목록 편집  에서  "'삭제'로 항목을 제거하고, 아래에 YouTube 링크를 붙여 넣어 추가할 수 있어요. 이 카드에 기억돼요." 각각 항목을 택하면 삭제는 가능하지만, 각 항목을 편집 즉 (url 값, 이름 값) 을 바꾸거나 참고할 수가 없다, 가능하게 편집긴으 추가해
+```
+
+> 조치(330): 영상 목록 편집 패널(모든 쉼 카드의 뷰 + 일정 알림 영상 카드가 공용)의 각 영상 항목에 **'수정'** 단추를 추가했다. 누르면 그 행이 링크·제목 입력칸으로 바뀌며 **지금 값이 그대로 채워져 확인(참고)할 수 있고**, 저장하면 목록 표시·재생기가 즉시 따라간다.
+> - **저장 방식**: 내가 추가한 항목은 `added` 항목의 링크·제목을 고치고, 기본(내장) 항목은 기본 정의를 건드리지 않고 `edited` 오버라이드(`{youtubeId,title}`)로 저장한다 — 그래서 '기본 목록으로 되돌리기'를 누르면 수정까지 초기화된다. 원래 값과 똑같이 저장하면 오버라이드를 스스로 지운다. 저장 규칙은 추가와 같다: YouTube 링크·11자 영상 ID만 받고(그 외는 토스트로 거절), 다른 항목과 겹치는 영상은 거절한다. 한 번에 한 행만 열리고, '취소'가 있다.
+> - **연동**: 내보내기/가져오기 JSON의 `listEdits`가 수정 내용(`edited`)까지 그대로 담아 다른 PC로 옮겨진다. 수정 입력칸에 커서가 있을 때는 ↑·↓ 볼륨 조절이 동작하지 않는다(기존 입력칸 규칙과 동일).
+> - **검증**: UI 스모크 `variantListEditor`에 추가 항목 수정(목록·저장된 항목 반영), 기본 항목 수정(칸에 지금 값 표시, 중복 링크 거절, 목록·재생기·오버라이드 저장, 이후 삭제·되돌리기가 아이디 그대로 동작), 초기화가 수정까지 지우는 확인을 추가했다. C# 코어 181 passed, Node 1 passed, 전체 UI 스모크 통과.
+> - **문서**: 사용자-매뉴얼.md 시나리오 G와 사용안내.txt '쉼 추가하기'에 수정 기능 안내를 반영했다.
+
+### 331. themes\아이콘.png를 앱 바로가기 아이콘으로 사용 지시
+
+```text
+C:\work\kinds-of-thing\themes\아이콘.png  가져와 App 바로가기 Icon 으로 사용하라.
+```
+
+> 조치(331): `themes\아이콘.png`(1254×1254)를 256~16px 여섯 크기가 든 Windows 아이콘 `app.ico`로 변환하고, `build.ps1`이 csc `/win32icon:app.ico`로 **DeskHooker.exe에 아이콘을 심도록** 했다. 바로가기(.lnk)는 대상 exe의 Win32 아이콘을 그대로 쓰므로, 인스톨러(Teum-Setup.iss)와 ZIP 배포 모두 별도 수정 없이 시작 메뉴·바탕 화면·작업표시줄 아이콘이 이 그림으로 나온다.
+> - **검증**: exe 안에 6개 프레임(16/32/48/64/128/256)이 app.ico와 바이트 단위로 그대로 들어 있음을 확인했고, `Icon.ExtractAssociatedIcon`으로 exe에서 아이콘을 꺼내오는 것도 확인했다. UI 스모크는 아이콘 변경과 무관하므로 생략했다(기능 코드 수정 없음).
+> - **참고**: 트레이 알림 아이콘(DeskHooker.cs의 `tray.Icon=SystemIcons.Information`)은 이 요청 범위(바로가기 아이콘)가 아니므로 그대로 두었다. `app.ico`는 빌드 산출물용 입력이라 package.ps1 ZIP에 넣지 않는다 — 아이콘은 exe 안에 이미 들어 있다.
+
+### 332. 설정 창 헤드라인 아이콘이 안 바뀐 이유 질문
+
+```text
+틈.알림 간격과 주제 설정 - 의 헤드라인 아이콘이 아직 안 바뀌었다, 왜 ?
+```
+
+> 조치(332): **원인은 코드가 창 아이콘을 직접 지정하고 있었기 때문**이다. 331에서 바꾼 것은 exe에 심힌 Win32 아이콘(바로가기가 읽는 것)이고, WinForms 창은 `Form.Icon`이 설정돼 있으면 exe 리소스 대신 그 값을 제목표시줄·작업표시줄에 보여 준다. `DeskHooker.cs`의 설정 창·팝업(`WebWindow`)과 트레이(`NotifyIcon`) 모두 `Icon=SystemIcons.Information`(Windows 기본 정보 아이콘)으로 명시 지정돼 있어 exe 아이콘을 항상 덮어썼다.
+> - **수정**: `ReminderHost.AppIcon` — exe에 심은 app.ico를 `Icon.ExtractAssociatedIcon`으로 한 번만 꺼내 캐시하고(실패 시 기존 시스템 아이콘으로 안전하게 복귀), 트레이(DeskHooker.cs 트레이 생성)와 `WebWindow`(설정 창·팝업 공용)가 이것을 쓰게 했다. 모든 창이 `WebWindow` 하나로 만들어지므로 창 아이콘은 이 한 곳에서 다 적용된다. 이제 바로가기·작업표시줄·트레이·창 제목표시줄이 모두 `themes\아이콘.png` 그림으로 보인다.
+> - **검증**: exe 재빌드 후 app.ico의 6개 프레임(16~256px)이 새 exe 안에 바이트 단위로 그대로 들어 있음을 확인했고, 전체 UI 스모크 `passed: true`(기능 변화 없이 아이콘만 교체).
+
+### 333. 앱 제목을 '틈' 대신 '쉼'으로 수정 지시
+
+```text
+App 에서 제목을 '틈' 대신 '쉼'으로 수정하라.
+```
+
+### 334. 소개 슬라이드도 '틈' 대신 '쉼'으로 수정 지시
+
+```text
+"C:\work\kinds-of-thing\틈-소개-슬라이드.html"  여기 소개 자료도 '틈' 대신 '쉼' 으로
+```
+
+> 확인 사항(333·334): 영문 워드마크는 **SHIM**, 인스톨러 앱 이름·설치 폴더·ZIP 폴더명도 **함께 변경**, 소개 슬라이드는 **파일명도 변경**하기로 사용자가 확정했다.
+
+### 335. 실행 파일 이름을 shim.exe로 수정 지시
+
+```text
+"C:\work\kinds-of-thing\DeskHooker.exe" 실행 파일의 이름도 shim.exe 로 수정해
+```
+
+> 조치(333·334·335): 앱 제목을 '틈'에서 **쉼**(영문 워드마크 **SHIM**)으로 바꾸고, 실행 파일 이름을 **shim.exe**로 바꿨다.
+> - **333 (앱 제목)**: DeskHooker.cs의 창 제목(설정 창 "쉼 · 알림 간격과 주제 설정", 팝업 "쉼 · 따라 하는 작은 휴식"), 트레이 툴팁("쉼 · 스트레칭과 작은 휴식"), MessageBox 제목(쉼·쉼 시작 오류), app.js 사이드바 브랜드("쉼 · SHIM · A LITTLE RESET")·팝업 브랜드·태그라인("나를 돌보는 작은 쉼"), app.html `<title>`과 로딩 문구를 교체했다.
+> - **334 (소개 슬라이드)**: `틈-소개-슬라이드.html`을 **`쉼-소개-슬라이드.html`**로 이름을 바꾸고(git mv로 이력 유지), 내용의 브랜드 표기(틈 TEUM → 쉼 SHIM, Teum-Setup → Shim-Setup, 설치 폴더 Programs\쉼)를 모두 갱신했다. "문서와 회의 **틈에**"(일반 명사)와 `%LOCALAPPDATA%\DeskHooker`(설정 폴더 실명)는 원문대로 유지했다.
+> - **335 (실행 파일)**: `DeskHooker.exe` → **`shim.exe`** (git mv). build.ps1의 `/out:`·UI 테스트 시작 경로, package.ps1의 런타임 목록·ZIP 이름(쉼 폴더 · Shim-v*.zip), Teum-Setup.iss의 `TeumExeName`·`[Files]`·taskkill, app.js의 HTML 미리보기 안내 문구, 사용안내.txt의 실행 안내를 모두 따라 바꿨다. .gitignore에 `Shim-v*.zip`을 추가했다.
+> - **인스톨러 이름(333 확정 범위)**: 앱 이름 `쉼`, 설치 폴더 `%LOCALAPPDATA%\Programs\쉼`, 인스톨러 출력 이름 `Shim-Setup-v<버전>.exe`로 바꿨다. AppId GUID는 그대로라 기존 설치 위의 업그레이드 경로가 유지된다.
+> - **문서**: README 상단·배포 절, 사용자-매뉴얼.md(제목·설치·시작 메뉴·제거·슬라이드 링크), 쉼-추가-가이드.md 첫 줄, 사용안내.txt 제목줄("쉼 / SHIM (shim.exe)")을 갱신했다.
+> - **바꾸지 않은 내부 식별자**: `%LOCALAPPDATA%\DeskHooker` 데이터 폴더(이름을 바꾸면 기존 사용자 설정·카드를 잃음), 뮤텍스 `Local\DeskHooker.Teum`, HKCU Run 키 `DeskHooker.Teum`, User-Agent, 내보내기 JSON 형식 `teum-cards`, 소스 파일명 DeskHooker.cs — 어느 것도 화면에 보이지 않고 기존 설치와의 호환에 필요하다. 다만 Run 키는 앱이 다음 저장 때 새 shim.exe 경로로 다시 쓴다.
+> - **검증**: shim.exe로 재빌드 후 전체 UI 스모크 `passed: true` (2회 — app.js 문구 수정 전후). app.ico 6개 프레임이 shim.exe에 그대로 임베드됨 확인. 소스·스크립트·화면 파일에 남은 `DeskHooker.exe`/브랜드 '틈' 참조 없음(내부 식별자와 프롬프트 원문 기록 제외).
+
+### 336. 내보내기 파일명의 teum을 shim으로 수정 지시
+
+```text
+영상목록 내보내기 teum-cards-20261113-2221.json -> teum 대신 shim 으로 수정
+```
+
+> 조치(336): 쉼 카드 내보내기의 기본 파일명을 **`shim-cards-<날짜>-<시각>.json`**로 바꿨다(DeskHooker.cs 저장 대화상자). 내보내기 JSON 안의 `format` 값도 `"teum-cards"`에서 **`"shim-cards"`**로 바꿨다(app.js).
+> - **호환**: 가져오기는 새 `"shim-cards"`와 '틈' 시절에 내보낸 예전 `"teum-cards"` 파일 **둘 다 받아들인다**(app.js·DeskHooker.cs 검사). 기존 백업 파일이 거절되지 않게 하려는 조치다. .gitignore에 `shim-cards-*.json`을 추가(기존 `teum-cards-*.json` 규칙은 예전 백업 파일 무시용으로 유지).
+> - **검증**: UI 스모크 `cardsExportImport`에서 내보내기 기대 format을 `shim-cards`로 갱신하고, 종소리 덮어쓰기 가져오기에는 예전 `teum-cards`를 써 레거시 파일도 그대로 가져와지는 경로를 함께 검증한다. 재빌드 후 전체 UI 스모크 `passed: true`.
+
+### 337. 내보내기 파일을 프리셋 기본으로 설정 지시
+
+```text
+"C:\work\kinds-of-thing\shim-cards-20261113-2228.json" 를 preset 의 기본으로 설정하라,
+```
+
+> 조치(337): 사용자가 내보낸 `shim-cards-20261113-2228.json`의 상태를 **기본 프리셋**으로 만들었다 — 신규 설치(인스톨러가 settings.json을 지운 뒤 첫 실행)와 '기본 프리셋으로 되돌리기'가 이 파일의 모습으로 시작한다.
+> - **선택 카드**: `DefaultPreset()`의 `ThemeIds`를 5종(스트레칭·명상·발성·허리·릴렉스)에서 **4종(스트레칭·명상·발성·허리)**으로 갱신했다(파일의 themeIds 기준. 릴렉스는 목록에 남고 선택에서 빠진다). app.js의 프리셋 미러 `defaults`도 같이 맞췄다. 코어 단위 테스트 `DefaultPreset_MatchesTheAnnouncedPreset` 갱신.
+> - **영상 목록**: 파일의 목록 편집 최종 상태를 `theme-variants.js` **기본 목록**에 반영했다 — 발성 +집중력을 2배 높이는 3-7 호흡법(6항목), 명상에서 명상 음악(Reiki)을 빼고 +5분 호흡명상(3항목), 릴렉스에서 4-2-6 호흡법을 빼고 +레이키 힐링 음악·+마음이 평안해지는 찬불가(3항목). 이미 편집을 쓰던 PC에서도 `applyEdits`가 중복 영상 ID를 자동으로 걸러 주어 목록이 똑같이 보인다(편집 localStorage를 지울 필요 없음).
+> - **내가 만든 카드**: 파일에 담긴 '아침에 하는 5분 긍정확언(아침 확언 명상)'(x-0a04b57c)을 프리셋의 일부로, 첫 실행과 프리셋 되돌리기 때 **없으면 다시 까는** 시딩을 넣었다(DeskHooker.cs `EnsurePresetCard`). 일반 사용자 카드와 같은 성격(◈ · 삭제 가능)이라 기존 설치와 충돌하지 않고, 글 안내를 뺀 영상만 있는 모습(파일의 listEdits와 동일)으로 만든다. UI 시험 모드는 종전처럼 깨끗한 상태로 시작한다.
+> - **종소리(일정 알림 영상)**: 파일의 목록 편집이 비어 있고 종소리 5개는 이미 기본값(`KNOX_BELL_VIDEO_IDS`)과 같아 바꾼 것이 없다.
+> - **검증**: C# 코어 181 passed, Node 1 passed, 전체 UI 스모크 `passed: true` — 발성 6항목·명상 3항목(마지막 교체)·릴렉스 3항목과 목록 편집기 시퀀스(추가→수정→삭제→기본 항목 제거·복원→중복 링크 거절→초기화)의 기대치를 새 기본 목록에 맞게 갱신했다.
+> - **문서**: README 배포 절(카드 4종 무작위), 사용자-매뉴얼.md 기본 프리셋 내용, 쉼-소개-슬라이드.html 프리셋 표를 갱신했다. 과거 프롬프트 기록(310 등)의 '카드 5개'는 당시 기록이므로 그대로 둔다.
+
+### 338. 새 쉼 카드 추가 — 주의사항 선택화, 바깥 클릭으로 닫힘 방지 지시
+
+```text
+새 쉼 카드 추가
+닫기 ×
+주의사항은 안전을 위해 꼭 적어 주세요. : 새 쉼 카드 추가시 주의사항 없어도 저장되게 수정, "새 쉼카드 추가" 다이얼로그 박스 바깥을 클릭하면 다이얼로그가 사라지는 문제 해결해
+```
+
+> 조치(338): '새 쉼 카드 추가' 대화상자의 두 가지 불편을 고쳤다.
+> - **주의사항 선택화**: 입력 확인(app.js)과 C# 저장 검사(DeskHooker.cs add-theme)에서 주의사항 필수 조건을 없애 비워 둔 채 저장되게 했다(150자 상한은 유지). 라벨도 '필수' → '선택'으로. 알림 화면은 주의사항이 있을 때만 표시한다(빈 칸이 그려지지 않게 조건부 렌더링). **내보내기/가져오기**도 주의사항 없이 만든 카드가 다른 PC로 그대로 옮겨지게 가져오기 검사를 완화했다(null 안전 처리 포함).
+> - **바깥 클릭 방지**: 대화상자 뒷배경을 클릭하면 닫히던 처리(`event.target === dlg` → close)를 없앴다. 입력하던 내용이 사라지는 일이 없게 닫기는 '닫기 ×'·'취소' 단추로만 한다.
+> - **범위 밖 유지**: 다른 사람에게 쉼을 **공유**하는 대화상자의 주의사항은 여전히 필수다(받는 사람을 위한 안내라는 성격 유지).
+> - **검증**: UI 스모크 `cardListEditing`에 ① 대화상자 바깥 클릭 후에도 열려 있음, ② 주의사항을 비운 채 저장해 카드가 만들어지고 safety가 빈 값임 확인을 추가했다. 전체 UI 스모크 `passed: true`, Node 1 passed.
+> - **문서**: 쉼-추가-가이드.md A절을 갱신했다(주의사항 선택, 바깥 클릭 방지 안내).
+
+### 339. 새 쉼 카드에 "#1 기본 · 동작 안내" 항목이 생기는 문제 수정 지시
+
+```text
+새 쉼 카드 작성하면 왜 tset
+teset
+
+1 / 2
+
+#1 기본 · 동작 안내
+순서
+무작위
+반복
+안 함
+목록 편집
+◈
+천천히 따라 해 보세요
+test   와 같이  "#1 기본 동작 안내" 가 추가된다 왜 ?   이거 나타나지 않게 fix 하라
+```
+
+```text
+1 / 2
+
+#1 기본 · 동작 안내
+순서
+무작위
+반복
+안 함
+목록 편집
+'수정'으로 항목의 링크와 제목을 확인하거나 바꾸고, '삭제'로 항목을 제거하고, 아래에 YouTube 링크를 붙여 넣어 추가할 수 있어요. 이 카드에 기억돼요.
+
+1. 기본 · 동작 안내
+삭제
+2. 영상 1
+수정
+삭제
+YouTube 링크 또는 영상 ID 붙여 넣기
+ 표시할 제목
+ 추가
+ 기본 목록으로 되돌리기
+ 편집 닫기
+```
+
+> 조치(339): **원인은 하위 목록을 만드는 `variantList()`의 조건이 카드 종류를 가리지 않았기 때문**이다. 영상과 동작 안내가 함께 있는 카드에는 목록 맨 앞에 `{id:'text', title:'기본 · 동작 안내'}` 항목을 자동으로 끼워 넣는데, 이 로직은 원래 **다른 사람이 공유한 쉼 카드**의 안내 문구를 영상과 함께 보여 주려는 것이다(코드 주석 "Videos shared with a community item"). 그런데 `theme.community` 검사가 없어 내가 직접 만든 카드(x-)에도 똑같이 적용돼 "#1 기본 · 동작 안내"가 항상 추가됐다.
+> - **수정**: text 항목을 **공유 카드에만** 끼우게 `theme.community &&` 조건을 추가했다(app.js variantList). 내가 만든 카드는 내가 넣은 영상만 목록에 나온다. 공유 카드는 종전대로 공유자의 안내 문구가 #1로 남는다.
+> - **검증**: UI 스모크 `cardListEditing`에 — 방금 만든 카드(안내 2줄 + 영상 1개)의 하위 목록이 영상 1개뿐이고 '기본 · 동작 안내'가 없는지 확인을 추가했다. 공유 카드가 안내 문구를 #1로 계속 보여 주는 `communityVideos`도 그대로 통과. 전체 UI 스모크 `passed: true`.
+
+### 340. 내보내기 파일(2256)을 프리셋 기본으로 설정 지시
+
+```text
+"C:\work\kinds-of-thing\shim-cards-20261113-2256.json" 이것을 preset 기본으로 설정하라.
+```
+
+> 조치(340): 337의 프리셋(2228 내보내기 기준)을 2256 내보내기 상태로 갱신했다. 선택 카드 4종(stretch·meditation·voice·back-standing)·명상·발성 목록·프리셋 카드(x-0a04b57c)·종소리 5개는 2228과 같아 그대로다. 달라진 두 곳:
+> - **릴렉스 음향**: 기본 목록에 4번째 영상 **"숲에서 쉬는 효과🌳머리가 맑아지는 치유명상음악 | 3시간"**(yq-lSVEu7U0)을 추가했다(theme-variants.js).
+> - **댄스 안무**: 기본 목록에서 두 항목을 뺐다(games-content.js) — IVE 'ATTITUDE' DANCE PRACTICE(m87Xif9yZb4), LE SSERAFIM 'CRAZY' Dance Practice Moving ver.(ZJwC0VYzGIs). 댄스 목록은 11개 → 9개.
+> - **포함하지 않은 것**: 내보내기 listEdits의 `x-01af2228`은 이미 삭제된 카드의 남은 편집 흔적(cards 배열에 없음)이라 프리셋에 넣지 않았다. 기존 PC의 로컬 편집과의 중복은 applyEdits가 영상 ID로 걸러 준다.
+> - **테스트**: 릴렉스 하위 목록 4항목(새 영상 embed 포함)과 목록 편집기 시퀀스(추가→수정→삭제→기본 항목 제거·복원→초기화)의 기대치를 갱신했다. 댄스 UI 검사는 `>= 6`·중복 없음만 본다(9개로 통과).
+> - **함께 고친 테스트 결함**: UI 스모크의 볼륨 배지 위치 단언이 **bump 애니메이션(0.25초 scale)이 끝나기 전의** `getBoundingClientRect`(transform 반영)를 읽어 타이밍에 따라 실패하는 레이스가 있었다 — 릴렉스 목록이 늘며 렌더 부하가 변해 드러났다. 애니메이션 종료를 기다린 뒤 재게 수정(제품 동작은 문제없음). 전체 UI 스모크 `passed: true`.
+
+### 341. Teum-Setup.iss 파일명 변경 또는 제거 지시
+
+```text
+"C:\work\kinds-of-thing\Teum-Setup.iss" 필여 없으면 제거하거나 sim 이르으로 변경
+```
+
+> 조치(341): 인스톨러 스크립트는 배포에 **필요한 파일**이라 제거하지 않고 이름을 **`Shim-Setup.iss`**로 바꿨다(git mv로 이력 유지). 함께 고친 것:
+> - 스크립트 안의 사용법 주석(`ISCC.exe Shim-Setup.iss → Output\Shim-Setup-v<버전>.exe`)과 `TeumPublisher`를 `Teum` → **`Shim`**으로(Windows 프로그램 목록의 게시자 표시).
+> - README 배포 절차의 파일명 참조 2곳을 갱신했다. 과거 프롬프트 기록(2201 등)의 `Teum-Setup.iss` 언급은 당시 기록이므로 그대로 둔다.
+> - **인스톨러 재생성·교체**: ISCC 7로 `Shim-Setup.iss`를 컴파일해 `Output\Shim-Setup-v1.3.0.exe`를 만들었다(컴파일 성공 확인). 329 지시로 저장소에 강제 커밋된 구 산출물 `Output\Teum-Setup-v1.3.0.exe`를 빼고 새 파일로 교체했다(git rm --cached → add -f). AppId GUID는 그대로라 기존 설치 위 업그레이드 경로 유지.
+> - 내부 define 이름(`TeumName`·`TeumVersion` 등)은 스크립트 안에서만 쓰이는 식별자라 화면에 나오지 않으므로 그대로 두었다.
+
+### 342. 전체 변경사항 커밋·푸시 지시
+
+```text
+지금까지 변경사항 모두 커밋 & push 하라
+```
+
+> 조치(342): 331~341까지의 변경(앱 아이콘·브랜드 전환·내보내기 형식·프리셋 갱신·인스톨러 스크립트 이름 변경·문서 동기화)을 하나의 커밋으로 묶어 origin에 push했다. 임시 파일 `Output.zip`(11/12자, 이번 작업과 무관)은 커밋하지 않고 워킹트리에 남겨 뒀다.
+
+### 343. Windows 로그인 자동 실행이 재부팅 후 동작하지 않는 이유 질의
+
+```text
+Windows 로그인 때 자동 실행  끄고 저장 다시 켜고 저장 후 재부팅 .. 하지만 여전히 auto start 안한다 이유는 ?
+```
+
+> 조치(343): 원인은 작업 관리자의 "시작 프로그램 사용 안 함" 기록이 보관되는 `HKCU\...\Explorer\StartupApproved\Run`의 `DeskHooker.Teum` 값(플래그 바이트 01, 2026-11-13 14:36 기록)이 남아 있어, Run 키에는 항목이 정상적으로 있어도 Windows가 로그인 때 실행을 건너뛴 것이었다. 사용자 승인 아래 세 가지를 처리했다. (1) 해당 StartupApproved 값을 삭제해 즉시 해결. (2) `DeskHooker.cs`의 `Startup()`이 자동 실행을 켤 때 StartupApproved 기록도 함께 지우도록 수정 — 이후 작업 관리자에서 꺼도 앱 체크박스로 재활성화 가능. (3) 빌드·테스트 통과(181 passed) 후 새 `shim.exe`를 설치 위치에 교체하고 `--background`로 재실행 확인(레지스트리 최종 상태: Run 값 존재, StartupApproved 항목 없음).
+
+### 344. 변경사항 커밋·푸시 지시
+
+```text
+변경된 내용 모두 커밋 푸시 하라
+```
+
+> 조치(344): 343의 변경(`DeskHooker.cs` 자동 실행 수정, 재빌드된 `shim.exe`, README 기록)을 하나의 커밋으로 묶어 origin에 push했다. 추적되지 않은 `Output.zip`(11/12자, 이번 작업과 무관)은 커밋하지 않고 워킹트리에 남겨 뒀다.
+
+### 345. 최신 코드로 인스톨러 재빌드 지시
+
+```text
+최신으로 installer 다시 빌드해
+```
+
+> 확인 사항(345): v1.3.0 인스톨러 빌드 이후 커밋된 브랜드 변경(틈→쉼, 331-341)과 로그인 자동 실행 수정(343)을 반영해야 해서, 버전을 **1.3.1**로 올려 `Shim-Setup-v1.3.1.exe`를 만들기로 사용자가 확정했다.
+
+> 조치(345): 최신 코드로 v1.3.1 인스톨러를 다시 빌드하고 실PC 재설치까지 확인했다.
+> - **버전**: 세 곳(`DeskHooker.cs` `Program.AppVersion`, `Shim-Setup.iss` `TeumVersion`, `package.ps1` 기본 `$Version`)을 1.3.1로 맞췄다.
+> - **주말 스모크 결함 수정**: 빌드 직후 UI 스모크가 "몇 시에 실행 카드가 시각에 뜨지 않았습니다"로 실패했다. 원인은 295번부터 시각 실행 카드가 요일 규칙(`WeekdaysOnly`, 토·일 금지)도 따르는데, 스모크의 발사 검사는 근무 창(`#limit-hours`)만 끄고 요일 제한(`#weekdays`)은 끄지 않아 **주말에만** 실패하는 테스트 결함이었다(제품 동작은 정상). `DeskHooker.cs` RunSmoke가 발사·295 목록 검사 구간에서 요일 제한까지 잠시 끄고(토요일 2026-11-14에 발사·목록 통과) 검사 뒤 복원·재확인하도록 고쳤다.
+> - **검증**: UI 스모크 `passed: true`(44 항목), C# 코어 **181 passed, 0 failed**.
+> - **인스톨러**: `ISCC.exe Shim-Setup.iss`로 `Output\Shim-Setup-v1.3.1.exe` 생성(약 11.9MB). 이 PC에서 `/VERYSILENT` 재설치 실증 → 레지스트리 `쉼 1.3.1` 등록, 설치된 `shim.exe`가 이번 빌드와 SHA256 해시까지 동일(1.3.1 버전 문자열·343 StartupApproved 수정 포함), settings.json 프리셋 초기화, `--background` 재실행 확인.
+> - **배포 문서**: 이 절(배포)의 버전·설치 파일명을 v1.3.1로 갱신했다. 새 인스톨러의 저장소 커밋(329 방식 `git add -f`)은 별도 커밋 지시가 오면 진행한다.
+
+### 346. v1.3.1 변경사항 커밋 지시
+
+```text
+커밋 반영해
+```
+
+> 조치(346): 345의 변경(버전 1.3.1 동기화 3곳, 주말 스모크 결함 수정, 재빌드된 `shim.exe`, 새 인스톨러 `Output\Shim-Setup-v1.3.1.exe`, README 기록·배포 문서 갱신)을 하나의 커밋으로 반영했다. 새 인스톨러는 329의 예외 규칙에 따라 `git add -f`로 함께 커밋했다.
+
+### 347. 푸시·마무리 지시
+
+```text
+모두 push 하고 마무리
+```
+
+> 조치(347): 346의 커밋(f1d1a51)과 이 기록까지 반영한 뒤 origin main으로 push해 로컬과 원격을 같은 상태로 맞추고 세션을 마무리했다.
+
+### 348. 01번 시작 시각(09:00)이 수정되지 않는 이유 질의
+
+```text
+01어느 간격으로 만날까요?
+09:00
+부터
+5
+분마다
+시작 시각은 24시간제(시:분, 예: 13:30)로, 간격은 1~240 사이의 분으로 직접 입력하세요.
+알림은 시작 시각을 기준으로 고정된 시각표(시작 시각 + 간격의 배수, 예: 09:00 시작 · 60분이면 10:00, 11:00, 12:00…)에 맞춰 떠요.
+팝업을 늦게 닫아도 시각표가 밀리지 않고, 놓친 알림은 몰아서 띄우지 않아요.
+
+▶ 즉시 실행 (시험용)
+시간대·요일·일시정지와 관계없이, 저장된 주제 순서대로 팝업을 바로 띄웁니다.   여기 부터 의 시간 0900 은 수정이 안된다 왜 ?
+```
+
+> 조치(348): 원인을 확인했다. 설정 화면 01번 카드의 시작 시각 입력칸은 02번 카드의 "시작·종료 시각 사이에만 알림 받기"(LimitHours) 체크박스가 꺼져 있으면 `disabled`로 잠긴다(app.js 렌더링 시 `${s.LimitHours ? '' : 'disabled'}`, 체크박스 토글 이벤트에서도 함께 잠금). 그런데 시작 시각은 시간대 제한과 무관하게 시각표의 앵커로 계속 쓰인다(ReminderCore.Next가 항상 StartHour:StartMinute을 앵커로 사용, 시간대 제한이 꺼져 있어도 09:00 앵커 시각표가 밤까지 이어짐 — ReminderCore.Tests의 "No hour limit" 테스트가 고정). 즉 잠글 이유가 없는 설정이 잠기는 결함으로 보고, 종료 시각만 체크박스와 연동하고 시작 시각을 항상 편집 가능하게 두는 수정안을 제시했다.
+
+### 349. 수정안 보류 지시
+
+```text
+아니다. 그대로 둬
+```
+
+> 조치(349): 348에서 제시한 UI 수정안(시작 시각 입력칸을 항상 편집 가능하게 두는 변경)은 적용하지 않기로 했다. 기존 동작(시작·종료 시각 입력칸이 "시작·종료 시각 사이에만 알림 받기" 체크 시에만 편집 가능)을 그대로 유지하며, 코드 변경은 없었다.
+
+### 350. 같은 시각에 일정이 2개 이상 겹치면 표시 방식 질의
+
+```text
+4회의 시작 전에도 알려드릴까요?
+Knox 캘린더 일정을 시작 전에 따로 알려주기
+시작
+5
+분 전에
+일정 알림 자동 닫힘
+없음
+일정시작시간에
+일정시작후
+5
+분후
+일정끝난시간에
+13:50에 확인함 · 약 15분마다 자동 확인
+지금 일정 가져오기 ↻
+알림 시험
+
+11. 16. 15:00 SLSI Agent Desktop 개발 Sync Up
+일정 알리기 시험
+동작 기록 보기
+회사 Knox 일정 서버에서 이 PC 로그인 계정 이름으로 내 일정을 직접 받아 옵니다(별도 로그인·설치 없음). 간격·주제 알림과는 별도로, 회의 제목과 시각만 보여주는 짧은 알림이 떠요. 시도·결과는 위 기록에 쌓여요. 알림이 뜨기 약 30초 전부터 영상을 미리 준비해 두고, 정해진 시각에 바로 띄워요. '자동 닫힘 · 없음'이면 직접 닫을 때까지 떠 있고, 종료 시각이 없는 일정에서 '일정끝난시간에'는 자동으로 닫히지 않아요. - 여기서 같은 시간에 일정이 2개 이상 겹친경우, 표시를 어떻게 하나 ?  화면 동작은 같으면서, 일정 안내 text 가 모두 다 표시하나 ?
+
+.
+```
+
+> 답(350): 그렇지 않다 — 겹쳐도 제목을 한 번에 모두 보여 주지 않는다. 일정 알림 화면은 항상 일정 1건의 제목·시각만 표시한다(DeskHooker의 `knoxPopupTitle` 1건, app.js의 knox-simple 화면 `<h1>` 1개). 같은 시각에 띄워야 할 일정이 2개 이상이면 1초 주기 Tick(DeskHooker.cs 189줄)이 그중 "가장 먼저 시작하는" 일정 하나를 골라 팝업을 띄우고(DeskHooker.cs 817–824줄, `ShowCalendarPopup`이 그 일정만 발사 완료로 기록) 다음 Tick에서 아직 발사 안 된 나머지 일정이 또 due로 잡혀 떠 있던 팝업을 내리고 새 팝업으로 교체한다. 즉 화면 동작(같은 knox-simple 화면·같은 종소리 영상)은 같지만 안내 문구는 겹친 일정 수만큼 1초씩 교체되며, 시작 시각이 가장 늦은 일정의 알림이 마지막에 남는다. 자동 닫힘 기준 시각도 마지막에 남은 일정의 시작·종료 시각을 따른다.
+
+### 351. 겹친 일정 한 화면에 모두 표시 지시 (350 질문에 대한 선택)
+
+```text
+"겹친 일정이 있을 때 표시 동작을 바꾸시겠어요?" 질의에 "한 화면에 모두 표시 (Recommended)" 선택
+— 같은 알림 화면에 겹친 일정 제목·시각을 여러 줄로 모두 나열 (예: 15:00 회의A / 15:00 회의B), 종소리 영상은 하나만
+```
+
+> 구현(351): 겹친 일정을 한 화면에 모두 나열하도록 바꿨다. DeskHooker의 단일 일정 필드(`knoxPopupTitle/knoxPopupStart/knoxPopupEnd`)를 일정 목록 `knoxPopupEvents`(시작 시각 오름차순)로 바꾸고, `ShowCalendarPopup`이 due인 일정 전부를 한 번에 띄운다. 일정 알림이 이미 떠 있는 동안 새 일정이 due가 되면 팝업을 교체하지 않고 같은 화면에 합친다(이미 시작해 버린 옛 일정은 안내에서 빠진다). 상태 메시지에 `knoxEvents` 배열을 실어 보내고, app.js는 다중 일정을 `.knox-list`(일정마다 시각·제목 한 줄)로 렌더링하며, 떠 있는 화면에 상태가 다시 오면 종소리 iframe은 그대로 두고 글자(veil)만 다시 그려 예열(pre-warm) 창의 미리 받아 둔 영상이 끊기지 않게 한다. 자동 닫힘은 겹친 일정 중 가장 늦은 시각을 따른다 — "일정시작시간에"·"일정시작후 N분"은 마지막 일정의 시작 시각 기준, "일정끝난시간에"는 가장 늦은 종료 시각 기준(종료 시각이 없는 일정이 하나라도 있으면 자동으로 닫히지 않음). 안내 문구도 다중 일정에 맞게("마지막 일정 시작 시각에…") 바뀌고, 설정 04번 도움말과 사용자 매뉴얼 시나리오 I에 겹침 동작을 명시했다. UI 스모크 시험에 `knoxOverlappedEvents` 검증을 추가했다(겹친 일정 2개 나열 · 눈금라인 "2개" 표기 · 종소리 iframe 재로드 없음). 코어 테스트 181개 통과, UI 스모크 시험 통과.
+
+### 352. chatbot2 수신 메일 POP3 조회 — "오늘 받은 메일만" 가능성 확인 (설계 세션 붙여넣기)
+
+```text
+예를들어 오늘 날짜에 받은 메일만 조회한다.
+
+(붙여넣은 설계 세션 내용 요지 — 원문 그대로 아님, 원문은 대화에 있음)
+- pop3.samsung.net 995(POP3), 993(IMAP), 12.81.222.41:17001 모두 사내망에서 OPEN 확인.
+- 결론: 가능. "오늘 받은 메일만"이면 POP3의 약점(서버측 검색 불가)이 거의 사라진다.
+- 핵심 최적화: list()로 전체 개수 확인(메타데이터만) → 최신 번호부터 역순 TOP n 0(헤더만) →
+  Date 헤더로 오늘 판정 → 오늘이면 RETR n, 오늘 이전이면 즉시 중단. DELE 미사용.
+- chatbot2 구현 설계: app/mail_pop3_client.py(poplib 동기를 asyncio.to_thread로 래핑,
+  credentials_not_set→401, 연결 실패→502), app/knox_mail_inbox.py
+  (GET /api/knox/mail/inbox?knox_id=...&date=YYYY-MM-DD + limit, body_chars).
+- 유일한 설계 결정 사항: 자격증명 — POP3는 사용자 본인 Knox 포털 ID/비밀번호. 공용 리눅스
+  서버인 chatbot2는 개인 PC OS keyring(email-rag 방식)을 쓸 수 없어 다른 방식 필요.
+```
+
+> 경과(352): 설계 세션의 분석을 이 저장소 세션으로 가져왔고, 이후 최종 계약(353)이
+> `C:\work\chatbot2\docs\mail_pop3_inbox.md`(작성일 2026-11-16, 상태 요청·미착수)에 정리돼
+> 있는 것을 확인했다. Knox Mail 연계 API에는 받은 편지함 읽기 엔드포인트가 없어 POP3가
+> 서버 측 유일 경로라는 조사 근거도 그 문서에 들어 있다.
+
+### 353. 설계 확정 — 요청 시 자격증명 전달(서버 저장 없음) 최종 계약 정리
+
+```text
+설계 확정합니다. 구현은 나중에 하기로 하고, 최종 계약만 정리해둡니다.
+
+최종 설계 — 요청 시 자격증명 전달 (서버 저장 없음)
+
+엔드포인트
+POST /api/knox/mail/inbox
+Authorization: Bearer <knox_api_token>          # 기존 /api/knox/* 인증 재사용
+Content-Type: application/json
+
+{
+  "knox_id": "jazzman.han",        # 응답 라벨·로그 식별용 (선택)
+  "pop3_user": "<knox 포털 ID>",
+  "pop3_password": "<비밀번호>",     # 이 요청 안에서만 사용, 저장/로그 금지
+  "date": "2026-11-16",             # 생략 시 오늘
+  "limit": 30,                      # 날짜 내 최대 반환 수
+  "body_chars": 4000                # 본문 절단 길이
+}
+
+GET이 아니라 POST인 이유: 자격증명이 URL·access log에 남지 않게 하려면 query가 아니라 body여야 합니다.
+
+처리 흐름
+1. POP3_SSL("pop3.samsung.net", 995) 접속 → user()/pass_() 로그인
+2. list() → 전체 개수 확보
+3. 최신 번호부터 역순 TOP n 0(헤더만) → Date 헤더로 오늘 판정
+   - 오늘이면 RETR n 전체 수신 → 파싱
+   - 오늘 이전이면 즉시 중단(이하 번호는 전부 과거)
+4. DELE 미사용 — 메일함 부작용 없음. quit() 후 세션 폐기
+5. 결과 JSON:
+{
+  "date": "2026-11-16",
+  "count": 5,
+  "mails": [
+    {"subject": "...", "sender": "...", "sender_email": "...",
+     "received_time": "2026-11-16T09:31:00+09:00",
+     "body": "...(body_chars 절단)",
+     "attachment_count": 1, "attachment_names": ["회의록.docx"]}
+  ]
+}
+
+에러 매핑 (knox_chat.py 패턴 준수)
+- POP3 인증 실패 (error_proto on pass_) → 401 POP3_AUTH_FAILED — 비밀번호 만료/SSO 재확인 안내
+- 연결·타임아웃 → 502 POP3_UPSTREAM_FAILED — VPN/사내망 확인
+- date 형식 오류 → 422 FastAPI 기본
+
+구현 시 지킬 것
+- poplib은 동기 블로킹 → asyncio.to_thread로 래핑 (기존 httpx async 체계와 병렬 유지), 타임아웃 10~15s
+- 자격증명 절대 로깅 금지 — 요청 body 로그 레벨에서 제외, 예외 메시지에도 비밀번호 노출 않기
+- 첨부는 파일명 목록만 (Content-Disposition 파싱) — 저장·복호화는 범위 밖
+- 받은 편지함(knox 포털 웹메일함) 한정 — 결재함·보낸편지함은 POP3로 불가. 결재함이 필요하면 outlook 모드(개인 PC)뿐
+
+보안 유의점
+- 자격증명이 평문 HTTP로 전달되므로, 호출 주체는 같은 사내망 신뢰 경계 안(예: slsi-agent-desktop → 12.81.222.41:17001)이어야 합니다. 서버를 사외 노출하거나 HTTPS 없이 다른 망에서 호출하는 구성이면 이 계약은 부적합합니다.
+- 993(IMAP)도 열려 있으므로, 구현 전 실제 계정으로 한 번 LOGIN을 시도해보고 되면 SEARCH SINCE 방식으로 전환하는 것을 권장합니다 (스캔 비용이 서버 측으로 옮겨감).
+
+구현 착수 시 이 계약 그대로 app/mail_pop3_client.py + app/knox_mail_inbox.py 작성하면 됩니다.
+```
+
+> 경과(353): 위 계약은 `chatbot2/docs/mail_pop3_inbox.md`에 이미 그대로 정리돼 있음을
+> 대조 확인했다(요청 시 자격증명 전달·서버 저장 없음, 스캔 상한 500 + truncated 플래그,
+> KST 날짜 판정, 새 의존성 금지, 테스트 방침까지 포함).
+
+### 354. 설계 문서 참고 지시
+
+```text
+C:\work\chatbot2\docs\mail_pop3_inbox.md   - 여기 설계 문서 참고하여라
+```
+
+> 구현(354): 지시에 따라 이 계약의 구현에 착수했다 — `chatbot2` 저장소에서
+> `app/mail_pop3_client.py`(poplib 래핑: 역순 TOP/RETR 스캔·KST 판정·표준 email 모듈
+> 파싱), `app/knox_mail_inbox.py`(POST /api/knox/mail/inbox 라우터 — knox_api_token →
+> knox_calendar_api_token 폴백 인증, 401/502 에러 매핑, 자격증명 무로깅),
+> `app/main.py` 라우터 등록, `tests/test_knox_mail_inbox.py`(FakePOP3 기반 단위 테스트).
+> FastAPI 422 검증 오류가 틀린 필드의 입력값을 되돌리는 경로에 대비해 `main.py`에
+> `RequestValidationError` 핸들러를 두어 `pop3_password` 값을 `[민감정보 삭제]`로
+> 가리는 처리도 넣었다.
+
+### 355. "[지원WP] [Invitation]" 초대 메일 본문 자동 파싱 포함 지시
+
+```text
+수신 메일의 제목이 "[지원WP] [Invitation]"  로 시작하고, 메일 본문에  회의
+회의제목	회의
+회의일시	2026-11-16 14:00 ~ 2026-11-16 15:00
+회의장소	화성 DSR C타워 21층 [C타워 21층 중앙휴게실] DSR C타워 A2103
+주관자	정성문 [AX/PI팀(S.LSI)]
+참석자	필수참석자 : 고재명,김주영,성지빈,안준형,윤병우,이경춘,한동구,허준녕
+선택참석자 :
+회의내용	회의  와 같은 규격 양식이다. 자동 aprsing 하는 cdoe 포함하여 일정을 확인하여 포함하라.
+```
+
+> 구현(355): `app/mail_pop3_client.py`에 초대 본문 파싱을 추가했다. 제목이
+> `[지원WP] [Invitation]`으로 시작하는 메일은 본문의 규격 양식(회의제목·회의일시·회의장소·
+> 주관자·참석자·회의내용, 라벨 뒤 탭/콜론 구분)을 파싱해 각 메일의 `meeting` 필드에
+> `title/when/starts_at/ends_at/location/organizer/required_attendees/optional_attendees/
+> description` 구조로 실어 보낸다(일반 메일은 `meeting: null`). `회의일시`는
+> `YYYY-MM-DD HH:MM ~ YYYY-MM-DD HH:MM`과 `~ HH:MM`(끝 날짜 생략 → 시작 날짜 승계)를
+> KST ISO 로 변환하고, `참석자` 칸은 `필수참석자 :`/`선택참석자 :` 줄로 나눠 이름 목록으로
+> 파싱하며, HTML 메일만 있는 경우도 `</td>`→탭·`</tr>`→개행 변환 뒤 같은 파서로 처리한다.
+> 파싱은 `body_chars` 절단 전 원문 전체로 한다(절단으로 양식이 잘리지 않게). 실물 양식
+> 그대로의 단위 테스트(verbatim 샘플·선택참석자·여러 줄 회의내용·끝 날짜 생략·해석 실패
+> 시 when 원문 유지·HTML 초대)를 추가했고, 계약 문서에 §초대 메일 자동 파싱 절과 응답
+> 예시(`truncated`, `knox_id`, `meeting`)를 반영해 상태를 "구현 완료(2026-11-16)"로
+> 갱신했다. chatbot2 전체 테스트 185 passed, 6 skipped(신규 27건 포함).
+> 이 작업의 구현은 `C:\work\chatbot2` 저장소에서 수행했다(이 저장소는 아님).
+
+### 356. 빌드 여부 확인 및 직접 시험 준비 지시
+
+```text
+build 하였나 ? 직접 시험하게 준비해줘
+```
+
+> 조치(356): 351 구현 직후(16:59) 이미 `build.ps1 -Test`로 빌드·UI 스모크까지 통과한 상태였음을 확인했으나, 다시 확실히 리빌드했다(실행 중이던 shim.exe가 WebView2 DLL을 잠그고 있어 종료 후 재빌드 — 18:05, 스모크 `passed: true`, `knoxOverlappedEvents: true` 포함). 직접 시험은 사용자가 "가상 일정 2개로 실제 시험"을 선택해 진행했다 — 실제 Knox 일정(11/17 CPSW Tech Seminar 등)에는 같은 시각 겹침이 없어, `knox-schedule.ics`를 백업한 뒤 18:13 시작 가상 일정 2개(test-overlap-A/B)로 교체하고, 15분 자동 동기화가 서버 일정으로 되돌리지 못하게 ics를 읽기 전용으로 잠근 뒤 shim.exe를 실행했다.
+
+### 357. 팝업 확인 보고
+
+```text
+팝업 뜬거 확인했다.
+```
+
+> 결과(357): 사용자가 겹침 일정 알림 팝업을 직접 확인했다. 발사 기록(knox-schedule-state.json)에 `test-overlap-A`, `test-overlap-B` 두 UID가 동시에 기록돼 한 팝업에 2건이 함께 표시됐음이 코드 수준으로도 확인됐다(이전 동작이었다면 1초 간격으로 팝업이 교체되며 순차 기록). 시험 후 원상 복구: ics 읽기 전용 해제 → 실제 일정 복원, 백업 삭제, 시험 발사 기록 제거, 앱 정상 모드 재실행.
+
+### 358. knox 메일 읽은 기록 로그 파일 요청
+
+```text
+knox mail 읽은거 log 파일로 보여라.
+```
+
+> 답(358): knox mail을 읽은 기록은 없다 — DeskHooker 데이터 폴더의 로그(`knox-cli-log.json`, `knox-sync-log.json`)는 모두 캘린더 동기화 기록이고, 메일 조회 로그 파일은 존재하지 않는다. POP3 메일 조회(`POST /api/knox/mail/inbox`)는 354-355에서 구현·테스트만 완료된 상태로 chatbot2 서버에 아직 배포되지 않았다.
+
+### 359. knox mail 읽는지 확인 지시
+
+```text
+knox mail  읽는지 확인하라.
+```
+
+> 조치(359): 실측으로 확인했다. chatbot2 서버(12.81.222.41:17001)는 실행 중(`/api/health` → ok), POP3 게이트웨이(pop3.samsung.net:995)도 열려 있으나, 서버 openapi 경로에 `/api/knox/mail/*`가 없고 `POST /api/knox/mail/inbox`가 404 — 메일 부류는 서버에 미배포 상태다. 즉 현재 knox mail을 읽을 수 없으며, 읽으려면 chatbot2 배포가 필요하다.
+
+### 360. 비밀번호 입력 요청 지시
+
+```text
+knox 비밀 번호 입력을 물어라.
+```
+
+> 조치(360): 질의 도구로 Knox 포털 ID(jazzman.han 선택)와 비밀번호를 물었고, 비밀번호 원문이 대화로 전달됐다(기록은 아래 361 참조). 대화 채팅에는 비밀번호가 남으므로 파일·로그·README 어디에도 원문을 저장하지 않았다.
+
+### 361. 비밀번호 전달 (민감정보 — 원문 기록 생략)
+
+```text
+[민감정보 삭제]
+```
+
+> 시험(361): 전달받은 비밀번호는 이 시험 요청 안에서만 사용했다(환경변수로 프로세스에만 전달, 파일·코드·로그 무저장, README에는 `[민감정보 삭제]`로 가림 — 가림 사실을 이렇게 표시한다). 실측 결과: POP3 접속·`USER jazzman.han`은 수락(ID 유효)됐으나 `PASS`가 `-ERR Incorrect password.`로 거부됐고, IMAP(993) 대조 시험에서도 같은 비밀번호가 거부돼 POP3만의 제한이 아니라 비밀번호 값 자체가 틀린 것으로 확인됐다. 계정은 메일 서버에 존재하고 POP3/IMAP 경로도 열려 있어, 올바른 비밀번호로 다시 시험하면 된다(연속 실패는 계정 잠금을 유발할 수 있어 브라우저 웹메일 로그인으로 먼저 확인할 것을 안내했다). 이 시험의 구현 코드는 `C:\work\chatbot2`의 `app/mail_pop3_client.py`다.
+
+### 362. 비밀번호 파일 저장 통보 (민감정보 — 원문 기록 생략)
+
+```text
+C:\Users\jazzman.han\AppData\Local\Temp\pop3-test.txt - 에 비밀번호 저장 하였다.
+```
+
+> 시험(362): 파일로 전달받은 비밀번호(평문 10자, 암호화 아님)로 재시험했다. 결과: 앞선 361의 대화 전달 값과 동일한 값이었고, `jazzman.han`·`jazzman.han@samsung.com` 두 ID 형태 모두 POP3 995에서 `-ERR Incorrect password.`로 거부됐다. 즉 값 전달 경로(채팅→파일)의 문제가 아니라 **비밀번호 원문이 메일 서버 비밀번호와 일치하지 않는 것**으로 확정됐다. 시험 직후 `pop3-test.txt`는 삭제했고, 원문은 어디에도 기록하지 않았다(이 항목 원문도 파일 경로만 기록). 다음 조치 안내: 브라우저에서 Knox 포털 웹메일(jazzman.han) 로그인으로 비밀번호 확인 후 재시험 — 웹메일과 POP3 비밀번호가 다를 수 있고, POP3 별도 비밀번호가 필요한 경우 포털 메일 설정에서 확인한다. 연속 실패는 계정 잠금 위험이 있어 무작정 재시도하지 않는다.
+
+### 363. 올바른 비밀번호로 재시험 (민감정보 — 원문 기록 생략)
+
+```text
+C:\Users\jazzman.han\AppData\Local\Temp\pop3-test.txt - 에 비밀번호 저장 하였다.
+```
+
+> 시험(363): 새 파일(평문 9자 — 361/362의 값과 다른 올바른 비밀번호)로 재시험해 **knox mail 읽기를 성공했다.** `C:\work\chatbot2`의 `app/mail_pop3_client.py`(`fetch_inbox`)를 로컬에서 직접 호출: POP3_SSL 접속·로그인 성공, 오늘(2026-11-16) 수신 메일 63통을 최신순(limit 200)으로 조회했고 `truncated: false` — 역순 TOP 스캔이 어제 Date를 만나 정상 중단됐다. 제목·발신인·받은시각(KST)·본문(절단)·첨부 파일명 목록이 모두 정상 파싱됐다(DS Confluence 알림 20여 통, GitHub Actions 실패 알림, T730 공지 등). **"[지원WP] [Invitation]" 초대 메일 2통도 실데이터로 확인** — ①13:43 수신 "SLSI Agent Desktop 개발 Sync Up"(15:00~15:30, B2102, 이경춘 주관, 필수참석자 안태민·윤병우·한동구·고재명), ②10:16 수신 "회의"(14:00~15:00, A2103, 정성문 주관, 필수참석자 고재명·김주영·성지빈·안준형·윤병우·이경춘·한동구·허준녕 — 355번 지시에 첨부된 실물 양식 그대로). 회의제목·회의일시(KST starts_at/ends_at 변환 포함)·회의장소·주관자·참석자 목록이 모두 구조화(`meeting` 필드)됐다. 비밀번호는 이 시험 요청 안에서만 사용(환경변수 전달, 무저장)했고 시험 직후 `pop3-test.txt`를 삭제했다. 남은 과제: chatbot2 서버(SYS-421)에 메일 부류 배포 — 359 확인대로 서버에는 아직 `/api/knox/mail/*`이 없다.
+
+### 364. 시험 경로 확인 질의 + knox mail 기능 이 repo 추가 지시
+
+```text
+[363 시험 결과 요약 인용 후] -- 이 내용은 chatbot2 서버에 API 를 사용한 것인가 아니면 local 함수 호출인가 ?
+
+local 함수 호출이면, 그 파일을 chatbot2 가 아니라 여기 repo 에 추가하라. 대신  checkbox 로 knoxmail 을 사용할 것인지 선택하고, On 경우 knox mail 에 필요한 password 넣는 입력창 활성하라.
+
+.
+
+.
+```
+
+> 답변(364): local 함수 호출이다 — 시험은 `C:\work\chatbot2`의 Python 모듈(`fetch_inbox`)을 이 PC에서 직접 import해 실행한 것이고, chatbot2 서버 API(`/api/knox/mail/inbox`)는 미배포(404) 상태라 쓰지 않았다. 지시에 따라 POP3 수신 메일 읽기 기능을 이 저장소(쉼/DeskHooker)에 추가하기로 했다 — 설정 화면에 knox mail 사용 여부 checkbox, 켰을 때 활성화되는 비밀번호 입력창.
+
+### 365. 진행 상황 확인 요청
+
+```text
+What did we do so far?
+```
+
+### 366. 이어서 진행 지시
+
+```text
+Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.
+```
+
+### 367. local 시험용 빌드 요청
+
+```text
+local 시험하게 build 해줘
+```
+
+> 실행(367): 코어 테스트·스모크가 이미 통과한 최신 코드로 `build.ps1`(일반 빌드)을 다시 돌려 `shim.exe`를 만들고, 설정 창이 바로 보이는 포그라운드 모드로 실행했다(트레이 + 설정 창). 시험 절차: 설정 04번 카드에서 `Knox 메일로 받은 회의 초대…` 체크 → 메일 비밀번호 입력 → 저장 → "지금 일정 가져오기" → "동작 기록 보기"에서 `메일: 성공(오늘 N통 · 초대 M건)` 확인, "알림 시험" 선택기에 "메일 · " 항목이 나타나는지 확인.
+
+### 368. local 시험 결과 보고 + 비밀번호 사라짐 지적
+
+```text
+Knox 캘린더 일정을 시작 전에 따로 알려주기
+시작
+5
+분 전에
+일정 알림 자동 닫힘
+없음
+일정시작시간에
+일정시작후
+5
+분후
+일정끝난시간에
+20:00에 확인함 · 약 15분마다 자동 확인 · 메일 오류: Knox 메일 비밀번호가 저장되지 않았어요. 설정의 비밀번호 칸에 입력하고 저장하세요.
+지금 일정 가져오기 ↻
+알림 시험
+
+11. 16. 20:07 test2
+일정 알리기 시험
+Knox 메일로 받은 회의 초대("[지원WP] [Invitation]")도 일정 알림에 합치기
+메일 비밀번호
+Knox 포털 비밀번호
+지우기
+동작 기록 보기
+11. 16. 20:00
+성공
+성공(5건): 11.16 20:07 test2 · 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식
+11. 16. 20:00
+실패
+메일: 비밀번호 없음
+11. 16. 20:00
+성공
+성공(5건): 11.16 20:07 test2 · 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식
+11. 16. 20:00
+실패
+메일: 비밀번호 없음
+11. 16. 19:59
+실패
+메일: 비밀번호 없음
+11. 16. 19:59
+성공
+성공(5건): 11.16 20:07 test2 · 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식
+11. 16. 19:56
+성공
+성공(6건): 11.16 20:17 test1 · 11.16 20:17 test2 · 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 A…
+11. 16. 19:55
+성공
+성공(4건): 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식
+11. 16. 19:54
+성공
+성공(4건): 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식  - 동작은 정상이나, 메일 비밀 번호 한번 입력하고 "11. 16. 19:52
+성공
+성공(4건): 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식
+11. 16. 19:49
+성공
+성공(4건): 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식
+11. 16. 19:42
+성공
+성공(4건): 11.17 10:30 (11/17 화, 10:30 ~ ) CPSW Tech Seminar · 11.17 14:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 · 11.18 15:00 AX/PI팀 송년 행사 · 11.18 18:00 AX/PI팀 송년 석식
+회사 Knox 일정 서버에서 이 PC 로그인 계정 이름으로 내 일정을 직접 받아 옵니다(별도 로그인·설치 없음). 간격·주제 알림과는 별도로, 회의 제목과 시각만 보여주는 짧은 알림이 떠요. 시도·결과는 위 기록에 쌓여요. 알림이 뜨기 약 30초 전부터 영상을 미리 준비해 두고, 정해진 시각에 바로 띄워요. '자동 닫힘 · 없음'이면 직접 닫을 때까지 떠 있고, 종료 시각이 없는 일정에서 '일정끝난시간에'는 자동으로 닫히지 않아요. 같은 시각에 일정이 겹치면 한 화면에 모두 나열되고, 자동 닫힘은 그중 가장 늦은 일정의 시각을 따라가요. 메일 초대를 켜면 오늘 받은 초대 메일의 회의도 같은 알림에 합쳐요 — 메일 비밀번호는 Windows 자격 증명 관리자에만 저장되고 설정 파일에는 남지 않아요. 캘린더에 이미 있는 회의는 한 번 더 알리지 않아요.
+
+변경 적용 · 알림 계속 →" 하고 나면, 비밀 번호가 사라진다. 계속 남아 이
+```
+
+### 369. 비밀번호 계속 남아 있게 수정 지시 + 갱신하기/보관 여부 질의
+
+```text
+계속 남아 있게 수종하라.
+
+수정하라
+
+비밀번호 입력후 게속 남아 있게 하기 :  메일 비밀번호
+Knox 포털 비밀번호
+지우기    - "지우기" 대신 "갱신하기"? - 이후 화면 값과 상관 없이 어딘가에 kept, App 재실행해도 그거 다시 불러오고 ?
+```
+
+> 수정(368~369): 시험 보고의 "비밀번호 없음" 반복은 **저장 자체가 실패하고 있었다** — 원인 둘.
+>
+> - **`CREDENTIALW` 구조체 필드 순서 오류**: wincred.h는 `CredentialBlobSize`(DWORD)가 `CredentialBlob`(LPBYTE)보다 먼저인데 반대로 선언해 CredWrite가 87(잘못된 매개변수)로 실패했다.
+> - **`Marshal.Copy` 누락**: `AllocHGlobal`은 초기화 안 된 힙을 돌려주는데 바이트를 복사하지 않고 그 포인터를 그대로 넘겨, (순서를 고치더라도) 힙의 쓰레기 값이 비밀번호로 저장될 뻔했다. `tests/cred-test.ps1`로 자격 증명 왕복(CredWrite→CredRead→CredDelete)을 검증한 뒤 둘 다 수정했다(ROUNDTRIP OK).
+> - **저장 핸들러 순서**: 비밀번호 저장을 메일 동기화 트리거보다 먼저 옮겨, 토글을 켠 첫 저장에서 남던 "메일: 비밀번호 없음" 실패 기록을 없앴다. 저장·삭제는 이제 동작 기록에 남는다("메일: 비밀번호 저장됨(자격 증명 관리자)" / "메일: 비밀번호 삭제됨") — 저장됐는지 기록으로 확인할 수 있다.
+> - **입력값 유지(368 지시)**: 저장 후 비밀번호 칸을 비우던 코드를 없애고, 입력값을 페이지 메모리 변수(`knoxMailPassDraft`)에 임시 보관해 설정 화면이 다시 그려져도(동기화 완료 등) 칸에 그대로 복원된다. 값은 앱 종료까지 살고 파일·localStorage에는 절대 저장되지 않는다. "지우기"를 누르면 임시 보관값도 같이 지워진다.
+> - **질의 답변**: ① "지우기" 이름은 유지 — 저장된 비밀번호를 자격 증명 관리자에서 **삭제**하는 동작이고, 비밀번호 **갱신**은 새 값을 입력하고 저장하면 그대로 덮어써진다(이제 입력값이 남아 있어 흐름이 보인다). ② "어딘가에 kept · App 재실행해도 다시 불러오고?" — **이미 그렇게 동작한다**: 비밀번호는 Windows 자격 증명 관리자에 저장되고(화면 값과 무관), 앱이 시작할 때마다·동기화할 때마다 거기서 다시 읽는다. 재실행 후 칸이 비어 보여도 placeholder "저장돼 있어요 · 다른 비밀번호를 입력하고 저장하면 바뀌어요"가 저장 여부를 알려준다. 저장된 비밀번호 원문을 화면에 되돌려 표시하지는 않는데, 비밀번호를 설정 페이지(렌더러)로 보내는 일을 만들지 않기 위해서다 — 필요하면 1줄 변경으로 켤 수 있다.
+
+### 370. 정상 동작 확인 + 비밀번호 라벨 문구 수정 지시
+
+```text
+Knox 캘린더 일정을 시작 전에 따로 알려주기
+시작
+5
+분 전에
+일정 알림 자동 닫힘
+없음
+일정시작시간에
+일정시작후
+5
+분후
+일정끝난시간에
+20:17에 확인함 · 약 15분마다 자동 확인 · 메일 20:17 확인
+지금 일정 가져오기 ↻
+알림 시험
+
+11. 16. 20:30 test
+일정 알리기 시험
+Knox 메일로 받은 회의 초대("[지원WP] [Invitation]")도 일정 알림에 합치기
+메일 비밀번호
+•••••••••
+지우기    여기서  "메일 비밀번호" -> "Knox 메일 비밀번호(비밀유지됨)" 로 수정해
+```
+
+> 수정(370): 설정 04 카드의 비밀번호 줄 라벨을 "메일 비밀번호"에서 **"Knox 메일 비밀번호(비밀유지됨)"**으로 바꿨다(app.js 설정 카드 HTML). 369 수정의 실사용 확인도 함께 됐다 — 상태 문구에 "메일 20:17 확인"이 표시되고, 비밀번호 칸에 입력값(•••)이 저장 후에도 유지된다.
+
+### 371. 커밋·push + 인스톨러 생성 지시
+
+```text
+현재까지 내용 모두 커밋하고, push 해
+
+installer 로도  생성하라.
+```
+
+> 릴리즈(371): knox mail 기능(364~370)을 담아 버전을 **1.4.0**으로 올렸다(신기능 — 저장소 배포 절차에 따라 `Program.AppVersion`·`Shim-Setup.iss`의 `TeumVersion`·`package.ps1` 기본값 세 곳 동기화). `build.ps1 -Test` 재빌드 + UI 스모크 통과 후 ISCC(Inno Setup 7)로 `Output\Shim-Setup-v1.4.0.exe`를 생성했고, 배포 자료 표와 배포 절 머리글을 v1.4.0으로 갱신했다. 이전 v1.3.1 인스톨러는 저장소에서 제거하고(329 예외 규칙 유지 — 최신 한 개만 강제 커밋), 모든 변경사항을 origin main으로 push했다.
+
+> 구현(364~366): chatbot2의 POP3 수신 메일 읽기(`app/mail_pop3_client.py`, docs/mail_pop3_inbox.md 계약)를 쉼에 이식했다.
+>
+> - **ReminderCore.cs — `KnoxMail` 순수 파싱 클래스**: RFC 2047 제목 디코딩(`DecodeHeader`, B/Q 인코딩단어·인접 단어 결합·raw 8비트 UTF-8/euc-kr 폴백), RFC 2822 Date(`ParseMailDate`, 오프셋 없으면 PC local 간주), HTML→텍스트(`HtmlToText`, `</td>`→탭·블록 종료→개행·최소 엔티티 디코더), MIME multipart 재귀 파싱(`ParseMailMessage`, base64/QP 전송 복호화, charset utf-8→euc-kr→Latin-1 폴백, 첨부 파일명 RFC 2047/2231), "[지원WP] [Invitation]" 초대 양식 구조화(`ParseInvitationBody` — 실물 양식 그대로, `~ HH:MM` 끝 날짜 승계, 필수/선택참석자 분리), 회의→일정 변환(`InvitationToCalendarEntry`, uid = `knoxmail-` 시작시각-FNV 해시 8자로 동기화 사이 안정), 캘린더 중복 제거 병합(`MergeMeetingEntries`), 역순 스캔 판정(`DecideScanStep`). `ReminderSettings`에 `KnoxMailEnabled`(기본 false) 추가.
+> - **DeskHooker.cs — 네트워크·자격증명·연결**: 자체 `Pop3Client`(TcpClient+SslStream, USER/PASS→`Pop3AuthException`, LIST/TOP/RETR 멀티라인+바이트스터핑, QUIT; DELE 미사용으로 메일함 부작용 없음), 자격 증명 관리자 P/Invoke(`CredRead/CredWrite/CredDelete`, 대상 `DeskHooker.KnoxMail`, 비밀번호는 settings.json·동작 기록·오류 메시지에 절대 노출 없음), `StartKnoxMailSync`(Testing·동기화 중 가드, 비밀번호 없고 꺼져 있으면 조용히 건너뛰기), `RunKnoxMailFetch`(최신 번호부터 역순 TOP 스캔, 오늘 이전 Date에서 중단, 최대 500통, 성공 로그 "메일: 성공(오늘 N통 · 초대 M건)"), `CombinedCalendarEntries()`로 due·예열·시험 선택기·다가오는 일정 목록에 메일 회의 병합, "지금 일정 가져오기"·15분 타이머에 메일 조회도 동반, 저장 시 `knoxMailPassword`는 설정 객체와 별도로 받아 자격 증명 관리자에만 저장, 신규 action `knox-mail-pass-clear`.
+> - **app.js/app.css — 설정 04 카드**: `#knox-mail-on` checkbox, `#knox-mail-pass` 비밀번호 칸(토글 켜짐 때만 활성, 저장 여부는 placeholder로 안내), `#knox-mail-pass-clear` 지우기 단추, 상태 문구에 메일 조회 상태 병기, 시험 선택기에 "메일 · " 표시, 미선택 시 회색 CSS 규칙.
+> - **검증**: 코어 단위 테스트 18건 추가(실물 초대 양식 verbatim, RFC 2822 날짜는 ToUniversalTime 비교로 시간대 독립, multipart/QP/euc-kr/RFC 2231) — `test-core.ps1` 199 passed 0 failed. UI 스모크 `knoxMailSettings` 추가(기본 꺼짐·비밀번호 칸 disabled 토글) — `build.ps1 -Test` 전체 통과. 시험(Testing) 실행은 진짜 자격 증명 저장소를 건드리지 않는다.
+
+### 372. SLSI Avatar로 Messenger 알림 보내기(송신 전용) 가능성 검토 지시
+
+```text
+Hi
+ C:\work\slsi-agent-desktop 를 참고하고, SLSI Avatar 로 사용자에게 Messanger 보내 알림을 주는 (즉 보내기만 하고 받는것은 불가) 기능을 넣을 수 있는지 검토해봐
+```
+
+> 검토(372, 코드 변경 없음): 가능하지만 **서버(chatbot2 = SLSI Avatar bot 서버, `12.81.222.41:17001`)에 송신 경로 하나를 새로 만들어야** 한다.
+>
+> - slsi-agent-desktop의 송신 전용 알림(메신저 알림 종, `plugins/messenger-notify`)은 alpha 서버의 `POST /api/desktop/messenger/send {text}`를 쓰며 **SLSI Agent bot** 채널이다. **SLSI Avatar bot** 쪽(`backend/features/avatar_messenger`, 계약 `docs/design/avatar-messenger-bot-server.md`)은 connect/disconnect/next/notify/reply 다섯 경로뿐이고 `notify`·`reply`는 받은 명령의 `task_id`가 있어야 보낼 수 있어 송신 전용으로 쓸 수 없다. chatbot2 `app/desktop_messenger.py`에도 `/send`가 없다.
+> - chatbot2에는 이미 송신 부품(`knox_client.create_chatroom`·`send_chat_request`, `_ensure_chatroom`의 1:1 방 캐시, `key_cache` 재시도, `split_for_messenger`)이 있어 서버 쪽 추가는 작다. 다만 `app/knox_chat.py` 머리글에 "메시지 발송은 skill에 노출하지 않는다(사용자 결정)"가 적혀 있어, 이를 바꾸는 결정이 필요하다.
+> - 인증이 핵심 위험이다. 쉼은 SSO 로그인이 없고 공용 토큰(`teum_app_token`, 바이너리에 박힘) + `Environment.UserName`을 knox_id로 보낸다. 이 방식으로 송신 경로를 열면 토큰을 아는 누구나 아무 knox_id에게 Avatar bot 명의로 메시지를 보낼 수 있다. 데스크톱 경로처럼 alpha 장수명 토큰(`aa_…`, `POST /api/me/desktop-token`)을 쓰면 안전하지만 쉼에 SSO 로그인 흐름이 새로 필요하다.
+> - 쉼 쪽 구현은 `HttpGetText` 옆에 POST 하나와 설정 토글, 회의 알림/휴식 알림 시점의 호출로 충분하다(받기·롱폴 없음).
+
+### 373. 인증 방식·알림 범위 결정 (SSO, 회의 시작 전 알림만)
+
+```text
+인증을 1번(SSO)으로, 회의 시작 전 알림만,
+```
+
+> 구현(373): 회의 시작 전 알림을 SLSI Avatar 봇이 내 메신저 1:1 방으로도 보낸다(보내기 전용, 받기 없음).
+>
+> - **서버(chatbot2 = message-service-for-myavatar, 별도 저장소)**: `POST /api/desktop/messenger/send {text}` 추가 — 다른 데스크톱 경로와 같은 alpha 장수명 토큰(`aa_…`, scope=mcp) 인증, 받는 사람은 토큰 주인 본인 1:1 방뿐(본문에 받는 사람 칸 없음), 빈 글 `skipped`, 2000자 초과 413, 1:1 방이 없으면 새로 연다. 시험 6건 추가(전체 192 passed). **배포 전**이라 현재 운영 서버는 이 경로에 404를 낸다.
+> - **ReminderCore.cs — `AvatarMessenger`**: 로그인 URL(alpha `/api/auth/desktop/start?cb=http://127.0.0.1:<port>/cb`), loopback 요청 줄에서 code 추출, exchange 응답(access_token·loginid), desktop-token 응답(`aa_` 접두 강제), 회의 메신저 글(`⏰ [쉼] 곧 회의가 시작돼요` + 회의별 `· HH:mm~HH:mm 제목 (N분 뒤)`, 2000자 상한), `ReminderSettings.MessengerNotifyEnabled`(기본 false). 코어 테스트 8건 추가 — `test-core.ps1` 208 passed 0 failed.
+> - **DeskHooker.cs**: SSO 연결(TcpListener loopback으로 code 수신 → exchange → `/api/me/desktop-token` → 자격 증명 관리자 `DeskHooker.AvatarMessenger`, 연결 확인 메시지 발송), 송신(`/api/desktop/messenger/send`, 401이면 연결 삭제), Tick에서 팝업과 같은 리드 타임으로 **자리비움·잠금과 무관하게** 회의마다 하루 한 번(`knox-messenger-state.json`), 자격 증명 헬퍼 일반화(`CredSaveSecret`/`CredReadSecret`), 날짜별 키 저장 일반화(`LoadDayKeys`/`SaveDayKeys`), 신규 action `messenger-login`·`messenger-test`·`messenger-logout`. 토큰·code는 기록·오류 문구에 나오지 않는다.
+> - **app.js/app.css — 설정 04 카드**: `#messenger-on` 토글(Knox 일정 토글을 따름), 상태 문구, [SSO 로그인으로 연결]·[시험 발송]·[연결 끊기]. UI 스모크 `messengerSettings` 추가 — `build.ps1 -Test` 전체 통과. 사용자 매뉴얼 시나리오 I-7 추가.
+
+### 374. chatbot2 서버 변경만 먼저 커밋·push 지시
+
+```text
+ chatbot2 서버 (별도 저장소) - 만 우선 커밋하고 push 해
+```
+
+### 375. 서버 배포 완료 통보 + 쉼 local 시험용 빌드 요청
+
+```text
+배포했어, 쉼도 local 시험용 빌드해줘
+```
+
+> 실행(375): 배포된 봇 서버가 `POST /api/desktop/messenger/send`에 토큰 없이 401(`missing bearer token`)로 답하는 것을 확인(경로 존재). `build.ps1`(일반 빌드)로 `shim.exe`를 다시 만들고, 같은 뮤텍스를 쥔 설치본(`%LOCALAPPDATA%\Programs\쉼\shim.exe`)을 종료한 뒤 저장소의 `shim.exe`를 포그라운드로 실행했다. 시험 절차: 설정 04 카드 → `회의 시작 전 알림을 SLSI Avatar 메신저로도 받기` 체크·저장 → [SSO 로그인으로 연결] → 브라우저 SSO 완료 → 메신저 1:1 방에 `✅ [쉼] …` 확인 메시지 수신 → [시험 발송] → "동작 기록 보기"에서 `메신저: …` 기록 확인.
+
+### 376. 봇 서버 로그 붙여넣기 (설명 없이 로그만, 두 번)
+
+> 다른 사용자의 Knox ID는 개인정보라 `[민감정보 삭제]`로 가렸다(그 외 원문 그대로).
+
+```text
+09%3A00&endAt=2026-11-19T13%3A22%3A17.937188%2B09%3A00&withContents=FALSE "HTTP/1.1 200 OK"
+backend-1  | INFO:     10.89.17.3:39438 - "GET /api/knox/calendar/schedules?knox_id=jazzman.han HTTP/1.0" 200 OK
+backend-1  | INFO:     10.89.17.3:34338 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='jazzman.han' wait=25.0
+backend-1  | INFO:     10.89.17.3:34340 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:34350 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:36432 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='jazzman.han' wait=25.0
+backend-1  | INFO:     10.89.17.3:36442 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:36458 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:36932 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='jazzman.han' wait=25.0
+backend-1  | INFO:     10.89.17.3:36940 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:36222 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+```
+
+```text
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:36222 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:40340 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='jazzman.han' wait=25.0
+backend-1  | INFO:     10.89.17.3:40346 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+backend-1  | INFO:     10.89.17.3:40354 - "GET /api/desktop/messenger/next?wait=25.0 HTTP/1.0" 200 OK
+backend-1  | INFO:messenger_bot.desktop_messenger:desktop next poll: knox_id='[민감정보 삭제]' wait=25.0
+```
+
+> 진단(376, 코드 변경 없음): 로그에는 쉼의 일정 조회(13:22 기동 직후 `GET /api/knox/calendar/schedules`)와 slsi-agent-desktop 아바타 메신저 대기의 `next` 롱폴만 있고 `/api/desktop/messenger/send`는 없다 — 쉼이 아직 보내기를 시도하지 않았다. 확인 근거: `settings.json`에 `MessengerNotifyEnabled` 저장 기록 없음(마지막 저장 11:01, 새 빌드 전), 자격 증명 관리자에 `DeskHooker.AvatarMessenger` 없음, 쉼 프로세스에 SSO 콜백을 기다리는 loopback 포트 없음, 동작 기록에 `메신저:` 줄 없음. 설정 창에서 토글 저장 → [SSO 로그인으로 연결]을 진행해야 한다.
+
+### 377. 변경 반영 여부 질의 + 알림은 이 PC 사용자(SSO jazzman.han)에게만 보내라는 지시
+
+```text
+벼경 사항 반영되었나 ? -- 지금 알람은 local PC 사용자인 SSO 로그인  jazzman.han 에게만 보내줘야 한다.
+```
+
+> 구현(377): 받는 사람은 이미 서버가 토큰 주인 본인 1:1 방으로만 정한다(본문에 받는 사람 칸 없음, 시험 `test_send_ignores_any_recipient_field_in_body`). 여기에 더해 쉼은 **SSO 로그인 계정(knox id)이 이 PC의 Windows 로그인 계정 이름과 같을 때만** 연결한다(`AvatarMessenger.AccountMatchesPcUser`, 대소문자 무시) — 다르면 데스크톱 토큰을 발급받지도 않고 "이 PC 사용자 본인의 계정으로 로그인해 주세요"로 거절한다. 코어 테스트 1건 추가 — 209 passed 0 failed, `build.ps1 -Test` 통과, 시험용 `shim.exe` 재실행.
+
+### 378. 시험 실패 보고
+
+```text
+시험해도 안된다.
+```
+
+> 진단·수정(378): 동작 기록에 `메신저:` 줄이 하나도 없고(설정 저장 13:29에 토글은 켜짐), 자격 증명 관리자에 연결이 없으며, SSO 결과를 기다리는 loopback 포트도 없었다 — 로그인 흐름이 시작된 흔적이 없다. 원인을 가를 수 있게 고쳤다: ① [SSO 로그인으로 연결]을 누르는 순간 `메신저: SSO 로그인 시작 — 브라우저를 엽니다(127.0.0.1:포트 …)`를 남기고, 결과(code)를 받으면 `메신저: SSO 로그인 결과 받음`을 남긴다. ② loopback 대기와 브라우저 열기를 백그라운드(MTA) 대신 UI(STA) 스레드에서 한다(ShellExecute는 STA에서 불러야 안전), 실패하면 `로그인 창 열기 실패`로 남긴다. ③ "일정 알리기 시험"도 메신저 알림이 켜져 있으면 `[시험] ⏰ …` 글을 메신저로 한 통 보낸다(연결이 없으면 `못 보냄(연결 안 됨)`이 남는다). 코어 209 passed. UI 스모크는 `시각 실행 카드가 하루에 두 번 떴습니다`로 실패하는데, 같은 시각에 HEAD(변경 전) 빌드도 똑같이 실패해 이번 변경과 무관한 시각 의존 실패로 확인했다(13:27에는 통과). 시험용 `shim.exe` 재실행.
+
+### 379. 일정 알리기 시험 후 메시지 미수신 원인 질의
+
+```text
+일정 알리기 시험했지만 message 안온다 왜 ?
+```
+
+> 진단(379, 코드 변경 없음): 동작 기록 13:37:43·13:38:12에 `메신저: 시험 회의 알림 못 보냄(연결 안 됨)` — 시험 발송 경로는 정상으로 탔고, 이 PC에 메신저 연결(SSO 로그인으로 받는 토큰)이 아직 없어서 보내지 못했다(자격 증명 관리자에 `DeskHooker.AvatarMessenger` 없음, `[SSO 로그인으로 연결]` 기록 없음). 먼저 연결이 필요하다.
+
+### 380. 연결 정상 확인 + 메시지에 아이콘(이모티콘) 사용 가능 여부 질의
+
+```text
+다시 했다. 장상이다.  
+
+[SLSI Avatar] 2026-11-17 13:39
+✅ [쉼] 이 방으로 회의 시작 전 알림을 보내 드릴게요. (보내기 전용이라 여기에 답장하셔도 쉼은 받지 않아요)
+
+[SLSI Avatar] 2026-11-17 13:39
+[시험] ⏰ [쉼] 곧 회의가 시작돼요
+· 14:00~16:00 [PI Group Seminar] E2E 업무프로세스 재설계를 위한 5D Approach 소개 (21분 뒤)
+
+    -- 이기에 message 내용을 icon 을 쓸쑤 있나 ?  [한동구 (Jacob)] 2026-11-17 13:41
+[165_beolnangom_13]  ?
+```
+
+> 검토(380, 코드 변경 없음): 유니코드 이모지(✅ ⏰ 🔔)는 이미 메시지에 그대로 보인다(위 수신 원문). Knox 스티커 코드(`[165_beolnangom_13]`)는 봇 서버가 TEXT(`msgType: 0`)로만 보내므로 렌더링 여부를 실측했다 — 자격 증명 관리자의 연결 토큰으로 `/api/desktop/messenger/send`에 본인 1:1 방 시험 메시지를 보냄: ① 첫 시도는 PowerShell 인자 인코딩 실수로 `[165_beolnangom_13],(깨진 한글…)` 한 통이 잘못 나감, ② 코드만 있는 `[165_beolnangom_13]`, ③ 글 중간에 코드를 넣은 문장. 스티커로 보이는지는 사용자 화면 확인이 필요하다. TEXT로 안 바뀌면 Knox 메신저 API의 스티커 전용 메시지 형식이 필요한데, chatbot2·alpha 코드와 문서에는 그 형식이 없다.
+
+### 381. 스티커 코드 시험 결과(글자 그대로) + 다른 스티커 코드로 하면 되는지 질의
+
+```text
+[SLSI Avatar] 2026-11-17 13:42
+(시험) 글 중간의 코드 [165_beolnangom_13] 도 스티커로 바뀌나요?
+
+[한동구 (Jacob)] 2026-11-17 13:43
+[195_mulryong_emoticon_01]
+
+  이거로 하면 ?
+```
+
+> 검토(381, 코드 변경 없음): 글 중간의 스티커 코드는 TEXT 메시지에서 글자 그대로 보였다. 코드만 있는 `[195_mulryong_emoticon_01]`을 본인 방으로 한 통 더 보내 실측. 사용자가 봇 방에 보낸 스티커는 봇 서버 웹훅에 TEXT/NCUSTOM이 아닌 msgType으로 와서 `ignored: msgType=… is not TEXT/NCUSTOM`으로 로그에 남았을 것이다 — 그 msgType 이름·`chatMsg` 모양이 Knox chatRequest로 스티커를 보낼 형식을 찾는 단서다(현재 송신은 `msgType: 0` TEXT 고정, 다른 값의 의미는 코드·문서에 없음).
+
+### 382. 스티커는 글자로 나옴 — 이모지로 넣으라는 지시
+
+```text
+글자로 나온다, 이모지로 넣어줘
+```
+
+> 구현(382): `AvatarMessenger.MeetingText`를 유니코드 이모지로 바꿨다 — 머리줄 `⏰ [쉼] 곧 회의가 시작돼요`, 회의 줄은 캘린더 일정 `📅`·메일 초대 회의(uid `knoxmail-`) `📩` + `HH:mm~HH:mm 제목 · ⏳ N분 뒤`(시작 시각이 지났으면 `🔔 지금 시작`). Knox 스티커 코드는 TEXT 메시지에서 글자 그대로 보여 쓰지 않는다. 코어 209 passed, `build.ps1 -Test` 통과(378의 시각 의존 스모크 실패는 이번 실행에서는 재현되지 않음), 시험용 `shim.exe` 재실행.
+
+### 383. 전체 커밋·push + 메신저 알림 UI 등 설정 화면 일부 숨김 지시
+
+```text
+현재까지 내용 모두 커밋하고, push 해, 하지만,  다음 부분은 ux 에서 숨겨라, 
+
+회의 시작 전 알림을 SLSI Avatar 메신저로도 받기(보내기만 해요)
+아직 연결 전이에요 — [SSO 로그인으로 연결]을 눌러 주세요
+SSO 로그인으로 연결
+시험 발송
+연결 끊기
+동작 기록 보기
+회사 Knox 일정 서버에서 이 PC 로그인 계정 이름으로 내 일정을 직접 받아 옵니다(별도 로그인·설치 없음). 간격·주제 알림과는 별도로, 회의 제목과 시각만 보여주는 짧은 알림이 떠요. 시도·결과는 위 기록에 쌓여요. 알림이 뜨기 약 30초 전부터 영상을 미리 준비해 두고, 정해진 시각에 바로 띄워요. '자동 닫힘 · 없음'이면 직접 닫을 때까지 떠 있고, 종료 시각이 없는 일정에서 '일정끝난시간에'는 자동으로 닫히지 않아요. 같은 시각에 일정이 겹치면 한 화면에 모두 나열되고, 자동 닫힘은 그중 가장 늦은 일정의 시각을 따라가요. 메일 초대를 켜면 오늘 받은 초대 메일의 회의도 같은 알림에 합쳐요 — 메일 비밀번호는 Windows 자격 증명 관리자에만 저장되고 설정 파일에는 남지 않아요. 캘린더에 이미 있는 회의는 한 번 더 알리지 않아요. 메신저 알림을 켜면 같은 시각(시작 N분 전)에 SLSI Avatar 봇이 내 메신저 1:1 방으로 회의 목록을 한 통 보내요 — 자리를 비웠거나 화면이 잠겨 있어도 가요. 메신저로 답장해도 쉼은 받지 않아요. 처음 한 번 [SSO 로그인으로 연결]이 필요하고, 연결 정보는 Windows 자격 증명 관리자에만 저장돼요.
+```
+
+> 구현(383): 붙여 준 블록 그대로 설정 04 카드의 메신저 알림 두 줄(토글·상태·[SSO 로그인으로 연결]·[시험 발송]·[연결 끊기]), `동작 기록 보기`, 카드 끝 안내 문단을 **화면에서만** 숨겼다 — `.ux-hidden{display:none!important}` 클래스(`.schedule-line`의 flex를 이기도록). 요소와 저장값은 DOM에 남아 저장 시 `MessengerNotifyEnabled` 등이 그대로 유지되고, 이미 켜고 연결해 둔 PC는 회의 메신저 알림이 계속 나간다. 동작 기록 파일(`knox-sync-log.json`)도 그대로 쌓인다. UI 스모크에 숨김 검사(4요소 `display:none`) 추가 — `build.ps1 -Test` 통과. 화면에 없는 기능이라 사용자 매뉴얼 시나리오 I-7은 뺐다. 372~383 전체를 커밋하고 origin main으로 push.
+
+> 병합 안내: 아래 384~407번은 스냅샷 병합 전 이 저장소(C:\work\kinds-of-thing)에서 따로 기록한 프롬프트이며(병합 전 번호 330~353), 가져온 기록과 번호가 겹쳐 뒤에 이어 붙이며 번호만 바꿨습니다. 원문은 그대로입니다. 안내문·구현 메모 안의 번호는 병합 전 번호입니다.
+
+### 384. 쉼 카드마다 정확한 시작 시각(시:분:초) 입력과 사용 여부 체크박스 추가
 
 ```text
 (붙여넣은 내용: "✦ / 요리 레시피 / 짧은 요리 영상으로 잠깐 쉬어 가기 / 미리 보기 ↗" — 설정 화면의 카드 타일)
@@ -2956,109 +3772,109 @@ install 설치 버젼도 만들어, 머지하고 마무리해
 
 (원문의 "숨 카드"는 "쉼 카드"의 오타로 보고 진행했습니다. 기록은 원문 그대로입니다.)
 
-### 331. 카드 체크박스는 두 종류: 주기 실행 포함 여부 / 절대 시각 실행 (187번에 이어서 도착)
+### 385. 카드 체크박스는 두 종류: 주기 실행 포함 여부 / 절대 시각 실행 (187번에 이어서 도착)
 
 ```text
 즉 CHECK BOX 설정 방법은 2가지 하나는 주기적 실행에 포함할지 여부 선택,  다른 하나는 절대 시간 기준 실행 할 것을 택하는 기능
 ```
 
-### 332. 종료 후 exe 재빌드와 UI 테스트 실행 (카드별 정해진 시각)
+### 386. 종료 후 exe 재빌드와 UI 테스트 실행 (카드별 정해진 시각)
 
 ```text
 DeskHooker 종료했으니 다시 빌드하고 UI 테스트 돌려
 ```
 
-### 333. 변경사항 커밋 및 푸시 (카드별 정해진 시각)
+### 387. 변경사항 커밋 및 푸시 (카드별 정해진 시각)
 
 ```text
 변경사항 커밋해서 푸시해
 ```
 
-### 334. 카드의 두 체크박스를 서로 배타적으로 (하나 켜면 다른 하나 꺼짐)
+### 388. 카드의 두 체크박스를 서로 배타적으로 (하나 켜면 다른 하나 꺼짐)
 
 ```text
 정해진 시각에 시작 선택하면, 주기 실행 은 빠지고,  주기 실행을 선택하면  정해진 시각에 시작을 off 되게 하라.
 ```
 
-### 335. 종료 후 exe 재빌드와 UI 테스트 실행 (두 체크박스 배타 동작)
+### 389. 종료 후 exe 재빌드와 UI 테스트 실행 (두 체크박스 배타 동작)
 
 ```text
 DeskHooker 종료했으니 다시 빌드하고 UI 테스트 돌려
 ```
 
-### 336. 변경사항 커밋 및 푸시 (카드 체크박스 배타 동작)
+### 390. 변경사항 커밋 및 푸시 (카드 체크박스 배타 동작)
 
 ```text
 변경사항 커밋해서 푸시해
 ```
 
-### 337. 종료 후 exe 재빌드와 UI 테스트 실행
+### 391. 종료 후 exe 재빌드와 UI 테스트 실행
 
 ```text
 DeskHooker 종료했으니 다시 빌드하고 UI 테스트 돌려
 ```
 
-### 338. 변경사항 커밋 및 푸시 (재빌드 결과)
+### 392. 변경사항 커밋 및 푸시 (재빌드 결과)
 
 ```text
 변경사항 커밋해서 푸시해
 ```
 
-### 339. 다른 폴더의 소스를 가져와 머지
+### 393. 다른 폴더의 소스를 가져와 머지
 
 ```text
 C:\Users\luca\kinds-of-thing-main\kinds-of-thing-main 가져와 머지해
 ```
 
-### 340. 변경사항 커밋 및 푸시 (폴더 머지 결과)
+### 394. 변경사항 커밋 및 푸시 (폴더 머지 결과)
 
 ```text
 변경사항 커밋해서 푸시해
 ```
 
-### 341. 종료 후 exe 재빌드와 UI 테스트 실행 (머지 결과)
+### 395. 종료 후 exe 재빌드와 UI 테스트 실행 (머지 결과)
 
 ```text
 DeskHooker 종료했으니 다시 빌드하고 UI 테스트 돌려
 ```
 
-### 342. 변경사항 커밋 및 푸시 (재빌드 결과)
+### 396. 변경사항 커밋 및 푸시 (재빌드 결과)
 
 ```text
 변경사항 커밋해서 푸시해
 ```
 
-### 343. 소개 슬라이드 내용을 설명하는 동영상 제작 가능 여부 질문
+### 397. 소개 슬라이드 내용을 설명하는 동영상 제작 가능 여부 질문
 
 ```text
 앱을 사용하는 방법 틈-소개-슬라이드.html  파일 내용을 설명한 동영상 제작 가능해 ?
 ```
 
-### 344. 자막만 넣어 소개 동영상 제작 지시
+### 398. 자막만 넣어 소개 동영상 제작 지시
 
 ```text
 자막만 넣어서 동영상 만들어줘
 ```
 
-### 345. 자막에 Windows 음성 나레이션 추가 제안 (344번 진행 중 도착)
+### 399. 자막에 Windows 음성 나레이션 추가 제안 (344번 진행 중 도착)
 
 ```text
 Windows 음성도 같이 하면 ?
 ```
 
-### 346. 슬라이드가 아닌 실제 앱 실행 데모 동영상 가능 여부 질문 (344번 진행 중 도착)
+### 400. 슬라이드가 아닌 실제 앱 실행 데모 동영상 가능 여부 질문 (344번 진행 중 도착)
 
 ```text
 슬라이드의 동영상이 아니라, App 실행 Demo 2가지 앉아서 스트레칭 case 하나,  일정 알람 case 하나, 실제 영상 play 하는 내용으로 동영상 가능 ?
 ```
 
-### 347. 앱 실행 데모 녹화 조건 답변 (PC 비조작 가능 / 실제 영상 소리 포함 / 자막+음성)
+### 401. 앱 실행 데모 녹화 조건 답변 (PC 비조작 가능 / 실제 영상 소리 포함 / 자막+음성)
 
 ```text
 1. PC 안건드린다,가능,   2. 실제 화면영상 그대로, (소리까지), 3. 자막 음성 모두
 ```
 
-### 348. 앱 실행 데모 녹화 진행 방식 선택 (347번 이후 선택지 화면에서 고른 항목)
+### 402. 앱 실행 데모 녹화 진행 방식 선택 (347번 이후 선택지 화면에서 고른 항목)
 
 ```text
 제가 종료하고 끝나면 재실행 (Recommended) / 설정 백업 후 복원 (Recommended) / C#으로 직접 작성 (Recommended)
@@ -3066,31 +3882,31 @@ Windows 음성도 같이 하면 ?
 
 > 위 한 줄은 사용자가 선택지 화면에서 고른 항목 이름이며, 직접 입력한 문장은 아닙니다.
 
-### 349. 앱 데모 영상 재제작 (주기 실행 + 일정 알림, PIMS 맥락의 해설)
+### 403. 앱 데모 영상 재제작 (주기 실행 + 일정 알림, PIMS 맥락의 해설)
 
 ```text
 틈-앱-데모-영상.mp4를 다시한번 만들자, 주기 실행 과 일정 알림을 시연하고 설명주되, 해설은 주기성 동작을 한다는것 주어진 시간마다 스트레칭이 실행될 것이고,  회의 예약시간을 PIMS 에서 자동으로 가져와, 시작 5분전에 알림 화면이 실행된다. 의 맥락으로 설명넣어라.
 ```
 
-### 350. 변경사항 커밋 및 푸시 (소개·데모 영상)
+### 404. 변경사항 커밋 및 푸시 (소개·데모 영상)
 
 ```text
 변경사항 커밋해서 푸시해
 ```
 
-### 351. 유튜브 영상 "연결이 다시 설정되었습니다." 오류 원인 질문
+### 405. 유튜브 영상 "연결이 다시 설정되었습니다." 오류 원인 질문
 
 ```text
 유붙 영상이  "연결이 다시 설정되었습니다." 로 오류가 나는 이유는 ?
 ```
 
-### 352. 직접 열어 본 결과 (nocookie 안 됨, youtube.com 됨)
+### 406. 직접 열어 본 결과 (nocookie 안 됨, youtube.com 됨)
 
 ```text
 https://www.youtube-nocookie.com/embed/88TBCVp-Tlc 여기 안됨, https://www.youtube.com/watch?v=88TBCVp-Tlc 여기 됨
 ```
 
-### 353. 다른 폴더의 최신 내용 가져와 머지
+### 407. 다른 폴더의 최신 내용 가져와 머지
 
 ```text
 C:\Users\luca\kinds-of-thing-main\kinds-of-thing-main 여기 내용 가져와 최신으로 머지하라

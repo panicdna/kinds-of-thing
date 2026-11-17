@@ -6,10 +6,13 @@
   const core = window.TeumCore;
   const content = window.GAME_CONTENT || { dances: [] };
   let state;
-  // 기본 프리셋(303~308): 09:00 시작 · 60분 간격 · 18:00 종료 · 평일만, 점심 12:00-13:00 쉬는 시간,
+  // 368: 메일 비밀번호 입력값 임시 보관 — 저장 후에도 칸에 계속 남기고, 동기화 등으로 설정 화면이
+  // 다시 그려져도 값을 잃지 않게 한다. 페이지 메모리에만 있고(파일·localStorage 무저장), 앱을 끄면 사라진다.
+  let knoxMailPassDraft = '';
+  // 기본 프리셋(303~308 · 337 갱신): 09:00 시작 · 60분 간격 · 18:00 종료 · 평일만, 점심 12:00-13:00 쉬는 시간,
   // 로그인 때 자동 실행, 10분 자리비움 일시 정지, Knox 캘린더 일정 5분 전 알림(자동 닫힘 없음).
-  // 카드 5개를 무작위로 하나씩(스트레칭·명상·발성·허리·릴렉스 — 댄스 제외), 퇴근버스는 17:00에 하루 한 번.
-  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch', 'meditation', 'voice', 'back-standing', 'relax'], BreakEnabled: true, Breaks: [{ StartHour: 12, StartMinute: 0, EndHour: 13, EndMinute: 0 }], BreakStartHour: 12, BreakStartMinute: 0, BreakEndHour: 13, BreakEndMinute: 0, Enabled: false, StartAtLogin: true, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'random-one', KnoxCalendarEnabled: true, KnoxLeadMinutes: 5, KnoxAutoClose: 'none', KnoxAutoCloseMinutes: 5, PauseWhenIdle: true, IdleMinutes: 10, Appearance: 'system', VariantModes: {}, LoopModes: {}, Schedules: { 'bus-home': '17:00:00' } };
+  // 카드 4개를 무작위로 하나씩(스트레칭·명상·발성·허리 — 릴렉스·댄스 제외, 337 내보내기 프리셋), 퇴근버스는 17:00에 하루 한 번.
+  const defaults = { IntervalMinutes: 60, WeekdaysOnly: true, LimitHours: true, StartHour: 9, StartMinute: 0, EndHour: 18, EndMinute: 0, ThemeIds: ['stretch', 'meditation', 'voice', 'back-standing'], BreakEnabled: true, Breaks: [{ StartHour: 12, StartMinute: 0, EndHour: 13, EndMinute: 0 }], BreakStartHour: 12, BreakStartMinute: 0, BreakEndHour: 13, BreakEndMinute: 0, Enabled: false, StartAtLogin: true, InhaleSeconds: 4, HoldSeconds: 0, ExhaleSeconds: 6, ThemeMode: 'random-one', KnoxCalendarEnabled: true, KnoxLeadMinutes: 5, KnoxAutoClose: 'none', KnoxAutoCloseMinutes: 5, KnoxMailEnabled: false, MessengerNotifyEnabled: false, PauseWhenIdle: true, IdleMinutes: 10, Appearance: 'system', VariantModes: {}, LoopModes: {}, Schedules: { 'bus-home': '17:00:00' } };
   const symbols = { stretch: '↟', meditation: '◌', voice: '♪', 'back-standing': '↗', dance: '♫', relax: '☾', recipe: '✦', 'bus-home': '🚌' };
   const themeModes = [
     { id: 'ordered-one', label: '순차적으로', help: '알림마다 하나만, 목록 순서대로 돌아가며' },
@@ -52,7 +55,7 @@
     if (action === 'save') {
       state.settings = { ...values.settings, Enabled: false };
       localStorage.setItem('teum-preview-settings', JSON.stringify(state.settings));
-      renderSettings(); toast('설정 미리보기를 저장했습니다. 실제 반복 팝업은 DeskHooker.exe에서 시작하세요.'); return;
+      renderSettings(); toast('설정 미리보기를 저장했습니다. 실제 반복 팝업은 shim.exe에서 시작하세요.'); return;
     }
     if (action === 'exit') window.close();
   }
@@ -136,12 +139,16 @@
   }
   function knoxSyncText() {
     const sync = state.knoxSync || {};
+    const mail = sync.mail || {};
+    // 364: 메일 초대를 켠 경우 일정 상태 옆에 메일 조회 상태를 함께 보여준다.
+    const mailTime = mail.last ? new Date(mail.last).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
+    const mailNote = !mail.enabled ? '' : mail.syncing ? '메일 불러오는 중…' : mail.error ? `메일 오류: ${mail.error}` : mailTime ? `메일 ${mailTime} 확인` : '메일 아직 확인 전';
     if (sync.offline) return '이 환경에서는 일정 동기화를 쓰지 않아요.';
-    if (sync.syncing) return 'Knox 일정을 불러오는 중…';
-    if (sync.error) return `${sync.error}`;
-    if (!sync.enabled) return '꺼져 있어요. 테스트로 직접 가져올 수 있어요.';
+    if (sync.syncing || mail.syncing) return 'Knox 일정·메일을 불러오는 중…';
+    if (sync.error) return `${sync.error}${mailNote ? ' · ' + mailNote : ''}`;
+    if (!sync.enabled) return `꺼져 있어요. 테스트로 직접 가져올 수 있어요.${mailNote ? ' · ' + mailNote : ''}`;
     const when = sync.last ? new Date(sync.last).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
-    return `${when ? `${when}에 확인함` : '아직 확인 전이에요'} · 약 15분마다 자동 확인`;
+    return `${when ? `${when}에 확인함` : '아직 확인 전이에요'} · 약 15분마다 자동 확인${mailNote ? ' · ' + mailNote : ''}`;
   }
   function renderKnoxLog() {
     const box = $('#knox-log'); if (!box) return;
@@ -154,7 +161,7 @@
   function knoxEntryLabel(e) {
     const start = e.start ? new Date(e.start) : null;
     const when = start && !Number.isNaN(start.getTime()) ? start.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
-    return (when ? when + ' ' : '') + (e.title || '제목 없는 일정');
+    return (e.mail ? '메일 · ' : '') + (when ? when + ' ' : '') + (e.title || '제목 없는 일정');
   }
   function renderKnoxTest() {
     const pick = $('#knox-test-pick'), btn = $('#knox-test'); if (!pick || !btn) return;
@@ -171,6 +178,39 @@
     if ($('#knox-fetch')) $('#knox-fetch').disabled = Boolean(state.knoxSync && state.knoxSync.syncing);
     renderKnoxLog();
     renderKnoxTest();
+    updateKnoxMail();
+    updateMessenger();
+  }
+  // 373: SLSI Avatar 메신저 회의 알림 — 연결 상태 문구와 단추. 연결(토큰)은 shim.exe가 자격 증명 관리자에만 둔다.
+  function messengerText() {
+    const m = (state.knoxSync && state.knoxSync.messenger) || {};
+    if (state.knoxSync && state.knoxSync.offline) return '이 환경에서는 메신저 알림을 쓰지 않아요.';
+    if (m.loggingIn) return '브라우저에서 SSO 로그인을 마쳐 주세요… (5분 안에)';
+    const when = m.last ? new Date(m.last).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
+    const base = m.linked ? `${m.account || '내'} 계정과 연결됨${when ? ` · ${when}에 마지막으로 보냄` : ''}` : '아직 연결 전이에요 — [SSO 로그인으로 연결]을 눌러 주세요';
+    return m.error ? `${base} · ⚠ ${m.error}` : base;
+  }
+  function updateMessenger() {
+    const m = (state.knoxSync && state.knoxSync.messenger) || {};
+    if ($('#messenger-status')) $('#messenger-status').textContent = messengerText();
+    if ($('#messenger-login')) { $('#messenger-login').disabled = Boolean(m.loggingIn); $('#messenger-login').textContent = m.linked ? '다시 로그인' : 'SSO 로그인으로 연결'; }
+    if ($('#messenger-test')) $('#messenger-test').disabled = !m.linked || Boolean(m.loggingIn);
+    if ($('#messenger-logout')) $('#messenger-logout').disabled = !m.linked || Boolean(m.loggingIn);
+    if ($('#messenger-on') && $('#knox-on')) $('#messenger-on').disabled = !$('#knox-on').checked;
+  }
+  // 364: Knox 메일 초대 줄 — 비밀번호 칸은 토글을 따라 활성화되고, 저장 여부는 안내문과 지우기 단추로 보여준다.
+  // 368: 입력한 비밀번호는 저장 후에도 칸에 그대로 남는다(화면이 다시 그려져도 임시 보관값에서 복원).
+  function updateKnoxMail() {
+    const box = $('#knox-mail-on');
+    if (!box) return;
+    const mail = (state.knoxSync && state.knoxSync.mail) || {};
+    const pass = $('#knox-mail-pass');
+    if (pass) {
+      pass.disabled = !box.checked;
+      pass.value = knoxMailPassDraft;
+      pass.placeholder = mail.hasPassword ? '저장돼 있어요 · 다른 비밀번호를 입력하고 저장하면 바뀌어요' : 'Knox 포털 비밀번호';
+    }
+    if ($('#knox-mail-pass-clear')) $('#knox-mail-pass-clear').disabled = !mail.hasPassword;
   }
   // "주기 실행" ↔ "몇 시에 실행": a card runs one way or the other, never both — the choice
   // not taken is greyed out (disabled). This runs after every change and after each rebuild.
@@ -253,7 +293,7 @@
         <label>한 줄 설명 <small>${L.summary}자</small><input id="add-summary" maxlength="${L.summary}" placeholder="타일에 보이는 짧은 설명"></label>
         <label>동작 안내 <small>한 줄에 하나 · ${L.steps}줄까지</small><textarea id="add-steps" rows="4" placeholder="손바닥을 위로 해서 팔을 뻗어요&#10;손목을 천천히 돌려요"></textarea></label>
         <label>유튜브 영상 <small>선택 · 한 줄에 하나 · 링크 또는 ID | 제목 · ${L.videos}개까지</small><textarea id="add-videos" rows="2" placeholder="https://www.youtube.com/watch?v=영상ID | 영상 제목(선택)"></textarea></label>
-        <label>주의사항 <small>필수 · ${L.safety}자</small><textarea id="add-safety" rows="2" maxlength="${L.safety}" placeholder="통증·저림이 생기면 바로 중단하세요."></textarea>
+        <label>주의사항 <small>선택 · ${L.safety}자</small><textarea id="add-safety" rows="2" maxlength="${L.safety}" placeholder="통증·저림이 생기면 바로 중단하세요."></textarea>
         <div class="share-buttons"><button class="primary" type="submit">카드 추가</button><button id="theme-add-cancel" class="secondary" type="button">취소</button></div>
       </form>
       <p class="small-help">이 PC에만 저장돼요. 공유되지 않고, '기본 프리셋으로 되돌리기'를 누르면 사라져요.</p></dialog>`;
@@ -274,13 +314,14 @@
       try { localStorage.removeItem(editsKey('knox-bell')); } catch (_) { /* 저장소를 못 써도 카드 되돌리기는 계속 */ }
       send('reset-themes'); toast('카드 목록과 일정 알림 영상을 기본 프리셋으로 되돌렸어요.');
     });
-    dlg.addEventListener('click', event => { if (event.target === dlg) dlg.close(); });
+    // 338: 다이얼로그 바깥(뒷배경)을 클릭해도 닫히지 않게 한다 — 입력하던 내용이 사라지는 일이 없게.
+    // 닫기는 열린 안의 '닫기 ×'·'취소' 단추로만 한다.
     $('#theme-add-form').addEventListener('submit', event => {
       event.preventDefault();
       const name = $('#add-name').value.trim(), summary = $('#add-summary').value.trim(), safety = $('#add-safety').value.trim();
       if (!name) { note('이름을 적어 주세요.'); return; }
       if (!summary) { note('한 줄 설명을 적어 주세요.'); return; }
-      if (!safety) { note('주의사항은 안전을 위해 꼭 적어 주세요.'); return; }
+      // 338: 주의사항은 선택이다 — 비워 둬도 저장한다.
       // Each video line: link-or-ID, an optional "| title" after it.
       const videoLines = [];
       for (const line of $('#add-videos').value.split(/\r?\n/)) {
@@ -325,7 +366,7 @@
       videos: applyEdits(t.id, variantList(t)).map(v => ({ id: v.id, type: v.type || 'video', title: v.title, author: v.author || '', youtubeId: v.youtubeId || '' }))
     }));
     cards.push({ id: 'knox-bell', name: '일정 알림 영상', bell: true, videos: bellVideoList().map(v => ({ id: v.id, type: 'video', title: v.title, youtubeId: v.youtubeId || '' })) });
-    return JSON.stringify({ format: 'teum-cards', version: 1, exportedAt: new Date().toISOString(),
+    return JSON.stringify({ format: 'shim-cards', version: 1, exportedAt: new Date().toISOString(),
       themeIds: (state.settings.ThemeIds || []).slice(),
       removedThemeIds: (state.removedThemeIds || []).slice(),
       cards, listEdits }, null, 2);
@@ -335,7 +376,8 @@
   function applyCardsImport(raw) {
     let data = null;
     try { data = JSON.parse(raw); } catch (_) { data = null; }
-    if (!data || data.format !== 'teum-cards' || !Array.isArray(data.cards)) { toast('틈의 \'영상 목록 내보내기\'로 저장한 파일만 가져올 수 있어요.'); return; }
+    // format 'teum-cards'는 '틈' 시절에 내보낸 예전 백업 파일도 그대로 가져오게 하려는 호환 값이다.
+    if (!data || (data.format !== 'shim-cards' && data.format !== 'teum-cards') || !Array.isArray(data.cards)) { toast('쉼의 \'영상 목록 내보내기\'로 저장한 파일만 가져올 수 있어요.'); return; }
     // 목록 편집은 '덮어쓰기'다: 이 PC의 편집을 전부 지우고 파일의 것으로 채운다. 내보내기 파일은
     // 내보낸 PC의 편집 전부를 담고 있으므로(종소리 포함), 가져온 뒤는 파일을 내보낸 PC와 같은
     // 목록이 된다 — 파일에 없는 편집이 남아 어긋나지 않게(296).
@@ -428,13 +470,13 @@
   function renderSettings() {
     const s = state.settings;
     root.innerHTML = `<div class="shell">
-      <aside class="sidebar"><div class="brand">틈<small>TEUM · A LITTLE RESET${state.version ? ' · v' + escape(state.version) : ''}</small></div>
-      <p class="side-note">몰입하는 시간 사이,<br>나를 돌보는 작은 틈.</p>
+      <aside class="sidebar"><div class="brand">쉼<small>SHIM · A LITTLE RESET${state.version ? ' · v' + escape(state.version) : ''}</small></div>
+      <p class="side-note">몰입하는 시간 사이,<br>나를 돌보는 작은 쉼.</p>
       <div class="side-badge"><i id="status-dot" class="dot"></i><span id="status-text"></span><br><span style="font-size:11px;color:#7d8c76">설정 창을 닫아도 트레이에 남아요.</span></div>
       <div class="next-label">다음 작은 쉼</div><div id="next-time" class="next-time"></div><div id="next-date" class="small-help"></div><div id="next-list" class="next-list" aria-live="polite"></div>
       <div class="side-bottom">내 PC 안에서만 동작합니다.<br>마이크·카메라·계정이 필요 없어요.<button id="hide-window" class="quiet">설정 창 닫기(트레이에 두기) ↗</button><button id="exit-app" class="quiet">알림기 완전히 종료</button></div></aside>
       <main class="main"><div class="heading"><div><div class="eyebrow">YOUR PERSONAL BREAK RITUAL</div><h1>잠깐, 나를 돌보는 시간.</h1><p>알림 간격과 하고 싶은 주제를 골라 주세요. 여러 개를 고르면 순서대로 만나요.</p></div></div>
-      ${!host ? '<div class="native-warning">HTML 미리보기입니다. 창을 닫은 뒤에도 정해진 간격으로 전체 화면을 띄우려면 같은 폴더의 DeskHooker.exe를 실행하세요.</div>' : ''}
+      ${!host ? '<div class="native-warning">HTML 미리보기입니다. 창을 닫은 뒤에도 정해진 간격으로 전체 화면을 띄우려면 같은 폴더의 shim.exe를 실행하세요.</div>' : ''}
       <div class="settings-row"><section class="setting-card"><h2><span class="section-no">01</span>어느 간격으로 만날까요?</h2><div class="interval-display"><input id="start-time" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.StartHour, s.StartMinute)}" aria-label="시작 시각 (24시간, 시:분)" ${s.LimitHours ? '' : 'disabled'}><span>부터</span><input id="interval" type="number" min="1" max="240" value="${s.IntervalMinutes}" aria-label="팝업 간격, 분"><span>분마다</span></div><p class="small-help">시작 시각은 24시간제(시:분, 예: 13:30)로, 간격은 1~240 사이의 분으로 직접 입력하세요.<br>알림은 시작 시각을 기준으로 고정된 시각표(시작 시각 + 간격의 배수, 예: 09:00 시작 · 60분이면 10:00, 11:00, 12:00…)에 맞춰 떠요.<br>팝업을 늦게 닫아도 시각표가 밀리지 않고, 놓친 알림은 몰아서 띄우지 않아요.</p><button id="run-now" class="secondary" type="button" style="margin-top:14px">▶ 즉시 실행 (시험용)</button><p class="small-help">시간대·요일·일시정지와 관계없이, 저장된 주제 순서대로 팝업을 바로 띄웁니다.</p></section>
       <section class="setting-card"><h2><span class="section-no">02</span>언제 알림을 받을까요?</h2><label class="schedule-line"><input id="weekdays" type="checkbox" ${s.WeekdaysOnly ? 'checked' : ''}>월요일부터 금요일까지만</label><label class="schedule-line"><input id="limit-hours" type="checkbox" ${s.LimitHours ? 'checked' : ''}>시작·종료 시각 사이에만 알림 받기</label><div class="schedule-line">종료 <input id="end-time" class="time24" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="${hm(s.EndHour, s.EndMinute)}" aria-label="종료 시각 (24시간, 시:분)" ${s.LimitHours ? '' : 'disabled'}> 전까지 (24시간제 · 24:00 또는 00:00은 자정)</div><label class="schedule-line"><input id="break-on" type="checkbox" ${s.BreakEnabled ? 'checked' : ''}>중간에 쉬는 시간(예: 점심)에는 알림 끄기</label><div id="break-list" class="break-list"></div><label class="schedule-line"><input id="login-start" type="checkbox" ${s.StartAtLogin ? 'checked' : ''}>Windows 로그인 때 자동 실행</label><label class="schedule-line"><input id="pause-idle" type="checkbox" ${s.PauseWhenIdle ? 'checked' : ''}>마우스·키보드 입력이 <input id="idle-min" type="number" min="1" max="240" value="${s.IdleMinutes || 10}" style="width:4em" ${s.PauseWhenIdle ? '' : 'disabled'}> 분 이상 없으면 자리비움으로 보고 알림 멈추기</label><p class="small-help">PC의 현지 시각 기준 · 잠금/절전 중에는 쉬어요.<br>자리비움으로 판단되면 열려 있는 쉼 창도 자동으로 닫아요 (일정 알림 창은 제외).<br>알림을 놓쳐도 한꺼번에 몰아서 띄우지 않아요.</p></section></div>
       <div class="section-head"><h2><span class="section-no">03</span>어떤 작은 쉼이 필요하세요?</h2><div class="mode-pick"><span id="selected-count"></span><span aria-hidden="true">·</span><select id="theme-mode-select" aria-label="쉼 여러 개를 골랐을 때 실행 방식" title="여러 개를 골랐을 때 알림마다 하나를 띄우는 방식이에요.">${themeModes.map(m => `<option value="${m.id}" ${m.id === (s.ThemeMode || 'ordered-one') ? 'selected' : ''}>${m.label}</option>`).join('')}</select></div></div>
@@ -444,7 +486,7 @@
       ${addThemePanel()}
       ${sharePanel()}
       <div class="section-head"><h2><span class="section-no">04</span>회의 시작 전에도 알려드릴까요?</h2></div>
-      <section class="setting-card"><label class="schedule-line"><input id="knox-on" type="checkbox" ${s.KnoxCalendarEnabled ? 'checked' : ''}>Knox 캘린더 일정을 시작 전에 따로 알려주기</label><div class="schedule-line">시작 <input id="knox-lead" type="number" min="0" max="60" value="${s.KnoxLeadMinutes}" style="width:4em" ${s.KnoxCalendarEnabled ? '' : 'disabled'}> 분 전에</div><div class="schedule-line knox-auto-line">일정 알림 자동 닫힘 <label><input type="radio" name="knox-auto-close" value="none" ${s.KnoxAutoClose === 'none' || !s.KnoxAutoClose ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>없음</label><label><input type="radio" name="knox-auto-close" value="start" ${s.KnoxAutoClose === 'start' ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>일정시작시간에</label><label><input type="radio" name="knox-auto-close" value="after" ${s.KnoxAutoClose === 'after' ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>일정시작후 <input id="knox-auto-close-min" type="number" min="1" max="240" value="${s.KnoxAutoCloseMinutes || 5}" style="width:4em" ${s.KnoxCalendarEnabled && s.KnoxAutoClose === 'after' ? '' : 'disabled'}> 분후</label><label><input type="radio" name="knox-auto-close" value="end" ${s.KnoxAutoClose === 'end' ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>일정끝난시간에</label></div><div class="schedule-line knox-fetch-line"><span id="knox-sync-text" class="small-help" style="margin:0;flex:1;min-width:180px"></span><button id="knox-fetch" class="quiet" type="button" title="15분 주기를 기다리지 않고 지금 바로 Knox 일정을 가져와 봅니다(테스트용)">지금 일정 가져오기 ↻</button></div><div class="schedule-line knox-fetch-line"><span class="small-help" style="margin:0;flex-shrink:0">알림 시험</span><select id="knox-test-pick" aria-label="알림을 시험할 일정"></select><button id="knox-test" class="quiet" type="button" title="선택한 일정의 시작 알림 팝업을 지금 바로 띄워 봅니다. 실제 알림에는 영향이 없어요.">일정 알리기 시험</button></div><details id="knox-log-box" class="knox-log-box"><summary>동작 기록 보기</summary><div id="knox-log" class="knox-log"></div></details><p class="small-help">회사 Knox 일정 서버에서 이 PC 로그인 계정 이름으로 내 일정을 직접 받아 옵니다(별도 로그인·설치 없음). 간격·주제 알림과는 별도로, 회의 제목과 시각만 보여주는 짧은 알림이 떠요. 시도·결과는 위 기록에 쌓여요. 알림이 뜨기 약 30초 전부터 영상을 미리 준비해 두고, 정해진 시각에 바로 띄워요. '자동 닫힘 · 없음'이면 직접 닫을 때까지 떠 있고, 종료 시각이 없는 일정에서 '일정끝난시간에'는 자동으로 닫히지 않아요.</p></section>
+      <section class="setting-card"><label class="schedule-line"><input id="knox-on" type="checkbox" ${s.KnoxCalendarEnabled ? 'checked' : ''}>Knox 캘린더 일정을 시작 전에 따로 알려주기</label><div class="schedule-line">시작 <input id="knox-lead" type="number" min="0" max="60" value="${s.KnoxLeadMinutes}" style="width:4em" ${s.KnoxCalendarEnabled ? '' : 'disabled'}> 분 전에</div><div class="schedule-line knox-auto-line">일정 알림 자동 닫힘 <label><input type="radio" name="knox-auto-close" value="none" ${s.KnoxAutoClose === 'none' || !s.KnoxAutoClose ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>없음</label><label><input type="radio" name="knox-auto-close" value="start" ${s.KnoxAutoClose === 'start' ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>일정시작시간에</label><label><input type="radio" name="knox-auto-close" value="after" ${s.KnoxAutoClose === 'after' ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>일정시작후 <input id="knox-auto-close-min" type="number" min="1" max="240" value="${s.KnoxAutoCloseMinutes || 5}" style="width:4em" ${s.KnoxCalendarEnabled && s.KnoxAutoClose === 'after' ? '' : 'disabled'}> 분후</label><label><input type="radio" name="knox-auto-close" value="end" ${s.KnoxAutoClose === 'end' ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>일정끝난시간에</label></div><div class="schedule-line knox-fetch-line"><span id="knox-sync-text" class="small-help" style="margin:0;flex:1;min-width:180px"></span><button id="knox-fetch" class="quiet" type="button" title="15분 주기를 기다리지 않고 지금 바로 Knox 일정을 가져와 봅니다(테스트용)">지금 일정 가져오기 ↻</button></div><div class="schedule-line knox-fetch-line"><span class="small-help" style="margin:0;flex-shrink:0">알림 시험</span><select id="knox-test-pick" aria-label="알림을 시험할 일정"></select><button id="knox-test" class="quiet" type="button" title="선택한 일정의 시작 알림 팝업을 지금 바로 띄워 봅니다. 실제 알림에는 영향이 없어요.">일정 알리기 시험</button></div><div class="schedule-line knox-mail-line"><label><input id="knox-mail-on" type="checkbox" ${s.KnoxMailEnabled ? 'checked' : ''}>Knox 메일로 받은 회의 초대("[지원WP] [Invitation]")도 일정 알림에 합치기</label></div><div class="schedule-line knox-mail-pass-line"><span class="small-help" style="margin:0;flex-shrink:0">Knox 메일 비밀번호(비밀유지됨)</span><input id="knox-mail-pass" type="password" autocomplete="new-password" placeholder="Knox 포털 비밀번호" ${s.KnoxMailEnabled ? '' : 'disabled'}><button id="knox-mail-pass-clear" class="quiet" type="button" title="자격 증명 관리자에 저장된 Knox 메일 비밀번호를 지웁니다" ${(state.knoxSync && state.knoxSync.mail && state.knoxSync.mail.hasPassword) ? '' : 'disabled'}>지우기</button></div><div class="schedule-line knox-messenger-line ux-hidden"><label><input id="messenger-on" type="checkbox" ${s.MessengerNotifyEnabled ? 'checked' : ''} ${s.KnoxCalendarEnabled ? '' : 'disabled'}>회의 시작 전 알림을 SLSI Avatar 메신저로도 받기(보내기만 해요)</label></div><div class="schedule-line knox-fetch-line knox-messenger-link-line ux-hidden"><span id="messenger-status" class="small-help" style="margin:0;flex:1;min-width:180px"></span><button id="messenger-login" class="quiet" type="button" title="브라우저에서 사내 SSO로 로그인해 이 PC를 내 메신저와 연결합니다(한 번만 하면 돼요)">SSO 로그인으로 연결</button><button id="messenger-test" class="quiet" type="button" title="연결된 내 메신저 1:1 방으로 시험 메시지를 한 통 보냅니다" disabled>시험 발송</button><button id="messenger-logout" class="quiet" type="button" title="이 PC에 저장된 메신저 연결을 지웁니다" disabled>연결 끊기</button></div><details id="knox-log-box" class="knox-log-box ux-hidden"><summary>동작 기록 보기</summary><div id="knox-log" class="knox-log"></div></details><p class="small-help ux-hidden">회사 Knox 일정 서버에서 이 PC 로그인 계정 이름으로 내 일정을 직접 받아 옵니다(별도 로그인·설치 없음). 간격·주제 알림과는 별도로, 회의 제목과 시각만 보여주는 짧은 알림이 떠요. 시도·결과는 위 기록에 쌓여요. 알림이 뜨기 약 30초 전부터 영상을 미리 준비해 두고, 정해진 시각에 바로 띄워요. '자동 닫힘 · 없음'이면 직접 닫을 때까지 떠 있고, 종료 시각이 없는 일정에서 '일정끝난시간에'는 자동으로 닫히지 않아요. 같은 시각에 일정이 겹치면 한 화면에 모두 나열되고, 자동 닫힘은 그중 가장 늦은 일정의 시각을 따라가요. 메일 초대를 켜면 오늘 받은 초대 메일의 회의도 같은 알림에 합쳐요 — 메일 비밀번호는 Windows 자격 증명 관리자에만 저장되고 설정 파일에는 남지 않아요. 캘린더에 이미 있는 회의는 한 번 더 알리지 않아요. 메신저 알림을 켜면 같은 시각(시작 N분 전)에 SLSI Avatar 봇이 내 메신저 1:1 방으로 회의 목록을 한 통 보내요 — 자리를 비웠거나 화면이 잠겨 있어도 가요. 메신저로 답장해도 쉼은 받지 않아요. 처음 한 번 [SSO 로그인으로 연결]이 필요하고, 연결 정보는 Windows 자격 증명 관리자에만 저장돼요.</p></section>
       <div class="actions"><button id="start-reminders" class="primary">${s.Enabled ? '변경 적용 · 알림 계속' : '선택한 주제로 알림 시작'} →</button><button id="save-settings" class="secondary">설정만 저장</button><button id="pause-reminders" class="quiet">알림 일시정지</button><small>팝업은 저절로 닫히지 않아요.<br>닫기 또는 Esc를 누르면 다음 쉼까지 대기해요.</small></div>
       <p class="small-help">일반적인 휴식·움직임 안내이며 치료·재활 처방이 아닙니다. 통증이 늘거나 저림·어지럼이 생기면 중단하세요. 허리 통증과 함께 새로 생긴 다리 힘 빠짐, 회음부 감각 저하, 대소변 조절 변화가 있으면 운동보다 즉시 진료가 우선입니다.</p>
       </main></div>`;
@@ -464,13 +506,21 @@
       const after = ((document.querySelector('input[name=knox-auto-close]:checked') || {}).value === 'after');
       $('#knox-auto-close-min').disabled = !on || !after;
     };
-    $('#knox-on').addEventListener('change', syncKnoxEditability);
+    $('#knox-on').addEventListener('change', () => { syncKnoxEditability(); updateMessenger(); });
     document.querySelectorAll('input[name=knox-auto-close]').forEach(radio => radio.addEventListener('change', syncKnoxEditability));
+    // 364: Knox 메일 초대 — 비밀번호 칸은 체크를 따라가고, 지우기는 자격 증명 관리자에서 곧바로 지운다.
+    $('#knox-mail-on').addEventListener('change', updateKnoxMail);
+    $('#knox-mail-pass').addEventListener('input', event => { knoxMailPassDraft = event.target.value; }); // 368: 화면이 다시 그려져도 입력값을 잃지 않게 임시 보관
+    $('#knox-mail-pass-clear').addEventListener('click', () => { if (!host) { toast('비밀번호 지우기는 shim.exe에서 동작해요.'); return; } knoxMailPassDraft = ''; $('#knox-mail-pass').value = ''; send('knox-mail-pass-clear'); toast('저장된 Knox 메일 비밀번호를 지웠어요.'); });
+    // 373: 메신저 연결·시험·끊기 — 모두 shim.exe가 처리하고 결과는 상태 문구와 동작 기록에 남는다.
+    $('#messenger-login').addEventListener('click', () => { if (!host) { toast('메신저 연결은 shim.exe에서 동작해요.'); return; } send('messenger-login'); toast('브라우저가 열리면 사내 SSO로 로그인해 주세요.'); });
+    $('#messenger-test').addEventListener('click', () => { if (!host) { toast('시험 발송은 shim.exe에서 동작해요.'); return; } send('messenger-test'); toast('내 메신저로 시험 메시지를 보내는 중이에요.'); });
+    $('#messenger-logout').addEventListener('click', () => { if (!host) { toast('연결 끊기는 shim.exe에서 동작해요.'); return; } send('messenger-logout'); toast('이 PC의 메신저 연결을 지웠어요.'); });
     $('#run-now').addEventListener('click', () => send('run-now'));
-    $('#knox-fetch').addEventListener('click', () => { if (!host) { toast('일정 가져오기는 DeskHooker.exe에서 동작해요.'); return; } send('sync-knox'); toast('지금 Knox 일정을 가져오는 중이에요. 결과는 동작 기록에 쌓여요.'); });
+    $('#knox-fetch').addEventListener('click', () => { if (!host) { toast('일정 가져오기는 shim.exe에서 동작해요.'); return; } send('sync-knox'); toast('지금 Knox 일정을 가져오는 중이에요. 결과는 동작 기록에 쌓여요.'); });
     $('#knox-test').addEventListener('click', () => {
       const uid = $('#knox-test-pick').value;
-      if (!host) { toast('알림 시험은 DeskHooker.exe에서 동작해요.'); return; }
+      if (!host) { toast('알림 시험은 shim.exe에서 동작해요.'); return; }
       if (!uid) { toast('시험할 일정이 없어요. 먼저 지금 일정 가져오기로 일정을 받아 주세요.'); return; }
       send('test-knox', { uid }); toast('선택한 일정의 시작 알림 팝업을 띄워 봅니다.');
     });
@@ -550,6 +600,8 @@
       Appearance: 'system', // the theme is locked to "시스템 따르기"; the radios are shown disabled
       KnoxCalendarEnabled: $('#knox-on').checked, KnoxLeadMinutes: knoxLead,
       KnoxAutoClose: knoxAutoClose, KnoxAutoCloseMinutes: knoxAutoCloseMinutes,
+      KnoxMailEnabled: $('#knox-mail-on').checked,
+      MessengerNotifyEnabled: $('#messenger-on').checked,
       PauseWhenIdle: $('#pause-idle').checked, IdleMinutes: idleMinutes
     };
     if (!Number.isInteger(settings.IntervalMinutes) || settings.IntervalMinutes < 1 || settings.IntervalMinutes > 240) { toast('간격은 1~240분 사이의 정수로 고르세요.'); return; }
@@ -565,10 +617,15 @@
       for (const [s, e] of spans) { if (e <= cursor) continue; if (s > cursor) { covered = false; break; } if (e > cursor) cursor = e; }
       if (covered && cursor >= allowedEnd) { toast('쉬는 시간이 알림을 받는 시간 전체를 덮고 있어요. 범위를 줄여 주세요.'); return; }
     }
-    send('save', { settings });
+    // 364: POP3 비밀번호는 설정 객체 밖에 따로 실어 보낸다 — shim.exe가 자격 증명 관리자에만 저장하고
+    // 설정 파일에는 절대 기록하지 않는다. 칸이 비어 있으면 저장된 비밀번호를 그대로 둔다.
+    // 368: 보낸 뒤에도 입력값은 칸에 계속 남는다(지우기 단추나 앱 종료로만 사라진다).
+    const mailPass = $('#knox-mail-pass') ? $('#knox-mail-pass').value : '';
+    if (mailPass) send('save', { settings, knoxMailPassword: mailPass });
+    else send('save', { settings });
   }
   function popupFrame(theme) {
-    return `<main class="popup"><header class="popup-bar"><div class="popup-brand">틈<span>A LITTLE RESET${state.version ? ' · v' + escape(state.version) : ''} · ${escape(theme.name)}</span></div>${state.remaining > 0 ? `<button class="popup-next" type="button">다음 쉼 ›<span style="font-size:10px;opacity:.6"> ${state.remaining}개 남음</span></button>` : ''}<button class="popup-close" type="button">닫기 × <span style="font-size:10px;opacity:.6">Esc</span></button></header><div class="popup-content"><div class="popup-heading"><div class="eyebrow">잠깐 쉬어가도 괜찮아요</div><h1>${escape(theme.name)}</h1><p>${escape(theme.summary)}</p></div><div id="popup-stage"></div></div><footer class="popup-footer"><span>창을 닫으면 다음 알림까지 대기해요. 자동으로 닫거나 입력을 강요하지 않아요.</span><span>움직임은 편한 범위에서 · 통증·저림·어지럼이 생기면 중단</span></footer>${volumeBadgeHtml()}</main>`;
+    return `<main class="popup"><header class="popup-bar"><div class="popup-brand">쉼<span>A LITTLE RESET${state.version ? ' · v' + escape(state.version) : ''} · ${escape(theme.name)}</span></div>${state.remaining > 0 ? `<button class="popup-next" type="button">다음 쉼 ›<span style="font-size:10px;opacity:.6"> ${state.remaining}개 남음</span></button>` : ''}<button class="popup-close" type="button">닫기 × <span style="font-size:10px;opacity:.6">Esc</span></button></header><div class="popup-content"><div class="popup-heading"><div class="eyebrow">잠깐 쉬어가도 괜찮아요</div><h1>${escape(theme.name)}</h1><p>${escape(theme.summary)}</p></div><div id="popup-stage"></div></div><footer class="popup-footer"><span>창을 닫으면 다음 알림까지 대기해요. 자동으로 닫거나 입력을 강요하지 않아요.</span><span>움직임은 편한 범위에서 · 통증·저림·어지럼이 생기면 중단</span></footer>${volumeBadgeHtml()}</main>`;
   }
   // ---- 팝업 볼륨: 우하단 표시 + ↑/↓ 키 입력 ----
   // YouTube 임베드에 enablejsapi로 postMessage 명령(setVolume)을 보내 소리를 바꾼다(댄스 속도·이동과
@@ -644,24 +701,53 @@
   // on a soft dark veil so they stay readable over any footage. In prewarm mode (knoxPrewarm) the
   // host has opened this page ~30s early, off-screen, to buffer the stream — so it starts muted and
   // teumRevealBell() un-mutes and restarts the video exactly when the window is revealed.
-  function knoxPopupFrame() {
-    const start = state.knoxStart ? new Date(state.knoxStart) : null;
-    const end = state.knoxEnd ? new Date(state.knoxEnd) : null;
-    const fmt = d => d && !Number.isNaN(d.getTime()) ? d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
-    const when = fmt(start);
-    const prewarm = Boolean(state.knoxPrewarm);
-    const videoId = pickBellVideoId();
+  // 350: 같은 시각에 겹친 일정은 한 화면에 모두 나열된다(state.knoxEvents). 목록이 갱신되면 종소리
+  // iframe은 그대로 두고 글자(veil)만 다시 그린다(updateKnoxVeil).
+  const knoxTime = value => { const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? d : null; };
+  const knoxHm = d => d ? d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
+  function knoxEventsList() {
+    const raw = (state.knoxEvents && state.knoxEvents.length) ? state.knoxEvents : [{ title: state.knoxTitle, start: state.knoxStart, end: state.knoxEnd }];
+    return raw
+      .map(e => ({ title: e.title || '제목 없는 일정', start: knoxTime(e.start), end: knoxTime(e.end) }))
+      .sort((a, b) => (a.start ? a.start.getTime() : 0) - (b.start ? b.start.getTime() : 0));
+  }
+  function knoxVeilInner() {
+    const events = knoxEventsList();
+    if (!events.length) return '<div class="knox-eyebrow">곧 일정이 시작돼요</div>';
+    const multi = events.length > 1;
+    const eyebrow = multi ? `곧 ${events.length}개의 일정이 시작돼요` : '곧 일정이 시작돼요';
+    const body = multi
+      ? `<div class="knox-list">${events.map(e => `<div class="knox-item"><span class="knox-item-when">${knoxHm(e.start) ? `${knoxHm(e.start)} 시작` : ''}</span><span class="knox-item-title">${escape(e.title)}</span></div>`).join('')}</div>`
+      : `<h1>${escape(events[0].title)}</h1>${knoxHm(events[0].start) ? `<div class="knox-when">${knoxHm(events[0].start)} 시작</div>` : ''}`;
     // 한 줄 자동 닫힘 안내: 설정(일정 알림 자동 닫힘)을 그대로 말로 옮긴다. "없음"이면 닫는 건 사용자뿐이라는 뜻으로.
+    // 350: 일정이 겹치면 시작·종료 기준은 목록의 "마지막" 일정을 따라간다(가장 늦은 시작/종료 시각).
     const closeMode = (state.settings && state.settings.KnoxAutoClose) || 'none';
     const closeMinutes = (state.settings && state.settings.KnoxAutoCloseMinutes) || 5;
-    const endTime = fmt(end);
+    const last = events[events.length - 1];
+    const lastWhen = knoxHm(last.start);
+    const ends = events.filter(e => e.end).map(e => e.end);
+    const lastEnd = ends.length === events.length ? knoxHm(new Date(Math.max(...ends.map(e => e.getTime())))) : '';
     const closeAt =
-      closeMode === 'start' ? (when ? when + ' 일정 시작 시각에 자동으로 닫혀요' : '일정 시작 시각에 자동으로 닫혀요')
-      : closeMode === 'after' ? `일정 시작 ${closeMinutes}분 뒤 자동으로 닫혀요`
-      : closeMode === 'end' ? (endTime ? `${endTime} 일정 종료 시각에 자동으로 닫혀요` : (when ? '이 일정에는 종료 시각이 없어서 직접 닫아야 해요' : '일정 종료 시각에 자동으로 닫혀요'))
+      closeMode === 'start' ? (lastWhen ? (multi ? `${lastWhen} 마지막 일정 시작 시각에 자동으로 닫혀요` : `${lastWhen} 일정 시작 시각에 자동으로 닫혀요`) : '일정 시작 시각에 자동으로 닫혀요')
+      : closeMode === 'after' ? (multi ? `마지막 일정 시작 ${closeMinutes}분 뒤 자동으로 닫혀요` : `일정 시작 ${closeMinutes}분 뒤 자동으로 닫혀요`)
+      : closeMode === 'end' ? (lastEnd ? (multi ? `${lastEnd} 마지막 일정 종료 시각에 자동으로 닫혀요` : `${lastEnd} 일정 종료 시각에 자동으로 닫혀요`) : (multi ? '종료 시각이 없는 일정이 있어서 직접 닫아야 해요' : (lastWhen ? '이 일정에는 종료 시각이 없어서 직접 닫아야 해요' : '일정 종료 시각에 자동으로 닫혀요')))
       : '자동으로 닫히지 않아요 — 직접 닫거나 Esc를 눌러 주세요';
+    return `<div class="knox-eyebrow">${eyebrow}</div>${body}<div class="knox-note">Knox 캘린더에서 가져온 알림입니다</div><div class="knox-autoclose">${closeAt}</div>`;
+  }
+  // 350: 떠 있는 일정 알림 화면의 글자만 다시 그린다. 종소리 iframe을 다시 만들지 않아 예열(pre-warm)
+  // 창이 미리 받아 둔 영상이 끊기지 않고, 겹친 일정이 합쳐져도 소리가 이어진다.
+  function updateKnoxVeil() {
+    const veil = root.querySelector('.knox-veil');
+    if (!veil) return false;
+    veil.innerHTML = knoxVeilInner();
+    if (!state.knoxPrewarm) applyPopupVolume();
+    return true;
+  }
+  function knoxPopupFrame() {
+    const prewarm = Boolean(state.knoxPrewarm);
+    const videoId = pickBellVideoId();
     const video = videoId ? `<div class="knox-video-bg" aria-hidden="true"><iframe id="knox-bell" title="종소리 영상" src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1${prewarm ? '&mute=1' : ''}${loopParams('knox-bell', videoId)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe></div>` : '<div class="knox-video-bg" aria-hidden="true" style="background:#101412"></div>';
-    return `<main class="knox-simple">${video}<button class="popup-close" type="button">닫기 × <span style="font-size:10px;opacity:.6">Esc</span></button><div class="knox-veil"><div class="knox-eyebrow">곧 일정이 시작돼요</div><h1>${escape(state.knoxTitle || '제목 없는 일정')}</h1>${when ? `<div class="knox-when">${when} 시작</div>` : ''}<div class="knox-note">Knox 캘린더에서 가져온 알림입니다</div><div class="knox-autoclose">${closeAt}</div></div>${volumeBadgeHtml()}</main>`;
+    return `<main class="knox-simple">${video}<button class="popup-close" type="button">닫기 × <span style="font-size:10px;opacity:.6">Esc</span></button><div class="knox-veil">${knoxVeilInner()}</div>${volumeBadgeHtml()}</main>`;
   }
   // Called by the host right after a prewarm window is revealed: un-mute the already-buffered video
   // and rewind it so the bell rings from the top at the exact reminder moment.
@@ -708,9 +794,9 @@
       store.set('teum.variantIdx.knox-bell', String(current));
     }
     const video = list[current];
-    const itemsOf = source => source.map(v => ({ id: v.id, title: v.title }));
+    const itemsOf = source => source.map(v => ({ id: v.id, title: v.title, youtubeId: v.youtubeId || '' }));
     const picker = variantPicker('knox-bell', itemsOf(list), current, true, true);
-    $('#popup-stage').innerHTML = `${picker}<p class="small-help">일정 알림 화면이 뜰 때 이 목록에서 하나가 골라져 종소리와 함께 재생돼요. '순서'에서 무작위 또는 순서대로를 고를 수 있어요. 반복은 기본이 켜짐이고, '반복 안 함'으로 끄면 영상이 한 번만 울려요. '목록 편집'으로 영상을 넣거나 뺄 수 있어요.</p>${video ? `<div class="video-stage"><iframe id="variant-frame" class="short-player" title="${escape(video.title)}" src="https://www.youtube-nocookie.com/embed/${video.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1${loopParams('knox-bell', video.youtubeId)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe><p class="video-credit">${escape(video.title)} · 재생기로만 보여 줘요</p></div>` : '<p class="small-help">재생할 영상이 없어요. 위 \'목록 편집\'에서 영상을 추가하세요.</p>'}`;
+    $('#popup-stage').innerHTML = `${picker}<p class="small-help">일정 알림 화면이 뜰 때 이 목록에서 하나가 골라져 종소리와 함께 재생돼요. '순서'에서 무작위 또는 순서대로를 고를 수 있어요. 반복은 기본이 켜짐이고, '반복 안 함'으로 끄면 영상이 한 번만 울려요. '목록 편집'에서 영상을 넣거나 빼고, '수정'으로 링크와 제목을 바꿀 수 있어요.</p>${video ? `<div class="video-stage"><iframe id="variant-frame" class="short-player" title="${escape(video.title)}" src="https://www.youtube-nocookie.com/embed/${video.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1${loopParams('knox-bell', video.youtubeId)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe><p class="video-credit">${escape(video.title)} · 재생기로만 보여 줘요</p></div>` : '<p class="small-help">재생할 영상이 없어요. 위 \'목록 편집\'에서 영상을 추가하세요.</p>'}`;
     bindPicker('knox-bell', itemsOf(list), itemsOf(base), renderBellManager);
     applyPopupVolume();
   }
@@ -720,7 +806,9 @@
     const fixed = (window.THEME_VARIANTS || {})[theme.id] || [];
     // Videos shared with a community item (ids only, checked when the item was downloaded). Its own steps stay as item #1.
     const shared = (theme.videos || []).map(v => ({ id: 'yt-' + v.id, type: 'video', title: v.title, author: v.author || '', youtubeId: v.id, url: 'https://www.youtube.com/watch?v=' + v.id }));
-    if (shared.length && (theme.instructions || []).length && !fixed.length) shared.unshift({ id: 'text', type: 'text', title: '기본 · 동작 안내', author: '' });
+    // 339: '기본 · 동작 안내' 항목은 받아 온 공유 카드에만 — 공유자의 안내 문구를 영상과 함께 보여 주려는 것이다.
+    // 내가 이 PC에서 직접 만든 카드는 내가 넣은 영상만 목록에 나온다.
+    if (theme.community && shared.length && (theme.instructions || []).length && !fixed.length) shared.unshift({ id: 'text', type: 'text', title: '기본 · 동작 안내', author: '' });
     return fixed.concat(shared).filter(validVariant);
   }
   const store = {
@@ -764,13 +852,21 @@
     return idx;
   }
   // ---- Sub-item list editing: each card's list can gain user-added YouTube videos and lose built-ins.
-  // Stored in localStorage (the WebView2 profile) as { removed: {id:true}, added: [{id,youtubeId,title,artist,url}] }.
+  // Stored in localStorage (the WebView2 profile) as
+  // { removed: {id:true}, added: [{id,youtubeId,title,artist,url}], edited: {id:{youtubeId,title}} }.
+  // 'edited' is the per-item override for built-ins: the base definition is not touched, so
+  // '기본 목록으로 되돌리기'(= '{}') undoes modifications too.
   const editsKey = themeId => 'teum.listEdits.' + themeId;
   function readEdits(themeId) {
     try {
       const raw = JSON.parse(store.get(editsKey(themeId)) || '{}');
-      return { removed: raw.removed || {}, added: (raw.added || []).filter(a => /^[A-Za-z0-9_-]{11}$/.test(a.youtubeId || '')) };
-    } catch (_) { return { removed: {}, added: [] }; }
+      const edited = {};
+      Object.keys(raw.edited || {}).forEach(key => {
+        const ov = raw.edited[key];
+        if (ov && /^[A-Za-z0-9_-]{11}$/.test(ov.youtubeId || '')) edited[key] = { youtubeId: ov.youtubeId, title: String(ov.title || '').trim() };
+      });
+      return { removed: raw.removed || {}, added: (raw.added || []).filter(a => /^[A-Za-z0-9_-]{11}$/.test(a.youtubeId || '')), edited: edited };
+    } catch (_) { return { removed: {}, added: [], edited: {} }; }
   }
   const writeEdits = (themeId, edits) => store.set(editsKey(themeId), JSON.stringify(edits));
   // Pulls an 11-character video ID out of a pasted YouTube link, Shorts link, or the bare ID itself.
@@ -779,10 +875,15 @@
     const m = raw.match(/[?&]v=([A-Za-z0-9_-]{11})/) || raw.match(/youtu\.be\/([A-Za-z0-9_-]{11})/) || raw.match(/\/shorts\/([A-Za-z0-9_-]{11})/) || raw.match(/^([A-Za-z0-9_-]{11})$/);
     return m ? m[1] : null;
   }
-  // The effective list: built-ins minus removals, plus user additions (duplicates by video ID are dropped).
+  // The effective list: built-ins (minus removals, with per-item link/title overrides) plus user
+  // additions. Duplicate video IDs are dropped.
   function applyEdits(themeId, base) {
     const edits = readEdits(themeId);
-    const kept = base.filter(item => !item.id || !edits.removed[item.id]);
+    const kept = base.filter(item => !item.id || !edits.removed[item.id]).map(item => {
+      const ov = item.id && edits.edited[item.id];
+      if (!ov) return item;
+      return Object.assign({}, item, { youtubeId: ov.youtubeId, title: ov.title || item.title, url: 'https://www.youtube.com/watch?v=' + ov.youtubeId });
+    });
     const seen = new Set(kept.map(item => item.youtubeId).filter(Boolean));
     const extra = edits.added.filter(a => !seen.has(a.youtubeId)).map(a => ({ id: a.id, type: 'video', title: a.title, author: a.artist || '', artist: a.artist || '', youtubeId: a.youtubeId, url: a.url }));
     return kept.concat(extra);
@@ -835,9 +936,9 @@
     const box = $('#variant-edit-box');
     if (!box) return;
     const edits = readEdits(id);
-    const rows = items.map((v, i) => `<div class="edit-row"><span title="${escape(v.title)}">${i + 1}. ${escape(v.title)}</span><button type="button" class="quiet edit-remove" data-remove-id="${escape(v.id || '')}" ${v.id ? '' : 'disabled'}>삭제</button></div>`).join('');
+    const rows = items.map((v, i) => `<div class="edit-row"><span title="${escape(v.title)}">${i + 1}. ${escape(v.title)}</span><span class="edit-row-btns">${v.youtubeId && v.id ? `<button type="button" class="quiet edit-modify" data-modify-id="${escape(v.id)}">수정</button>` : ''}<button type="button" class="quiet edit-remove" data-remove-id="${escape(v.id || '')}" ${v.id ? '' : 'disabled'}>삭제</button></span></div>`).join('');
     const removedRows = baseItems.filter(v => v.id && edits.removed[v.id]).map(v => `<div class="edit-row edit-removed"><span>${escape(v.title)}</span><button type="button" class="quiet edit-restore" data-restore-id="${escape(v.id)}">되돌리기</button></div>`).join('');
-    box.innerHTML = `<p class="small-help" style="margin:0">'삭제'로 항목을 제거하고, 아래에 YouTube 링크를 붙여 넣어 추가할 수 있어요. 이 카드에 기억돼요.</p>${rows ? `<div class="edit-list">${rows}</div>` : '<p class="small-help" style="margin:0">목록이 비어 있어요. 아래에서 영상을 추가하세요.</p>'}${removedRows ? `<p class="small-help" style="margin:0">삭제한 항목</p><div class="edit-list">${removedRows}</div>` : ''}<div class="edit-add"><input id="edit-url" type="text" placeholder="YouTube 링크 또는 영상 ID 붙여 넣기"><input id="edit-title" type="text" placeholder="표시할 제목"><button id="edit-add-btn" class="secondary" type="button">추가</button></div><div class="edit-actions"><button id="edit-reset" class="quiet" type="button">기본 목록으로 되돌리기</button><button id="edit-close" class="quiet" type="button">편집 닫기</button></div>`;
+    box.innerHTML = `<p class="small-help" style="margin:0">'수정'으로 항목의 링크와 제목을 확인하거나 바꾸고, '삭제'로 항목을 제거하고, 아래에 YouTube 링크를 붙여 넣어 추가할 수 있어요. 이 카드에 기억돼요.</p>${rows ? `<div class="edit-list">${rows}</div>` : '<p class="small-help" style="margin:0">목록이 비어 있어요. 아래에서 영상을 추가하세요.</p>'}${removedRows ? `<p class="small-help" style="margin:0">삭제한 항목</p><div class="edit-list">${removedRows}</div>` : ''}<div class="edit-add"><input id="edit-url" type="text" placeholder="YouTube 링크 또는 영상 ID 붙여 넣기"><input id="edit-title" type="text" placeholder="표시할 제목"><button id="edit-add-btn" class="secondary" type="button">추가</button></div><div class="edit-actions"><button id="edit-reset" class="quiet" type="button">기본 목록으로 되돌리기</button><button id="edit-close" class="quiet" type="button">편집 닫기</button></div>`;
     box.querySelectorAll('.edit-remove').forEach(button => button.addEventListener('click', () => {
       const itemId = button.dataset.removeId;
       const editsNow = readEdits(id);
@@ -846,6 +947,48 @@
       writeEdits(id, editsNow);
       keepEditOpen = true;
       rerender(Math.max(0, Number($('#variant-pick').value) || 0));
+    }));
+    // 항목 수정: 행 안에서 지금 링크와 제목을 보여 주고(참고) 바로 고칠 수 있다. 한 번에 한 행만 열리고,
+    // 저장하면 그 항목의 링크·제목이 바뀐다 — 추가한 항목은 added 항목을 고치고, 기본 항목은 edited
+    // 오버라이드로 저장한다(기본 정의는 그대로라 '되돌리기'를 누르면 원래대로).
+    box.querySelectorAll('.edit-modify').forEach(button => button.addEventListener('click', () => {
+      const itemId = button.dataset.modifyId;
+      const row = button.closest('.edit-row');
+      if (!row) return;
+      if (box.querySelector('.edit-row-editing')) { // another row is being edited: close it first
+        keepEditOpen = true;
+        rerender(Number($('#variant-pick').value) || 0);
+        return;
+      }
+      const item = items.find(v => v.id === itemId);
+      if (!item || !item.youtubeId) return;
+      row.classList.add('edit-row-editing');
+      row.innerHTML = `<input class="edit-row-url" type="text" value="https://www.youtube.com/watch?v=${escape(item.youtubeId)}" aria-label="YouTube 링크" spellcheck="false"><input class="edit-row-title" type="text" value="${escape(item.title)}" aria-label="표시할 제목"><button type="button" class="quiet edit-row-save">저장</button><button type="button" class="quiet edit-row-cancel">취소</button>`;
+      const urlInput = row.querySelector('.edit-row-url');
+      const titleInput = row.querySelector('.edit-row-title');
+      urlInput.focus(); urlInput.select();
+      row.querySelector('.edit-row-cancel').addEventListener('click', () => { keepEditOpen = true; rerender(Number($('#variant-pick').value) || 0); });
+      row.querySelector('.edit-row-save').addEventListener('click', () => {
+        const videoId = extractVideoId(urlInput.value);
+        if (!videoId) { toast('YouTube 링크나 11자 영상 ID를 넣어 주세요.'); return; }
+        const title = (titleInput.value || '').trim() || '내가 추가한 영상';
+        const editsNow = readEdits(id);
+        const others = applyEdits(id, baseItems).filter(v => v.id !== itemId);
+        if (others.some(v => v.youtubeId === videoId)) { toast('이미 목록에 있는 영상이에요.'); return; }
+        const addedEntry = editsNow.added.find(a => a.id === itemId);
+        if (addedEntry) {
+          addedEntry.youtubeId = videoId;
+          addedEntry.title = title;
+          addedEntry.url = 'https://www.youtube.com/watch?v=' + videoId;
+        } else {
+          const original = baseItems.find(b => b.id === itemId);
+          if (original && original.youtubeId === videoId && original.title === title) delete editsNow.edited[itemId]; // back to the built-in values: drop the override
+          else editsNow.edited[itemId] = { youtubeId: videoId, title: title };
+        }
+        writeEdits(id, editsNow);
+        keepEditOpen = true;
+        rerender(Number($('#variant-pick').value) || 0);
+      });
     }));
     box.querySelectorAll('.edit-restore').forEach(button => button.addEventListener('click', () => {
       const editsNow = readEdits(id);
@@ -881,12 +1024,12 @@
       if (Number.isInteger(forcedIdx)) store.set('teum.variantIdx.' + theme.id, String(current));
       if (list[current].type === 'video') video = list[current];
     }
-    const itemsOf = source => source.map(v => ({ id: v.id, title: v.title }));
+    const itemsOf = source => source.map(v => ({ id: v.id, title: v.title, youtubeId: v.youtubeId || '' }));
     // The picker is always shown, so the list can be edited even when it has been emptied.
     const picker = variantPicker(theme.id, itemsOf(list), current);
-    const videoStage = video ? `<div class="video-stage"><iframe id="variant-frame" class="${video.wide ? 'wide-player' : 'short-player'}" title="${escape(video.title)}" src="https://www.youtube-nocookie.com/embed/${video.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1${loopParams(theme.id, video.youtubeId)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe><p class="video-credit">${escape(video.title)}${video.author ? ' · ' + escape(video.author) : ''} · 재생기로만 보여 줘요 <button id="variant-external" class="quiet" type="button">YouTube에서 열기 ↗</button></p><p class="video-safety">${escape(theme.safety)}</p></div>` : '';
+    const videoStage = video ? `<div class="video-stage"><iframe id="variant-frame" class="${video.wide ? 'wide-player' : 'short-player'}" title="${escape(video.title)}" src="https://www.youtube-nocookie.com/embed/${video.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1${loopParams(theme.id, video.youtubeId)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe><p class="video-credit">${escape(video.title)}${video.author ? ' · ' + escape(video.author) : ''} · 재생기로만 보여 줘요 <button id="variant-external" class="quiet" type="button">YouTube에서 열기 ↗</button></p>${theme.safety ? `<p class="video-safety">${escape(theme.safety)}</p>` : ''}</div>` : '';
     const visual = theme.file ? `<img class="motion-image" src="${escape(theme.file)}" alt="${escape(theme.name)} 따라 하기 움직이는 그림">` : `<div class="text-stage"><div class="text-symbol" aria-hidden="true">${symbolFor(theme)}</div></div>`;
-    $('#popup-stage').innerHTML = video ? `${picker}${videoStage}` : `${picker}<div class="wellness-layout"><div class="motion-stage">${visual}</div><aside class="instruction-panel"><div class="eyebrow">천천히 따라 해 보세요</div><ol>${(theme.instructions || []).map(line => `<li>${escape(line)}</li>`).join('')}</ol><div class="safety">${escape(theme.safety)}</div></aside></div>`;
+    $('#popup-stage').innerHTML = video ? `${picker}${videoStage}` : `${picker}<div class="wellness-layout"><div class="motion-stage">${visual}</div><aside class="instruction-panel"><div class="eyebrow">천천히 따라 해 보세요</div><ol>${(theme.instructions || []).map(line => `<li>${escape(line)}</li>`).join('')}</ol>${theme.safety ? `<div class="safety">${escape(theme.safety)}</div>` : ''}</aside></div>`;
     bindPicker(theme.id, itemsOf(list), itemsOf(base), idx => renderWellness(theme, idx));
     if ($('#variant-external')) $('#variant-external').addEventListener('click', () => send('open-link', { url: video.url }));
     applyPopupVolume(); // 하위 항목을 바꾸면 임베드가 새로 만들어지므로 저장된 볼륨을 다시 붙인다
@@ -976,7 +1119,12 @@
     state = message;
     if (state.testing && !window.__teumCards) window.__teumCards = { build: buildCardsExport, apply: applyCardsImport }; // UI 테스트 전용 후크(테스트 실행에서만 노출)
     applyAppearance();
-    if (state.mode === 'popup') renderPopup(); else { renderSettings(); updateStatus(state); }
+    if (state.mode === 'popup') {
+      // 350: 이미 떠 있는 일정 알림 화면("knox:")에 겹친 일정이 합쳐지거나 설정이 바뀌면,
+      // 종소리 iframe은 그대로 두고 글자(veil)만 다시 그린다 — 영상이 다시 로드되지 않는다.
+      if (String(state.themeId || '').indexOf('knox:') === 0 && updateKnoxVeil()) return;
+      renderPopup();
+    } else { renderSettings(); updateStatus(state); }
     if (state.notice && state.mode !== 'popup') toast(state.notice);
   }
   // Esc: 팝업 닫기. ↑/↓: 팝업 볼륨 조절(영상이 있는 화면에서만, 5씩). 목록 편집 입력칸에
